@@ -225,12 +225,23 @@
         return node.name;
       case "Add":
       case "Sub": {
-        const sep = node.type === "Add" ? " + " : " \u2212 ";
-        const s = node.args.map((a) => toPretty(a, 1)).join(sep);
+        const isSub = node.type === "Sub";
+        let s = "";
+        node.args.forEach((a, i) => {
+          const u = unwrap(a);
+          const neg = u.type === "Neg";
+          const body = toPretty(neg ? u.arg : a, neg ? 2 : 1);
+          if (i === 0) {
+            s += (neg ? "\u2212" : "") + body;
+          } else {
+            const minus = isSub ? !neg : neg;
+            s += (minus ? " \u2212 " : " + ") + body;
+          }
+        });
         return wrap(s, 1, parentPrec > 1);
       }
       case "Mul": {
-        const s = node.args.map((a) => toPretty(a, 2)).join("\xB7");
+        const s = node.args.map((a) => toPretty(a, unwrap(a).type === "Div" ? 3 : 2)).join("\xB7");
         return wrap(s, 2, parentPrec > 2);
       }
       case "Div": {
@@ -351,8 +362,19 @@
       }
       case "Add":
       case "Sub": {
-        const sep = node.type === "Add" ? " + " : " - ";
-        const s = node.args.map((a) => toLatex(a, 1)).join(sep);
+        const isSub = node.type === "Sub";
+        let s = "";
+        node.args.forEach((a, i) => {
+          const u = unwrap(a);
+          const neg = u.type === "Neg";
+          const body = toLatex(neg ? u.arg : a, neg ? 2 : 1);
+          if (i === 0) {
+            s += (neg ? "-" : "") + body;
+          } else {
+            const minus = isSub ? !neg : neg;
+            s += (minus ? " - " : " + ") + body;
+          }
+        });
         return wrap(s, parentPrec > 1);
       }
       case "Mul": {
@@ -438,6 +460,55 @@
   function canonical(node) {
     return canon(unwrap(node));
   }
+  function gcd(a, b) {
+    a = Math.abs(a);
+    b = Math.abs(b);
+    while (b) {
+      const t = a % b;
+      a = b;
+      b = t;
+    }
+    return a || 1;
+  }
+  function ratNorm(r) {
+    let { n, d } = r;
+    if (d < 0) {
+      n = -n;
+      d = -d;
+    }
+    const g = gcd(n, d);
+    return { n: n / g, d: d / g };
+  }
+  function asRational(node) {
+    node = unwrap(node);
+    switch (node.type) {
+      case "Num":
+        return Number.isInteger(node.value) ? { n: node.value, d: 1 } : null;
+      case "Neg": {
+        const r = asRational(node.arg);
+        return r ? { n: -r.n, d: r.d } : null;
+      }
+      case "Div": {
+        const a = asRational(node.num);
+        const b = asRational(node.den);
+        if (!a || !b || b.n === 0) return null;
+        return ratNorm({ n: a.n * b.d, d: a.d * b.n });
+      }
+      default:
+        return null;
+    }
+  }
+  function ratAdd(a, b) {
+    return ratNorm({ n: a.n * b.d + b.n * a.d, d: a.d * b.d });
+  }
+  function ratMul(a, b) {
+    return ratNorm({ n: a.n * b.n, d: a.d * b.d });
+  }
+  function ratToNode(r) {
+    if (!r || r.n === 0) return null;
+    if (r.d === 1) return Num(r.n);
+    return Div(Num(r.n), Num(r.d));
+  }
   function canon(node) {
     node = unwrap(node);
     switch (node.type) {
@@ -452,14 +523,15 @@
           if (p.type === "Add") flat.push(...p.args);
           else flat.push(p);
         }
-        let constSum = 0;
+        let acc = { n: 0, d: 1 };
         const rest = [];
         for (const p of flat) {
-          const e = evalConst(p);
-          if (e.ok) constSum += e.value;
+          const r = asRational(p);
+          if (r) acc = ratAdd(acc, r);
           else rest.push(p);
         }
-        if (constSum !== 0) rest.push(Num(constSum));
+        const constNode = ratToNode(acc);
+        if (constNode) rest.push(constNode);
         if (rest.length === 0) return Num(0);
         if (rest.length === 1) return rest[0];
         rest.sort(compareNodes);
@@ -478,19 +550,23 @@
           if (p.type === "Mul") flat.push(...p.args);
           else flat.push(p);
         }
-        let constProd = 1;
+        let acc = { n: 1, d: 1 };
         const rest = [];
         for (const p of flat) {
-          const e = evalConst(p);
-          if (e.ok) constProd *= e.value;
+          const r = asRational(p);
+          if (r) acc = ratMul(acc, r);
           else rest.push(p);
         }
-        if (constProd === 0) return Num(0);
-        if (rest.length === 0) return Num(constProd);
-        if (constProd !== 1) rest.push(Num(constProd));
-        if (rest.length === 1) return rest[0];
+        if (acc.n === 0) return Num(0);
+        if (rest.length === 0) return Num(acc);
         rest.sort(compareNodes);
-        return flattenAssoc("Mul", rest);
+        const negative = acc.n < 0;
+        const abs = { n: Math.abs(acc.n), d: acc.d };
+        const out = [];
+        if (!(abs.n === 1 && abs.d === 1)) out.push(ratToNode(abs));
+        out.push(...rest);
+        const product = out.length === 1 ? out[0] : flattenAssoc("Mul", out);
+        return negative ? Neg(product) : product;
       }
       case "Div": {
         const num = canon(node.num);
@@ -530,7 +606,7 @@
       case "Neg": {
         const arg = canon(node.arg);
         if (isNum(arg)) return Num(-arg.value);
-        return { type: "Mul", args: [Num(-1), arg] };
+        return canon(Mul(Num(-1), arg));
       }
       case "Eq":
         return Eq(canon(node.left), canon(node.right));
@@ -538,8 +614,37 @@
         throw new Error("Nodo sconosciuto in canonical: " + node.type);
     }
   }
+  function sortCategory(node) {
+    const u = unwrap(node);
+    switch (u.type) {
+      case "Num":
+        return 0;
+      case "Var":
+        return 1;
+      case "Pow":
+        return 2;
+      case "Sqrt":
+        return 3;
+      case "Div":
+        return 4;
+      case "Mul":
+        return 5;
+      case "Add":
+      case "Sub":
+        return 6;
+      case "Neg":
+        return 9;
+      default:
+        return 7;
+    }
+  }
   function compareNodes(a, b) {
-    return toText(a) < toText(b) ? -1 : toText(a) > toText(b) ? 1 : 0;
+    const ca = sortCategory(a);
+    const cb = sortCategory(b);
+    if (ca !== cb) return ca - cb;
+    const ta = toText(a);
+    const tb = toText(b);
+    return ta < tb ? -1 : ta > tb ? 1 : 0;
   }
   function equivalentExpr(a, b) {
     return structurallyEqual(canonical(a), canonical(b));
@@ -710,7 +815,7 @@
         const t = this.peek();
         throw new ParseError(`Elemento inatteso dopo l'equazione: "${t.v}"`);
       }
-      return Eq(Group(left), Group(right));
+      return Eq(left, right);
     }
     // expr := term (('+'|'-') term)*
     parseExpr() {
@@ -4074,6 +4179,10 @@
   }
   function renderNode(node, id, opts) {
     const raw = node;
+    if (raw && raw.type === "Group") {
+      const inner = renderNode(raw.arg, id, { ...opts, hideSign: false });
+      return `<span class="node-group-parens"><span class="group-paren">(</span>${inner}<span class="group-paren">)</span></span>`;
+    }
     node = unwrap(node);
     const selected = opts.selectedId === id ? " selected" : "";
     const isTarget = opts.targetVar && node.type === "Var" && node.name === opts.targetVar;
@@ -4101,9 +4210,18 @@
         );
       }
       case "Add":
-        return span(renderArgs(node.args, id, "Add", opts, " + "), "node-add");
-      case "Sub":
-        return span(renderArgs(node.args, id, "Sub", opts, " \u2212 "), "node-sub");
+      case "Sub": {
+        const isSub = node.type === "Sub";
+        const inner = node.args.map((a, i) => {
+          const neg = unwrap(a).type === "Neg";
+          const path = id + "/" + node.type + i;
+          if (i === 0) return renderNode(a, path, opts);
+          const minus = isSub ? !neg : neg;
+          const child = neg ? renderNode(a, path, { ...opts, hideSign: true }) : renderNode(a, path, opts);
+          return `<span class="op">${minus ? "\u2212" : "+"}</span>` + child;
+        }).join("");
+        return span(inner, isSub ? "node-sub" : "node-add");
+      }
       case "Mul": {
         const isDraggable = !!opts.interactive;
         const mulSyntax = node.args.map((a) => toPretty(unwrap(a), 0)).join("*");
@@ -4159,8 +4277,13 @@
           `<span class="fn-name">${escapeHtml(FUNC_PRETTY[node.type])}</span><span class="fn-args">(${renderNode(node.arg, id + "/arg", opts)})</span>`,
           "node-fn node-" + node.type.toLowerCase()
         );
-      case "Neg":
-        return span("\u2212" + renderNode(node.arg, id + "/arg", opts), "node-neg");
+      case "Neg": {
+        const u = unwrap(node.arg);
+        const body = renderNode(node.arg, id + "/arg", { ...opts, hideSign: false });
+        const bodyHtml = u.type === "Add" || u.type === "Sub" ? `<span class="neg-parens">(${body})</span>` : body;
+        const sign = opts.hideSign ? "" : "\u2212";
+        return span(sign + bodyHtml, "node-neg");
+      }
       case "Group":
         return span(
           `(${renderNode(node.arg, id + "/g", opts)})`,
@@ -4169,9 +4292,6 @@
       default:
         return span(escapeHtml(toPretty(node, 0)), "");
     }
-  }
-  function renderArgs(args, id, type, opts, sep) {
-    return args.map((a, i) => renderNode(a, id + "/" + type + i, opts)).join(`<span class="op">${sep.trim()}</span>`);
   }
   function renderMulArgs(args, id, opts) {
     return args.map((a, i) => renderNode(a, id + "/Mul" + i, opts)).join('<span class="op">\xB7</span>');
@@ -5065,6 +5185,41 @@
       const twice = reciprocalEquation(once.newEq);
       if (!twice.ok) return `rifiutata al secondo passaggio: ${twice.error}`;
       return equivalentEq(twice.newEq, start) || `ottenuto ${toPretty(twice.newEq, 0)}`;
+    }));
+    results.push(test("Notazione: i fattori sono ordinati (m\xB7v\xB2, non v\xB2\xB7m)", () => {
+      const s = toPretty(canonical(eq("Ec = (1/2)*m*v^2")), 0);
+      return s.includes("m\xB7v^2") ? true : `ottenuto ${s}`;
+    }));
+    results.push(test("Notazione: 1/2 resta frazione, non diventa 0.5", () => {
+      const s = toPretty(canonical(eq("Ec = (1/2)*m*v^2")), 0);
+      return s.includes("0.5") ? `decimalizzato: ${s}` : true;
+    }));
+    results.push(test("Notazione: 2\xB7(1/2)\xB7m si semplifica in m", () => {
+      const s = toPretty(canonical(parseExpression("2*(1/2)*m")), 0);
+      return s === "m" ? true : `ottenuto ${s}`;
+    }));
+    results.push(test("Notazione: la differenza si scrive v \u2212 v0, non v + -1\xB7v0", () => {
+      const s = toPretty(canonical(eq("a = (v - v0)/t")), 0);
+      return s.includes("+ -") || s.includes("\u2212 -") ? `ottenuto ${s}` : true;
+    }));
+    results.push(test("Notazione: nessuna parentesi ridondante sul membro isolato", () => {
+      const r = applyDragMove({
+        currentEq: eq("P = p0 + d*g*h"),
+        varName: "d*g*h",
+        nodeType: "Mul",
+        fromSide: "right",
+        fromSlot: "num",
+        targetSide: "left",
+        targetSlot: "add"
+      });
+      if (!r.ok) return `mossa rifiutata: ${r.error}`;
+      const s = toPretty(r.newEq, 0);
+      return s.startsWith("(P)") ? `parentesi ridondanti: ${s}` : true;
+    }));
+    results.push(test("Notazione: le parentesi scritte dall'utente restano visibili", () => {
+      const html = renderEquation(eq("x - (a + b) = 0"), {});
+      const text = html.replace(/<[^>]+>/g, "");
+      return text.includes("(a") && text.includes("b)") ? true : `reso come ${text}`;
     }));
     return results;
   }

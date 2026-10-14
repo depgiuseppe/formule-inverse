@@ -119,7 +119,7 @@ class Parser {
       const t = this.peek();
       throw new ParseError(`Elemento inatteso dopo l'equazione: "${t.v}"`);
     }
-    return Eq(Group(left), Group(right));
+    return Eq(left, right);
   }
 
   // expr := term (('+'|'-') term)*

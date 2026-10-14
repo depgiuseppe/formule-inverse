@@ -8,8 +8,9 @@
 //  - il raggiungimento dell'obiettivo.
 
 import { parseEquation, parseExpression, ParseError } from './parser.js';
-import { toPretty, toLatex, equivalentEq, unwrap, collectVars, clone } from './ast.js';
-import { prettyVar } from './render.js';
+import { toPretty, toLatex, equivalentEq, unwrap, collectVars, clone, canonical } from './ast.js';
+import { renderEquation, prettyVar } from './render.js';
+import { applyDragMove } from './dragdrop.js';
 import { RULES, applyRule } from './rules.js';
 import { isGoalReached, performAction, suggestNextStep, enumerateElements } from './algebra.js';
 import { reciprocalEquation } from './reciprocals.js';
@@ -307,6 +308,48 @@ export function runAllTests() {
     const twice = reciprocalEquation(once.newEq);
     if (!twice.ok) return `rifiutata al secondo passaggio: ${twice.error}`;
     return equivalentEq(twice.newEq, start) || `ottenuto ${toPretty(twice.newEq, 0)}`;
+  }));
+
+  // ---- Notazione: ordine dei fattori, parentesi, niente decimali ----
+  results.push(test('Notazione: i fattori sono ordinati (m·v², non v²·m)', () => {
+    const s = toPretty(canonical(eq('Ec = (1/2)*m*v^2')), 0);
+    return s.includes('m·v^2') ? true : `ottenuto ${s}`;
+  }));
+
+  results.push(test('Notazione: 1/2 resta frazione, non diventa 0.5', () => {
+    const s = toPretty(canonical(eq('Ec = (1/2)*m*v^2')), 0);
+    return s.includes('0.5') ? `decimalizzato: ${s}` : true;
+  }));
+
+  results.push(test('Notazione: 2·(1/2)·m si semplifica in m', () => {
+    const s = toPretty(canonical(parseExpression('2*(1/2)*m')), 0);
+    return s === 'm' ? true : `ottenuto ${s}`;
+  }));
+
+  results.push(test('Notazione: la differenza si scrive v − v0, non v + -1·v0', () => {
+    const s = toPretty(canonical(eq('a = (v - v0)/t')), 0);
+    return s.includes('+ -') || s.includes('− -') ? `ottenuto ${s}` : true;
+  }));
+
+  results.push(test('Notazione: nessuna parentesi ridondante sul membro isolato', () => {
+    const r = applyDragMove({
+      currentEq: eq('P = p0 + d*g*h'),
+      varName: 'd*g*h',
+      nodeType: 'Mul',
+      fromSide: 'right',
+      fromSlot: 'num',
+      targetSide: 'left',
+      targetSlot: 'add',
+    });
+    if (!r.ok) return `mossa rifiutata: ${r.error}`;
+    const s = toPretty(r.newEq, 0);
+    return s.startsWith('(P)') ? `parentesi ridondanti: ${s}` : true;
+  }));
+
+  results.push(test('Notazione: le parentesi scritte dall\'utente restano visibili', () => {
+    const html = renderEquation(eq('x - (a + b) = 0'), {});
+    const text = html.replace(/<[^>]+>/g, '');
+    return text.includes('(a') && text.includes('b)') ? true : `reso come ${text}`;
   }));
 
   return results;

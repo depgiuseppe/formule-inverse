@@ -257,12 +257,26 @@ export function toPretty(node, parentPrec = 0) {
       return node.name;
     case 'Add':
     case 'Sub': {
-      const sep = node.type === 'Add' ? ' + ' : ' − ';
-      const s = node.args.map((a) => toPretty(a, 1)).join(sep);
+      // I termini negativi sono mostrati come sottrazione (v − v0, non v + −v0).
+      const isSub = node.type === 'Sub';
+      let s = '';
+      node.args.forEach((a, i) => {
+        const u = unwrap(a);
+        const neg = u.type === 'Neg';
+        const body = toPretty(neg ? u.arg : a, neg ? 2 : 1);
+        if (i === 0) {
+          s += (neg ? '−' : '') + body;
+        } else {
+          const minus = isSub ? !neg : neg;
+          s += (minus ? ' − ' : ' + ') + body;
+        }
+      });
       return wrap(s, 1, parentPrec > 1);
     }
     case 'Mul': {
-      const s = node.args.map((a) => toPretty(a, 2)).join('·');
+      const s = node.args
+        .map((a) => toPretty(a, unwrap(a).type === 'Div' ? 3 : 2))
+        .join('·');
       return wrap(s, 2, parentPrec > 2);
     }
     case 'Div': {
@@ -350,8 +364,20 @@ export function toLatex(node, parentPrec = 0) {
     }
     case 'Add':
     case 'Sub': {
-      const sep = node.type === 'Add' ? ' + ' : ' - ';
-      const s = node.args.map((a) => toLatex(a, 1)).join(sep);
+      // I termini negativi diventano sottrazioni: v - v_0, non v + -v_0.
+      const isSub = node.type === 'Sub';
+      let s = '';
+      node.args.forEach((a, i) => {
+        const u = unwrap(a);
+        const neg = u.type === 'Neg';
+        const body = toLatex(neg ? u.arg : a, neg ? 2 : 1);
+        if (i === 0) {
+          s += (neg ? '-' : '') + body;
+        } else {
+          const minus = isSub ? !neg : neg;
+          s += (minus ? ' - ' : ' + ') + body;
+        }
+      });
       return wrap(s, parentPrec > 1);
     }
     case 'Mul': {
@@ -447,6 +473,60 @@ export function canonical(node) {
   return canon(unwrap(node));
 }
 
+// ---------------------------------------------------------------------------
+// Aritmetica razionale esatta: evita di trasformare 1/2 in 0.5.
+// Le costanti numeriche restano frazioni finché non sono interi.
+// ---------------------------------------------------------------------------
+function gcd(a, b) {
+  a = Math.abs(a); b = Math.abs(b);
+  while (b) { const t = a % b; a = b; b = t; }
+  return a || 1;
+}
+
+function ratNorm(r) {
+  let { n, d } = r;
+  if (d < 0) { n = -n; d = -d; }
+  const g = gcd(n, d);
+  return { n: n / g, d: d / g };
+}
+
+// Riconosce un valore razionale esatto in un sottoalbero.
+// Ritorna { n, d } oppure null. Accetta interi, negazioni e frazioni di interi.
+function asRational(node) {
+  node = unwrap(node);
+  switch (node.type) {
+    case 'Num':
+      return Number.isInteger(node.value) ? { n: node.value, d: 1 } : null;
+    case 'Neg': {
+      const r = asRational(node.arg);
+      return r ? { n: -r.n, d: r.d } : null;
+    }
+    case 'Div': {
+      const a = asRational(node.num);
+      const b = asRational(node.den);
+      if (!a || !b || b.n === 0) return null;
+      return ratNorm({ n: a.n * b.d, d: a.d * b.n });
+    }
+    default:
+      return null;
+  }
+}
+
+function ratAdd(a, b) {
+  return ratNorm({ n: a.n * b.d + b.n * a.d, d: a.d * b.d });
+}
+
+function ratMul(a, b) {
+  return ratNorm({ n: a.n * b.n, d: a.d * b.d });
+}
+
+// Converte un razionale in nodo: null se è zero, Num se intero, Div(1,2) se frazione.
+function ratToNode(r) {
+  if (!r || r.n === 0) return null;
+  if (r.d === 1) return Num(r.n);
+  return Div(Num(r.n), Num(r.d));
+}
+
 function canon(node) {
   // I Group sono solo annotazioni di parentesi: li attraversiamo sempre,
   // anche quando compaiono annidati come figli di altri nodi.
@@ -465,15 +545,16 @@ function canon(node) {
         if (p.type === 'Add') flat.push(...p.args);
         else flat.push(p);
       }
-      // somma le costanti
-      let constSum = 0;
+      // somma le costanti come frazioni esatte: 1/2 resta 1/2, mai 0.5
+      let acc = { n: 0, d: 1 };
       const rest = [];
       for (const p of flat) {
-        const e = evalConst(p);
-        if (e.ok) constSum += e.value;
+        const r = asRational(p);
+        if (r) acc = ratAdd(acc, r);
         else rest.push(p);
       }
-      if (constSum !== 0) rest.push(Num(constSum));
+      const constNode = ratToNode(acc);
+      if (constNode) rest.push(constNode);
       if (rest.length === 0) return Num(0);
       if (rest.length === 1) return rest[0];
       rest.sort(compareNodes);
@@ -495,19 +576,24 @@ function canon(node) {
         if (p.type === 'Mul') flat.push(...p.args);
         else flat.push(p);
       }
-      let constProd = 1;
+      // prodotto delle costanti come frazioni esatte: 2 * (1/2) => 1
+      let acc = { n: 1, d: 1 };
       const rest = [];
       for (const p of flat) {
-        const e = evalConst(p);
-        if (e.ok) constProd *= e.value;
+        const r = asRational(p);
+        if (r) acc = ratMul(acc, r);
         else rest.push(p);
       }
-      if (constProd === 0) return Num(0); // un fattore costante 0 annulla il prodotto
-      if (rest.length === 0) return Num(constProd);
-      if (constProd !== 1) rest.push(Num(constProd));
-      if (rest.length === 1) return rest[0];
+      if (acc.n === 0) return Num(0); // un fattore costante 0 annulla il prodotto
+      if (rest.length === 0) return Num(acc);
       rest.sort(compareNodes);
-      return flattenAssoc('Mul', rest);
+      const negative = acc.n < 0;
+      const abs = { n: Math.abs(acc.n), d: acc.d };
+      const out = [];
+      if (!(abs.n === 1 && abs.d === 1)) out.push(ratToNode(abs));
+      out.push(...rest);
+      const product = out.length === 1 ? out[0] : flattenAssoc('Mul', out);
+      return negative ? Neg(product) : product;
     }
 
     case 'Div': {
@@ -554,7 +640,7 @@ function canon(node) {
       const arg = canon(node.arg);
       if (isNum(arg)) return Num(-arg.value);
       // -(...)  =>  (-1)*(...) normalizzato dentro il prodotto
-      return { type: 'Mul', args: [Num(-1), arg] };
+      return canon(Mul(Num(-1), arg));
     }
 
     case 'Eq':
@@ -566,8 +652,31 @@ function canon(node) {
 }
 
 // Ordinamento totale e stabile dei nodi, basato sulla loro rappresentazione testuale.
+// Categoria d'ordinamento: coefficienti, poi lettere, poi potenze, ecc.
+// Serve a stampare m·v² e non v²·m, e a tenere i termini negativi in fondo
+// così l'Add può essere mostrato come differenza (v − v0).
+function sortCategory(node) {
+  const u = unwrap(node);
+  switch (u.type) {
+    case 'Num': return 0;
+    case 'Var': return 1;
+    case 'Pow': return 2;
+    case 'Sqrt': return 3;
+    case 'Div': return 4;
+    case 'Mul': return 5;
+    case 'Add': case 'Sub': return 6;
+    case 'Neg': return 9;
+    default: return 7;
+  }
+}
+
 function compareNodes(a, b) {
-  return toText(a) < toText(b) ? -1 : toText(a) > toText(b) ? 1 : 0;
+  const ca = sortCategory(a);
+  const cb = sortCategory(b);
+  if (ca !== cb) return ca - cb;
+  const ta = toText(a);
+  const tb = toText(b);
+  return ta < tb ? -1 : ta > tb ? 1 : 0;
 }
 
 // Equivalenza strutturale "a meno di riformulazioni algebriche valide":

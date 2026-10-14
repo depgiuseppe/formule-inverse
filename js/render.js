@@ -82,6 +82,12 @@ function renderMember(node, side, opts) {
 // Renderizza un nodo AST. `id` è il percorso usato per la selezione.
 function renderNode(node, id, opts) {
   const raw = node;
+  // Le parentesi esplicite scritte dall'utente (Group) vanno mostrate:
+  // se le togliessimo, (a + b) diventerebbe a + b, cambiando il significato.
+  if (raw && raw.type === 'Group') {
+    const inner = renderNode(raw.arg, id, { ...opts, hideSign: false });
+    return `<span class="node-group-parens"><span class="group-paren">(</span>${inner}<span class="group-paren">)</span></span>`;
+  }
   node = unwrap(node);
   const selected = opts.selectedId === id ? ' selected' : '';
   const isTarget = opts.targetVar && node.type === 'Var' && node.name === opts.targetVar;
@@ -117,9 +123,19 @@ function renderNode(node, id, opts) {
       );
     }
     case 'Add':
-      return span(renderArgs(node.args, id, 'Add', opts, ' + '), 'node-add');
-    case 'Sub':
-      return span(renderArgs(node.args, id, 'Sub', opts, ' − '), 'node-sub');
+    case 'Sub': {
+      // Stampa i termini negativi come sottrazioni: x − y, non x + −y.
+      const isSub = node.type === 'Sub';
+      const inner = node.args.map((a, i) => {
+        const neg = unwrap(a).type === 'Neg';
+        const path = id + '/' + node.type + i;
+        if (i === 0) return renderNode(a, path, opts);
+        const minus = isSub ? !neg : neg;
+        const child = neg ? renderNode(a, path, { ...opts, hideSign: true }) : renderNode(a, path, opts);
+        return `<span class="op">${minus ? '−' : '+'}</span>` + child;
+      }).join('');
+      return span(inner, isSub ? 'node-sub' : 'node-add');
+    }
     case 'Mul': {
       const isDraggable = !!opts.interactive;
       const mulSyntax = node.args.map((a) => toPretty(unwrap(a), 0)).join('*');
@@ -183,8 +199,15 @@ function renderNode(node, id, opts) {
         `<span class="fn-args">(${renderNode(node.arg, id + '/arg', opts)})</span>`,
         'node-fn node-' + node.type.toLowerCase()
       );
-    case 'Neg':
-      return span('−' + renderNode(node.arg, id + '/arg', opts), 'node-neg');
+    case 'Neg': {
+      const u = unwrap(node.arg);
+      const body = renderNode(node.arg, id + '/arg', { ...opts, hideSign: false });
+      const bodyHtml = (u.type === 'Add' || u.type === 'Sub')
+        ? `<span class="neg-parens">(${body})</span>`
+        : body;
+      const sign = opts.hideSign ? '' : '−';
+      return span(sign + bodyHtml, 'node-neg');
+    }
     case 'Group':
       return span(
         `(${renderNode(node.arg, id + '/g', opts)})`,
