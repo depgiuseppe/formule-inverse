@@ -135,6 +135,7 @@
       <div class="work-header-tools">
         <button id="btn-mirror" class="btn-mini" type="button" title="Regola dello specchio: scambia i due membri dell'equazione (A = B ↔ B = A)">🪞 Regola dello specchio</button>
         <button id="btn-reciprocal" class="btn-mini" type="button" title="Regola dei reciproci: scambia numeratore e denominatore di entrambi i membri (A/B = C/D ↔ B/A = D/C)">🔁 Regola dei reciproci</button>
+        <button id="btn-cross" class="btn-mini" type="button" aria-pressed="false" title="Croce di semplificazione: trascinala su due fattori uguali, uno al numeratore e uno al denominatore, per eliminarli">✗ Croce di semplificazione</button>
         <button id="btn-toggle-implicit-den" class="btn-mini" type="button" title="Mostra o nascondi i denominatori sottintesi (/1)">👁 Denominatori sottintesi (/1)</button>
         <button id="btn-copy-formula" class="btn-mini" type="button" title="Copia equazione corrente negli appunti">📋 Copia testo</button>
         <button id="btn-copy-latex" class="btn-mini" type="button" title="Copia equazione in formato LaTeX">📐 Copia LaTeX</button>
@@ -169,6 +170,11 @@
       <div class="equation-display" id="equation-display" aria-live="polite">
         <p class="placeholder">Nessuna equazione caricata.</p>
       </div>
+      <div class="cross-layer" id="cross-layer" hidden>
+        <div class="cross-handle" id="cross-handle" role="button" tabindex="0" aria-label="Croce di semplificazione: trascinala su due fattori uguali per eliminarli">✗</div>
+        <p class="cross-help" id="cross-help">Trascina la croce su un fattore al numeratore e su uno uguale al denominatore.</p>
+      </div>
+      <div class="cross-dissolve-layer" id="cross-dissolve-layer" aria-hidden="true"></div>
       <div class="latex-live-bar" id="latex-live-bar" title="Codice LaTeX dinamico della formula attuale">
         <span class="latex-live-label">LaTeX</span>
         <code class="latex-live-code" id="latex-live-code"></code>

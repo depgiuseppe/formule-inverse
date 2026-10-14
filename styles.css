@@ -958,6 +958,130 @@ body.dark-theme .equation-display-card {
   .op-anim-badge { animation: none; opacity: 1; }
 }
 
+/* Croce di semplificazione */
+.cross-layer {
+  position: absolute;
+  left: .8rem;
+  bottom: .8rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  pointer-events: none;
+}
+.cross-handle {
+  pointer-events: auto;
+  width: 2.4rem;
+  height: 2.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(150deg, #ef4444, #b91c1c);
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: grab;
+  box-shadow: 0 6px 16px rgba(185, 28, 28, 0.4);
+  transition: transform .15s ease, box-shadow .15s ease;
+  touch-action: none;
+  user-select: none;
+}
+.cross-handle:hover { transform: scale(1.1); box-shadow: 0 8px 22px rgba(185, 28, 28, 0.5); }
+.cross-handle.dragging {
+  cursor: grabbing;
+  position: fixed;
+  transform: translate(-50%, -50%) scale(1.15) rotate(-8deg);
+  z-index: 60;
+  pointer-events: none;
+  box-shadow: 0 12px 30px rgba(185, 28, 28, 0.55);
+}
+.cross-help {
+  margin: 0;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--danger);
+  background: var(--danger-soft);
+  padding: .25rem .6rem;
+  border-radius: var(--radius-pill);
+}
+.equation-display-card.cross-mode .equation-display {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.06), transparent);
+}
+.equation-display-card.cross-mode .math-node:not(.cross-marked) {
+  cursor: crosshair;
+}
+.math-node.cross-hover {
+  background: var(--danger-soft);
+  border-radius: 6px;
+  outline: 2px dashed var(--danger);
+  outline-offset: 2px;
+}
+.math-node.cross-marked {
+  background: rgba(239, 68, 68, 0.16);
+  border-radius: 6px;
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+.math-node.cross-marked::after {
+  content: '✗';
+  position: absolute;
+  top: -0.55rem;
+  right: -0.35rem;
+  font-size: .7rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--danger);
+  border-radius: 50%;
+  width: .95rem;
+  height: .95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.equation-display-card.cross-error {
+  animation: crossErrorShake .45s ease;
+}
+@keyframes crossErrorShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+
+/* Dissolvenza dei fattori semplificati */
+.cross-dissolve-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.cross-ghost {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-math);
+  color: var(--danger);
+  transform-origin: center;
+  opacity: .95;
+  transition: opacity .55s ease, transform .55s ease, filter .55s ease;
+}
+.cross-ghost.dissolving {
+  opacity: 0;
+  transform: scale(1.6) rotate(18deg);
+  filter: blur(4px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cross-ghost { transition: opacity .2s ease; }
+  .cross-ghost.dissolving { transform: none; filter: none; }
+  .equation-display-card.cross-error { animation: none; }
+}
+
 /* Condizioni di validità */
 .conditions-box {
   background: var(--warning-soft);

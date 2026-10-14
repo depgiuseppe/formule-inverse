@@ -7,6 +7,7 @@ import {
 } from './ast.js';
 import { reciprocalEquation } from './reciprocals.js';
 import { KEYPAD_OPERATIONS, equationKeypadTokens, parseOperand, applyKeypadOperation } from './operations.js';
+import { crossCancel } from './cross.js';
 import {
   isGoalReached, findElement, availableActions, globalActions,
   performAction, suggestNextStep, mergeConditions,
@@ -43,7 +44,7 @@ const state = {
   showImplicitDen: false,
   keypadOp: null,
   crossMode: false,
-  crossPicked: null,
+  crossPicked: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,10 @@ const dom = {
   btnCopyLatex: $('#btn-copy-latex'),
   btnMirror: $('#btn-mirror'),
   btnReciprocal: $('#btn-reciprocal'),
+  btnCross: $('#btn-cross'),
+  crossLayer: $('#cross-layer'),
+  crossHandle: $('#cross-handle'),
+  crossDissolveLayer: $('#cross-dissolve-layer'),
   btnToggleImplicitDen: $('#btn-toggle-implicit-den'),
   equationDisplay: $('#equation-display'),
   keypadOps: $('#keypad-ops'),
@@ -303,7 +308,12 @@ function loadFormula(formulaEntry, targetVar) {
   state.goalReached = false;
   state.keypadOp = null;
   state.crossMode = false;
-  state.crossPicked = null;
+  state.crossPicked = [];
+  if (dom.btnCross) {
+    dom.btnCross.classList.remove('active');
+    dom.btnCross.setAttribute('aria-pressed', 'false');
+  }
+  if (dom.crossLayer) dom.crossLayer.hidden = true;
 
   pushHistory({
     equation: clone(eq),
@@ -553,15 +563,231 @@ function animateOperationBadge(label, operandText) {
 
 function attachEquationHandlers() {
   dom.equationDisplay.querySelectorAll('.math-node').forEach((el) => {
-    el.addEventListener('click', (e) => { e.stopPropagation(); selectElement(el.dataset.id); });
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // In modalità croce il clic su un fattore lo marca per la semplificazione.
+      if (state.crossMode) { crossPickToken(el.dataset.id, el); return; }
+      selectElement(el.dataset.id);
+    });
     el.tabIndex = 0;
     el.setAttribute('role', 'button');
     el.setAttribute('aria-label', 'Elemento: ' + (el.textContent || '').trim());
     el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectElement(el.dataset.id); }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (state.crossMode) crossPickToken(el.dataset.id, el);
+        else selectElement(el.dataset.id);
+      }
     });
   });
+}
 
+// ---------------------------------------------------------------------------
+// Croce di semplificazione (due fattori uguali, numeratore e denominatore)
+// ---------------------------------------------------------------------------
+function toggleCrossMode(force) {
+  state.crossMode = typeof force === 'boolean' ? force : !state.crossMode;
+  state.crossPicked = [];
+  if (dom.btnCross) {
+    dom.btnCross.classList.toggle('active', state.crossMode);
+    dom.btnCross.setAttribute('aria-pressed', state.crossMode ? 'true' : 'false');
+  }
+  if (dom.crossLayer) dom.crossLayer.hidden = !state.crossMode;
+  const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
+  if (card) card.classList.toggle('cross-mode', state.crossMode);
+  clearCrossMarks();
+  if (state.crossMode) {
+    showMessage('✗ Croce attiva: trascinala (o tocca) un fattore al numeratore e uno uguale al denominatore.', 'info');
+    if (dom.crossHandle) dom.crossHandle.focus();
+  }
+}
+
+function clearCrossMarks() {
+  dom.equationDisplay.querySelectorAll('.cross-marked').forEach((el) => el.classList.remove('cross-marked'));
+}
+
+function crossPickToken(id, element) {
+  if (!state.currentEq || !id) return;
+  const already = state.crossPicked.indexOf(id);
+  if (already >= 0) {
+    // Un secondo tocco sullo stesso fattore annulla la scelta.
+    state.crossPicked.splice(already, 1);
+    if (element) element.classList.remove('cross-marked');
+    return;
+  }
+  state.crossPicked.push(id);
+  if (element) element.classList.add('cross-marked');
+  if (state.crossPicked.length < 2) {
+    showMessage('✗ Primo fattore scelto: ora scegli quello uguale al numeratore o al denominatore.', 'info');
+    return;
+  }
+  const [idA, idB] = state.crossPicked;
+  state.crossPicked = [];
+  applyCrossCancel(idA, idB);
+}
+
+function applyCrossCancel(idA, idB) {
+  const before = state.currentEq;
+  const res = crossCancel(before, idA, idB);
+
+  if (!res.ok) {
+    clearCrossMarks();
+    flashCrossError();
+    showInvalidMove(res.error, res.hint, { label: 'Croce di semplificazione' });
+    return;
+  }
+
+  // Effetto di dissolvenza sui due fattori che scompaiono.
+  dissolveElements([idA, idB]);
+  clearCrossMarks();
+
+  state.currentEq = res.newEq;
+  state.conditions = mergeConditions(state.conditions, res.conditions || []);
+  state.selectedId = null;
+  clearPreview();
+
+  pushHistory({
+    equation: clone(res.newEq),
+    ruleName: res.ruleName,
+    rulePrinciple: res.rulePrinciple,
+    ruleId: 'cross-cancel',
+    steps: [`Elimino il fattore ${res.cancelled} al numeratore e al denominatore (${res.cancelled} ≠ 0).`],
+    conditions: (res.conditions || []).slice(),
+    explanationKey: null,
+    note: null,
+    verified: true,
+  }, false);
+
+  updateObjective();
+  renderEquationView();
+  showRulePanel(
+    { name: res.ruleName, principle: res.rulePrinciple, explanation: null },
+    { steps: [`Elimino ${res.cancelled} tra numeratore e denominatore.`], conditions: res.conditions || [] },
+    res.newEq
+  );
+  clearMessage();
+  showMessage(`✓ ${res.ruleName}.`, 'success');
+
+  if (state.goalReached) {
+    playSuccessChime();
+    showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
+  } else if (state.mode === 'guided') {
+    showGuidedSuggestion();
+  } else if (state.mode === 'multi') {
+    showMultiMode();
+  }
+  // La croce resta attiva per semplificare altri fattori.
+  if (state.crossMode) clearCrossMarks();
+}
+
+function flashCrossError() {
+  const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
+  if (!card) return;
+  card.classList.remove('cross-error');
+  void card.offsetWidth;
+  card.classList.add('cross-error');
+  setTimeout(() => card.classList.remove('cross-error'), 500);
+}
+
+// Copia i due elementi in un livello sovrapposto e li fa dissolvere.
+function dissolveElements(ids) {
+  const layer = dom.crossDissolveLayer;
+  if (!layer || !dom.equationDisplay) return;
+  layer.innerHTML = '';
+  const hostRect = dom.equationDisplay.getBoundingClientRect();
+  let count = 0;
+
+  for (const id of ids) {
+    const el = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(id)}"]`);
+    if (!el) continue;
+    const rect = el.getBoundingClientRect();
+    const ghost = document.createElement('span');
+    ghost.className = 'cross-ghost';
+    ghost.innerHTML = el.innerHTML;
+    ghost.style.left = `${rect.left - hostRect.left}px`;
+    ghost.style.top = `${rect.top - hostRect.top}px`;
+    ghost.style.width = `${rect.width}px`;
+    ghost.style.height = `${rect.height}px`;
+    layer.appendChild(ghost);
+    count++;
+  }
+  if (count === 0) return;
+  requestAnimationFrame(() => {
+    layer.querySelectorAll('.cross-ghost').forEach((g) => g.classList.add('dissolving'));
+  });
+  setTimeout(() => { layer.innerHTML = ''; }, 700);
+}
+
+// Trascinamento della croce con il puntatore (mouse, penna o dito).
+function bindCrossDrag() {
+  const handle = dom.crossHandle;
+  if (!handle) return;
+  let dragging = false;
+
+  const tokenUnder = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    const node = el.closest('.math-node');
+    if (!node || !dom.equationDisplay.contains(node)) return null;
+    return node;
+  };
+
+  const moveHandle = (x, y) => {
+    const card = handle.closest('.cross-layer');
+    const host = card || handle.parentElement;
+    const rect = host.getBoundingClientRect();
+    handle.style.left = `${x - rect.left}px`;
+    handle.style.top = `${y - rect.top}px`;
+  };
+
+  const highlight = (node) => {
+    dom.equationDisplay.querySelectorAll('.cross-hover').forEach((el) => el.classList.remove('cross-hover'));
+    if (node && !node.classList.contains('cross-marked')) node.classList.add('cross-hover');
+  };
+
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    dragging = true;
+    handle.classList.add('dragging');
+    handle.setPointerCapture(e.pointerId);
+    moveHandle(e.clientX, e.clientY);
+  });
+
+  handle.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    moveHandle(e.clientX, e.clientY);
+    highlight(tokenUnder(e.clientX, e.clientY));
+  });
+
+  const finish = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    highlight(null);
+    const node = tokenUnder(e.clientX, e.clientY);
+    if (node) crossPickToken(node.dataset.id, node);
+    // Riporta la croce nella sua posizione di riposo.
+    handle.style.left = '';
+    handle.style.top = '';
+  };
+
+  handle.addEventListener('pointerup', finish);
+  handle.addEventListener('pointercancel', () => {
+    dragging = false;
+    handle.classList.remove('dragging');
+    highlight(null);
+    handle.style.left = '';
+    handle.style.top = '';
+  });
+
+  // Accessibilità da tastiera: Invio/Spazio attiva la modalità e i fattori
+  // si scelgono con Tab + Invio (gestito in attachEquationHandlers).
+  handle.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      showMessage('Usa Tab per raggiungere un fattore e Invio per sceglierlo.', 'info');
+    }
+  });
 }
 
 // Callback per il drag and drop: valuta e applica immediatamente al rilascio (senza tasto di conferma)
@@ -1151,6 +1377,8 @@ function bindWorkAreaEvents() {
   if (dom.btnMirror) dom.btnMirror.addEventListener('click', applyMirrorRule);
   if (dom.btnReciprocal) dom.btnReciprocal.addEventListener('click', applyReciprocalRule);
   if (dom.btnCopyFormula) dom.btnCopyFormula.addEventListener('click', copyFormulaText);
+  if (dom.btnCross) dom.btnCross.addEventListener('click', () => toggleCrossMode());
+  bindCrossDrag();
   if (dom.btnCopyLatex) dom.btnCopyLatex.addEventListener('click', copyLatexFormula);
   if (dom.btnCopyLatexInline) dom.btnCopyLatexInline.addEventListener('click', copyLatexFormula);
   if (dom.btnQuickHint) dom.btnQuickHint.addEventListener('click', triggerQuickHint);

@@ -534,6 +534,11 @@ function ratMul(a, b) {
   return ratNorm({ n: a.n * b.n, d: a.d * b.d });
 }
 
+function ratDiv(a, b) {
+  if (b.n === 0) return a;
+  return ratNorm({ n: a.n * b.d, d: a.d * b.n });
+}
+
 // Converte un razionale in nodo: null se è zero, Num se intero, Div(1,2) se frazione.
 function ratToNode(r) {
   if (!r || r.n === 0) return null;
@@ -591,22 +596,41 @@ function canon(node) {
         else flat.push(p);
       }
       // prodotto delle costanti come frazioni esatte: 2 * (1/2) => 1
+      // e fusione delle frazioni nel prodotto: a·(1/c) => a/c
       let acc = { n: 1, d: 1 };
-      const rest = [];
+      const numFactors = [];
+      const denFactors = [];
       for (const p of flat) {
         const r = asRational(p);
-        if (r) acc = ratMul(acc, r);
-        else rest.push(p);
+        if (r) { acc = ratMul(acc, r); continue; }
+        if (p.type === 'Div') {
+          const rn = asRational(p.num);
+          if (rn) acc = ratMul(acc, rn);
+          else numFactors.push(p.num);
+          const rd = asRational(p.den);
+          if (rd) acc = ratDiv(acc, rd);
+          else denFactors.push(p.den);
+          continue;
+        }
+        numFactors.push(p);
       }
       if (acc.n === 0) return Num(0); // un fattore costante 0 annulla il prodotto
-      if (rest.length === 0) return Num(acc);
-      rest.sort(compareNodes);
+      numFactors.sort(compareNodes);
+      denFactors.sort(compareNodes);
+
       const negative = acc.n < 0;
       const abs = { n: Math.abs(acc.n), d: acc.d };
       const out = [];
       if (!(abs.n === 1 && abs.d === 1)) out.push(ratToNode(abs));
-      out.push(...rest);
-      const product = out.length === 1 ? out[0] : flattenAssoc('Mul', out);
+      out.push(...numFactors);
+
+      if (out.length === 0 && denFactors.length === 0) return Num(1);
+      const numPart = out.length === 0
+        ? Num(1)
+        : (out.length === 1 ? out[0] : flattenAssoc('Mul', out));
+      const product = denFactors.length === 0
+        ? numPart
+        : Div(numPart, denFactors.length === 1 ? denFactors[0] : flattenAssoc('Mul', denFactors));
       return negative ? Neg(product) : product;
     }
 

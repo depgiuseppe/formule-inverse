@@ -14,6 +14,7 @@ import { applyDragMove } from './dragdrop.js';
 import { RULES, applyRule } from './rules.js';
 import { isGoalReached, performAction, suggestNextStep, enumerateElements } from './algebra.js';
 import { reciprocalEquation } from './reciprocals.js';
+import { crossCancel } from './cross.js';
 
 let counter = 0;
 function test(name, fn) {
@@ -350,6 +351,51 @@ export function runAllTests() {
     const html = renderEquation(eq('x - (a + b) = 0'), {});
     const text = html.replace(/<[^>]+>/g, '');
     return text.includes('(a') && text.includes('b)') ? true : `reso come ${text}`;
+  }));
+
+  // ---- Croce di semplificazione ----
+  results.push(test('Croce: (2·L)/2 semplifica il 2 e resta L = b', () => {
+    const r = crossCancel(eq('(2*L)/2 = b'), 'left/num/Mul0', 'left/den');
+    if (!r.ok) return `rifiutata: ${r.error}`;
+    return equivalentEq(r.newEq, eq('L = b')) || `ottenuto ${toPretty(r.newEq, 0)}`;
+  }));
+
+  results.push(test('Croce: (t·v)/v semplifica v e resta t = s/v', () => {
+    const r = crossCancel(eq('(t*v)/v = s/v'), 'left/num/Mul1', 'left/den');
+    if (!r.ok) return `rifiutata: ${r.error}`;
+    return equivalentEq(r.newEq, eq('t = s/v')) || `ottenuto ${toPretty(r.newEq, 0)}`;
+  }));
+
+  results.push(test('Croce: v²/v semplifica a v', () => {
+    const r = crossCancel(eq('(v^2*t)/v = s'), 'left/num/Mul0/base', 'left/den');
+    if (!r.ok) return `rifiutata: ${r.error}`;
+    return equivalentEq(r.newEq, eq('t*v = s')) || `ottenuto ${toPretty(r.newEq, 0)}`;
+  }));
+
+  results.push(test('Croce: rifiuta due fattori diversi', () => {
+    const r = crossCancel(eq('(t*v)/v = s/v'), 'left/num/Mul0', 'left/den');
+    return r.ok ? 'accettata ma doveva essere rifiutata' : true;
+  }));
+
+  results.push(test('Croce: rifiuta due fattori nello stesso numeratore', () => {
+    const r = crossCancel(eq('v = s/t'), 'left/num', 'left/num');
+    return r.ok ? 'accettata ma doveva essere rifiutata' : true;
+  }));
+
+  results.push(test('Croce: rifiuta fattori in membri diversi', () => {
+    const r = crossCancel(eq('v = s/t'), 'right/num', 'left/num');
+    return r.ok ? 'accettata ma doveva essere rifiutata' : true;
+  }));
+
+  results.push(test('Croce: (a/b)·(b/c) diventa a/c', () => {
+    const r = crossCancel(eq('z = (a/b)*(b/c)'), 'right/Mul0/den', 'right/Mul1/num');
+    if (!r.ok) return `rifiutata: ${r.error}`;
+    return equivalentEq(r.newEq, eq('z = a/c')) || `ottenuto ${toPretty(r.newEq, 0)}`;
+  }));
+
+  results.push(test('Croce: non elimina un addendo di una somma', () => {
+    const r = crossCancel(eq('x + a = b'), 'left/Add0', 'left/Add0');
+    return r.ok ? 'accettata ma doveva essere rifiutata' : true;
   }));
 
   return results;

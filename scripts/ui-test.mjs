@@ -166,7 +166,56 @@ async function run() {
   check('La regola dello specchio scambia i due membri',
     afterMirrorRaw === `${br}=${bl}`, `${beforeMirrorRaw} -> ${afterMirrorRaw}`);
 
-  // 9. Nessun errore in console durante le interazioni
+  // 9. Croce di semplificazione (formula personalizzata con un fattore comune)
+  await page.evaluate(() => {
+    document.querySelectorAll('details.editor-toggle').forEach((d) => { d.open = true; });
+  });
+  await page.locator('#custom-formula').fill('(2*L)/2 = b');
+  await page.locator('#custom-target').fill('L');
+  await page.locator('#btn-load-custom').click();
+  await page.waitForTimeout(300);
+
+  await page.locator('#btn-cross').click();
+  check('La croce si attiva', await page.locator('#cross-layer').isVisible());
+  check('Il pulsante croce risulta premuto',
+    (await page.locator('#btn-cross').getAttribute('aria-pressed')) === 'true');
+
+  const numId = 'left/num/Mul0';
+  const denId = 'left/den';
+  await page.locator(`#equation-display [data-id="${numId}"]`).click();
+  check('Il primo fattore scelto viene marcato',
+    (await page.locator('#equation-display .cross-marked').count()) === 1);
+  await page.locator(`#equation-display [data-id="${denId}"]`).click();
+  await page.waitForTimeout(500);
+  const afterCross = (await page.locator('#equation-display .math-node').allInnerTexts())
+    .map((t) => t.replace(/\s+/g, '')).join(' ');
+  check('La croce semplifica 2 con 2 e resta L = b',
+    afterCross === 'L b', `elementi dopo la croce: "${afterCross}"`);
+  check('Il fattore 2 è stato eliminato',
+    !afterCross.includes('2'), afterCross);
+  check('La cronologia registra la semplificazione',
+    (await page.locator('#history-list li').count()) >= 2);
+  if (wantShots) {
+    await page.screenshot({ path: path.join(shotsDir, 'cross.png'), fullPage: true });
+  }
+
+  // 10. Croce su fattori diversi: errore didattico
+  await page.locator('#custom-formula').fill('(t*v)/v = s/v');
+  await page.locator('#custom-target').fill('s');
+  await page.locator('#btn-load-custom').click();
+  await page.waitForTimeout(300);
+  await page.locator('#btn-cross').click();
+  await page.locator('#equation-display [data-id="left/num/Mul0"]').click();
+  await page.locator('#equation-display [data-id="left/den"]').click();
+  await page.waitForTimeout(400);
+  const errText = await page.locator('#message-box').innerText();
+  check('La croce segnala l\'errore su fattori diversi',
+    /non sono uguali/i.test(errText), errText);
+  check('La croce rifiutata non cambia l\'equazione',
+    (await page.locator('#equation-display').innerText()).includes('v'),
+    await page.locator('#equation-display').innerText());
+
+  // 11. Nessun errore in console durante le interazioni
   check('Nessun errore JavaScript durante le interazioni',
     consoleErrors.length === 0, consoleErrors.join(' | '));
 

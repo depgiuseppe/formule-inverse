@@ -516,6 +516,10 @@
   function ratMul(a, b) {
     return ratNorm({ n: a.n * b.n, d: a.d * b.d });
   }
+  function ratDiv(a, b) {
+    if (b.n === 0) return a;
+    return ratNorm({ n: a.n * b.d, d: a.d * b.n });
+  }
   function ratToNode(r) {
     if (!r || r.n === 0) return null;
     if (r.d === 1) return Num(r.n);
@@ -563,21 +567,36 @@
           else flat.push(p);
         }
         let acc = { n: 1, d: 1 };
-        const rest = [];
+        const numFactors = [];
+        const denFactors = [];
         for (const p of flat) {
           const r = asRational(p);
-          if (r) acc = ratMul(acc, r);
-          else rest.push(p);
+          if (r) {
+            acc = ratMul(acc, r);
+            continue;
+          }
+          if (p.type === "Div") {
+            const rn = asRational(p.num);
+            if (rn) acc = ratMul(acc, rn);
+            else numFactors.push(p.num);
+            const rd = asRational(p.den);
+            if (rd) acc = ratDiv(acc, rd);
+            else denFactors.push(p.den);
+            continue;
+          }
+          numFactors.push(p);
         }
         if (acc.n === 0) return Num(0);
-        if (rest.length === 0) return Num(acc);
-        rest.sort(compareNodes);
+        numFactors.sort(compareNodes);
+        denFactors.sort(compareNodes);
         const negative = acc.n < 0;
         const abs = { n: Math.abs(acc.n), d: acc.d };
         const out = [];
         if (!(abs.n === 1 && abs.d === 1)) out.push(ratToNode(abs));
-        out.push(...rest);
-        const product = out.length === 1 ? out[0] : flattenAssoc("Mul", out);
+        out.push(...numFactors);
+        if (out.length === 0 && denFactors.length === 0) return Num(1);
+        const numPart = out.length === 0 ? Num(1) : out.length === 1 ? out[0] : flattenAssoc("Mul", out);
+        const product = denFactors.length === 0 ? numPart : Div(numPart, denFactors.length === 1 ? denFactors[0] : flattenAssoc("Mul", denFactors));
         return negative ? Neg(product) : product;
       }
       case "Div": {
@@ -2390,6 +2409,198 @@
       conditions: res.conditions || [],
       steps: res.steps || [],
       note: res.note || null
+    };
+  }
+
+  // js/cross.js
+  var INDEXED = /^(Add|Sub|Mul)(\d+)$/;
+  function childAt(node, segment) {
+    const u = unwrap(node);
+    const m = INDEXED.exec(segment);
+    if (m) return u.args ? u.args[Number(m[2])] : void 0;
+    switch (segment) {
+      case "num":
+        return u.num;
+      case "den":
+        return u.den;
+      case "base":
+        return u.base;
+      case "exp":
+        return u.exp;
+      case "arg":
+        return u.arg;
+      case "g":
+        return u.arg;
+      default:
+        return void 0;
+    }
+  }
+  function replaceChild(node, segment, replacement) {
+    const u = unwrap(node);
+    const m = INDEXED.exec(segment);
+    if (m) {
+      const i = Number(m[2]);
+      if (!u.args) return node;
+      return { ...u, args: u.args.map((a, k) => k === i ? replacement : a) };
+    }
+    switch (segment) {
+      case "num":
+        return Div(replacement, u.den);
+      case "den":
+        return Div(u.num, replacement);
+      case "base":
+        return Pow(replacement, u.exp);
+      case "exp":
+        return Pow(u.base, replacement);
+      case "arg":
+        return { ...u, arg: replacement };
+      case "g":
+        return Group(replacement);
+      default:
+        return node;
+    }
+  }
+  function nodeAtSegments(node, segments) {
+    let cur = unwrap(node);
+    for (const seg of segments) {
+      const next = childAt(cur, seg);
+      if (next === void 0) return void 0;
+      cur = unwrap(next);
+    }
+    return cur;
+  }
+  function rebuildAlongPath(root, pathSegments, newValue) {
+    if (pathSegments.length === 0) return newValue;
+    const [head, ...rest] = pathSegments;
+    const child = childAt(root, head);
+    if (child === void 0) return root;
+    const newChild = rest.length === 0 ? newValue : rebuildAlongPath(child, rest, newValue);
+    return replaceChild(root, head, newChild);
+  }
+  function removeFromParent(parent, segment) {
+    const u = unwrap(parent);
+    const m = INDEXED.exec(segment);
+    if (m) {
+      if (u.type !== "Mul" || !u.args) return null;
+      const rest = u.args.filter((_, k) => k !== Number(m[2]));
+      if (rest.length === 0) return Num(1);
+      if (rest.length === 1) return rest[0];
+      return Mul(...rest);
+    }
+    if (u.type === "Div") {
+      if (segment === "num") return Div(Num(1), u.den);
+      if (segment === "den") return u.num;
+    }
+    if (u.type === "Pow" && segment === "base" && u.exp && u.exp.type === "Num") {
+      const n = u.exp.value - 1;
+      if (n === 0) return Num(1);
+      if (n === 1) return u.base;
+      return Pow(u.base, Num(n));
+    }
+    return null;
+  }
+  function removeAt(node, segments) {
+    if (segments.length === 0) {
+      return { ok: false, error: "Indica un fattore dentro la frazione, non l'intero membro." };
+    }
+    const parentSegments = segments.slice(0, -1);
+    const last = segments[segments.length - 1];
+    const parent = parentSegments.length === 0 ? unwrap(node) : nodeAtSegments(node, parentSegments);
+    if (!parent) return { ok: false, error: "Percorso non valido in questa equazione." };
+    const replacement = removeFromParent(parent, last);
+    if (replacement === null) {
+      return {
+        ok: false,
+        error: "Non si pu\xF2 eliminare questo elemento: la semplificazione riguarda solo i fattori di prodotti e frazioni."
+      };
+    }
+    if (parentSegments.length === 0) return { ok: true, node: replacement };
+    return { ok: true, node: rebuildAlongPath(node, parentSegments, replacement) };
+  }
+  function analyseElementId(id) {
+    const parts = String(id || "").split("/");
+    const side = parts[0];
+    if (side !== "left" && side !== "right" || parts.length < 2) return null;
+    const segments = parts.slice(1);
+    let k = -1;
+    for (let i = 0; i < segments.length; i++) {
+      if (segments[i] === "num" || segments[i] === "den") {
+        k = i;
+        break;
+      }
+    }
+    if (k === -1) return null;
+    const prefix = segments.slice(0, k);
+    const suffix = segments.slice(k + 1);
+    if (prefix.some((s) => !(/^Mul\d+$/.test(s) || /^Add\d+$/.test(s)))) return null;
+    for (let i = 0; i < suffix.length - 1; i++) {
+      if (!/^Mul\d+$/.test(suffix[i])) return null;
+    }
+    const last = suffix[suffix.length - 1];
+    if (suffix.length > 0 && last !== "base" && !/^Mul\d+$/.test(last)) return null;
+    return { side, segments, slot: segments[k] };
+  }
+  function crossCancel(eq2, idA, idB) {
+    if (!eq2 || eq2.type !== "Eq") {
+      return { ok: false, error: "Nessuna equazione su cui semplificare." };
+    }
+    if (idA === idB) {
+      return { ok: false, error: "Hai indicato due volte lo stesso elemento." };
+    }
+    const a = analyseElementId(idA);
+    const b = analyseElementId(idB);
+    if (!a || !b) {
+      return {
+        ok: false,
+        error: "Solo un fattore al numeratore e uno al denominatore di una frazione si possono semplificare.",
+        hint: "Trascina la croce su un fattore del numeratore e su uno uguale del denominatore."
+      };
+    }
+    if (a.side !== b.side) {
+      return {
+        ok: false,
+        error: "I due elementi uguali devono stare nello stesso membro: tra membri diversi non c'\xE8 nessuna frazione da semplificare.",
+        hint: "Semplifica un fattore che compare al numeratore e al denominatore dello stesso membro."
+      };
+    }
+    const member = a.side === "left" ? eq2.left : eq2.right;
+    const nodeA = nodeAtSegments(member, a.segments);
+    const nodeB = nodeAtSegments(member, b.segments);
+    if (!nodeA || !nodeB) {
+      return { ok: false, error: "Elemento non trovato nell'equazione." };
+    }
+    if (!equivalentExpr(nodeA, nodeB)) {
+      return {
+        ok: false,
+        error: `I due elementi non sono uguali, quindi non si semplificano: ${toPretty(nodeA, 0)} \u2260 ${toPretty(nodeB, 0)}.`,
+        hint: "Si semplificano solo fattori identici, per esempio la stessa lettera o lo stesso numero."
+      };
+    }
+    const slotA = a.slot;
+    const slotB = b.slot;
+    if (slotA === slotB) {
+      return {
+        ok: false,
+        error: "Servono un elemento al numeratore e uno al denominatore: due fattori nella stessa posizione non si eliminano.",
+        hint: "La semplificazione vale tra numeratore e denominatore (a/a = 1, con a \u2260 0)."
+      };
+    }
+    const numEntry = slotA === "num" ? a : b;
+    const denEntry = slotA === "den" ? a : b;
+    const afterNum = removeAt(member, numEntry.segments);
+    if (!afterNum.ok) return { ok: false, error: afterNum.error };
+    const afterBoth = removeAt(afterNum.node, denEntry.segments);
+    if (!afterBoth.ok) return { ok: false, error: afterBoth.error };
+    const simplified = canonical(afterBoth.node);
+    const newEq = canonical(a.side === "left" ? Eq(simplified, eq2.right) : Eq(eq2.left, simplified));
+    const cancelled = toPretty(nodeA, 0);
+    return {
+      ok: true,
+      newEq,
+      cancelled,
+      ruleName: `Semplificazione di ${cancelled} tra numeratore e denominatore`,
+      rulePrinciple: `${cancelled}/${cancelled} = 1, purch\xE9 ${cancelled} \u2260 0: un fattore uguale al numeratore e al denominatore si pu\xF2 eliminare.`,
+      conditions: [`${cancelled} \u2260 0`]
     };
   }
 
@@ -5388,6 +5599,42 @@
       const text = html.replace(/<[^>]+>/g, "");
       return text.includes("(a") && text.includes("b)") ? true : `reso come ${text}`;
     }));
+    results.push(test("Croce: (2\xB7L)/2 semplifica il 2 e resta L = b", () => {
+      const r = crossCancel(eq("(2*L)/2 = b"), "left/num/Mul0", "left/den");
+      if (!r.ok) return `rifiutata: ${r.error}`;
+      return equivalentEq(r.newEq, eq("L = b")) || `ottenuto ${toPretty(r.newEq, 0)}`;
+    }));
+    results.push(test("Croce: (t\xB7v)/v semplifica v e resta t = s/v", () => {
+      const r = crossCancel(eq("(t*v)/v = s/v"), "left/num/Mul1", "left/den");
+      if (!r.ok) return `rifiutata: ${r.error}`;
+      return equivalentEq(r.newEq, eq("t = s/v")) || `ottenuto ${toPretty(r.newEq, 0)}`;
+    }));
+    results.push(test("Croce: v\xB2/v semplifica a v", () => {
+      const r = crossCancel(eq("(v^2*t)/v = s"), "left/num/Mul0/base", "left/den");
+      if (!r.ok) return `rifiutata: ${r.error}`;
+      return equivalentEq(r.newEq, eq("t*v = s")) || `ottenuto ${toPretty(r.newEq, 0)}`;
+    }));
+    results.push(test("Croce: rifiuta due fattori diversi", () => {
+      const r = crossCancel(eq("(t*v)/v = s/v"), "left/num/Mul0", "left/den");
+      return r.ok ? "accettata ma doveva essere rifiutata" : true;
+    }));
+    results.push(test("Croce: rifiuta due fattori nello stesso numeratore", () => {
+      const r = crossCancel(eq("v = s/t"), "left/num", "left/num");
+      return r.ok ? "accettata ma doveva essere rifiutata" : true;
+    }));
+    results.push(test("Croce: rifiuta fattori in membri diversi", () => {
+      const r = crossCancel(eq("v = s/t"), "right/num", "left/num");
+      return r.ok ? "accettata ma doveva essere rifiutata" : true;
+    }));
+    results.push(test("Croce: (a/b)\xB7(b/c) diventa a/c", () => {
+      const r = crossCancel(eq("z = (a/b)*(b/c)"), "right/Mul0/den", "right/Mul1/num");
+      if (!r.ok) return `rifiutata: ${r.error}`;
+      return equivalentEq(r.newEq, eq("z = a/c")) || `ottenuto ${toPretty(r.newEq, 0)}`;
+    }));
+    results.push(test("Croce: non elimina un addendo di una somma", () => {
+      const r = crossCancel(eq("x + a = b"), "left/Add0", "left/Add0");
+      return r.ok ? "accettata ma doveva essere rifiutata" : true;
+    }));
     return results;
   }
   function formatTestResults(results) {
@@ -5720,7 +5967,7 @@
     showImplicitDen: false,
     keypadOp: null,
     crossMode: false,
-    crossPicked: null
+    crossPicked: []
   };
   var $ = (sel) => document.querySelector(sel);
   var dom = {
@@ -5737,6 +5984,10 @@
     btnCopyLatex: $("#btn-copy-latex"),
     btnMirror: $("#btn-mirror"),
     btnReciprocal: $("#btn-reciprocal"),
+    btnCross: $("#btn-cross"),
+    crossLayer: $("#cross-layer"),
+    crossHandle: $("#cross-handle"),
+    crossDissolveLayer: $("#cross-dissolve-layer"),
     btnToggleImplicitDen: $("#btn-toggle-implicit-den"),
     equationDisplay: $("#equation-display"),
     keypadOps: $("#keypad-ops"),
@@ -5959,7 +6210,12 @@
     state.goalReached = false;
     state.keypadOp = null;
     state.crossMode = false;
-    state.crossPicked = null;
+    state.crossPicked = [];
+    if (dom.btnCross) {
+      dom.btnCross.classList.remove("active");
+      dom.btnCross.setAttribute("aria-pressed", "false");
+    }
+    if (dom.crossLayer) dom.crossLayer.hidden = true;
     pushHistory({
       equation: clone(eq2),
       ruleName: "Formula di partenza",
@@ -6178,6 +6434,10 @@
     dom.equationDisplay.querySelectorAll(".math-node").forEach((el) => {
       el.addEventListener("click", (e) => {
         e.stopPropagation();
+        if (state.crossMode) {
+          crossPickToken(el.dataset.id, el);
+          return;
+        }
         selectElement(el.dataset.id);
       });
       el.tabIndex = 0;
@@ -6186,9 +6446,187 @@
       el.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          selectElement(el.dataset.id);
+          if (state.crossMode) crossPickToken(el.dataset.id, el);
+          else selectElement(el.dataset.id);
         }
       });
+    });
+  }
+  function toggleCrossMode(force) {
+    state.crossMode = typeof force === "boolean" ? force : !state.crossMode;
+    state.crossPicked = [];
+    if (dom.btnCross) {
+      dom.btnCross.classList.toggle("active", state.crossMode);
+      dom.btnCross.setAttribute("aria-pressed", state.crossMode ? "true" : "false");
+    }
+    if (dom.crossLayer) dom.crossLayer.hidden = !state.crossMode;
+    const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
+    if (card) card.classList.toggle("cross-mode", state.crossMode);
+    clearCrossMarks();
+    if (state.crossMode) {
+      showMessage("\u2717 Croce attiva: trascinala (o tocca) un fattore al numeratore e uno uguale al denominatore.", "info");
+      if (dom.crossHandle) dom.crossHandle.focus();
+    }
+  }
+  function clearCrossMarks() {
+    dom.equationDisplay.querySelectorAll(".cross-marked").forEach((el) => el.classList.remove("cross-marked"));
+  }
+  function crossPickToken(id, element) {
+    if (!state.currentEq || !id) return;
+    const already = state.crossPicked.indexOf(id);
+    if (already >= 0) {
+      state.crossPicked.splice(already, 1);
+      if (element) element.classList.remove("cross-marked");
+      return;
+    }
+    state.crossPicked.push(id);
+    if (element) element.classList.add("cross-marked");
+    if (state.crossPicked.length < 2) {
+      showMessage("\u2717 Primo fattore scelto: ora scegli quello uguale al numeratore o al denominatore.", "info");
+      return;
+    }
+    const [idA, idB] = state.crossPicked;
+    state.crossPicked = [];
+    applyCrossCancel(idA, idB);
+  }
+  function applyCrossCancel(idA, idB) {
+    const before = state.currentEq;
+    const res = crossCancel(before, idA, idB);
+    if (!res.ok) {
+      clearCrossMarks();
+      flashCrossError();
+      showInvalidMove(res.error, res.hint, { label: "Croce di semplificazione" });
+      return;
+    }
+    dissolveElements([idA, idB]);
+    clearCrossMarks();
+    state.currentEq = res.newEq;
+    state.conditions = mergeConditions(state.conditions, res.conditions || []);
+    state.selectedId = null;
+    clearPreview();
+    pushHistory({
+      equation: clone(res.newEq),
+      ruleName: res.ruleName,
+      rulePrinciple: res.rulePrinciple,
+      ruleId: "cross-cancel",
+      steps: [`Elimino il fattore ${res.cancelled} al numeratore e al denominatore (${res.cancelled} \u2260 0).`],
+      conditions: (res.conditions || []).slice(),
+      explanationKey: null,
+      note: null,
+      verified: true
+    }, false);
+    updateObjective();
+    renderEquationView();
+    showRulePanel(
+      { name: res.ruleName, principle: res.rulePrinciple, explanation: null },
+      { steps: [`Elimino ${res.cancelled} tra numeratore e denominatore.`], conditions: res.conditions || [] },
+      res.newEq
+    );
+    clearMessage();
+    showMessage(`\u2713 ${res.ruleName}.`, "success");
+    if (state.goalReached) {
+      playSuccessChime();
+      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
+    } else if (state.mode === "guided") {
+      showGuidedSuggestion();
+    } else if (state.mode === "multi") {
+      showMultiMode();
+    }
+    if (state.crossMode) clearCrossMarks();
+  }
+  function flashCrossError() {
+    const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
+    if (!card) return;
+    card.classList.remove("cross-error");
+    void card.offsetWidth;
+    card.classList.add("cross-error");
+    setTimeout(() => card.classList.remove("cross-error"), 500);
+  }
+  function dissolveElements(ids) {
+    const layer = dom.crossDissolveLayer;
+    if (!layer || !dom.equationDisplay) return;
+    layer.innerHTML = "";
+    const hostRect = dom.equationDisplay.getBoundingClientRect();
+    let count = 0;
+    for (const id of ids) {
+      const el = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(id)}"]`);
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      const ghost = document.createElement("span");
+      ghost.className = "cross-ghost";
+      ghost.innerHTML = el.innerHTML;
+      ghost.style.left = `${rect.left - hostRect.left}px`;
+      ghost.style.top = `${rect.top - hostRect.top}px`;
+      ghost.style.width = `${rect.width}px`;
+      ghost.style.height = `${rect.height}px`;
+      layer.appendChild(ghost);
+      count++;
+    }
+    if (count === 0) return;
+    requestAnimationFrame(() => {
+      layer.querySelectorAll(".cross-ghost").forEach((g) => g.classList.add("dissolving"));
+    });
+    setTimeout(() => {
+      layer.innerHTML = "";
+    }, 700);
+  }
+  function bindCrossDrag() {
+    const handle = dom.crossHandle;
+    if (!handle) return;
+    let dragging = false;
+    const tokenUnder = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      if (!el) return null;
+      const node = el.closest(".math-node");
+      if (!node || !dom.equationDisplay.contains(node)) return null;
+      return node;
+    };
+    const moveHandle = (x, y) => {
+      const card = handle.closest(".cross-layer");
+      const host = card || handle.parentElement;
+      const rect = host.getBoundingClientRect();
+      handle.style.left = `${x - rect.left}px`;
+      handle.style.top = `${y - rect.top}px`;
+    };
+    const highlight = (node) => {
+      dom.equationDisplay.querySelectorAll(".cross-hover").forEach((el) => el.classList.remove("cross-hover"));
+      if (node && !node.classList.contains("cross-marked")) node.classList.add("cross-hover");
+    };
+    handle.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      dragging = true;
+      handle.classList.add("dragging");
+      handle.setPointerCapture(e.pointerId);
+      moveHandle(e.clientX, e.clientY);
+    });
+    handle.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      moveHandle(e.clientX, e.clientY);
+      highlight(tokenUnder(e.clientX, e.clientY));
+    });
+    const finish = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      handle.classList.remove("dragging");
+      highlight(null);
+      const node = tokenUnder(e.clientX, e.clientY);
+      if (node) crossPickToken(node.dataset.id, node);
+      handle.style.left = "";
+      handle.style.top = "";
+    };
+    handle.addEventListener("pointerup", finish);
+    handle.addEventListener("pointercancel", () => {
+      dragging = false;
+      handle.classList.remove("dragging");
+      highlight(null);
+      handle.style.left = "";
+      handle.style.top = "";
+    });
+    handle.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        showMessage("Usa Tab per raggiungere un fattore e Invio per sceglierlo.", "info");
+      }
     });
   }
   function applyDragResult(result) {
@@ -6717,6 +7155,8 @@
     if (dom.btnMirror) dom.btnMirror.addEventListener("click", applyMirrorRule);
     if (dom.btnReciprocal) dom.btnReciprocal.addEventListener("click", applyReciprocalRule);
     if (dom.btnCopyFormula) dom.btnCopyFormula.addEventListener("click", copyFormulaText);
+    if (dom.btnCross) dom.btnCross.addEventListener("click", () => toggleCrossMode());
+    bindCrossDrag();
     if (dom.btnCopyLatex) dom.btnCopyLatex.addEventListener("click", copyLatexFormula);
     if (dom.btnCopyLatexInline) dom.btnCopyLatexInline.addEventListener("click", copyLatexFormula);
     if (dom.btnQuickHint) dom.btnQuickHint.addEventListener("click", triggerQuickHint);
