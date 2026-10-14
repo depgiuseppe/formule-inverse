@@ -285,7 +285,17 @@ async function run() {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.waitForTimeout(200);
 
-  // 14. Nessun errore in console durante le interazioni
+  // 14. Il runner di test interno all'app mostra tutti i test superati
+  await page.locator('#btn-run-tests').click();
+  await page.waitForTimeout(700);
+  const runnerText = await page.locator('#tests-backdrop').innerText();
+  const runnerMatch = runnerText.match(/(\d+)\s*\/\s*(\d+)/);
+  check('Il runner interno all\'app supera tutti i test',
+    !!runnerMatch && runnerMatch[1] === runnerMatch[2], runnerMatch ? runnerMatch[0] : runnerText.slice(0, 120));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+
+  // 15. Nessun errore in console durante le interazioni
   check('Nessun errore JavaScript durante le interazioni',
     consoleErrors.length === 0, consoleErrors.join(' | '));
 

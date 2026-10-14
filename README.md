@@ -173,6 +173,7 @@ npm run test:all  # build + tutti i test in sequenza
 È possibile verificare i test unitari anche direttamente dall'applicazione, cliccando sul pulsante **"Esegui test automatici"** nell'header.
 
 I test di interfaccia richiedono i browser di Playwright (`npx playwright install chromium`).
+Con `UI_SCREENSHOTS=1 npm run test:ui` vengono salvati gli screenshot delle funzionalità visive in `tests/screenshots/`.
 I controlli preliminari di `npm run build` (selettori DOM e sintassi) bloccano la compilazione se un id usato nel JavaScript non esiste più in `index.html`: è la protezione contro la pagina bianca.
 
 ### 4. Compilazione del Bundle
