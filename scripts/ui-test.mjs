@@ -215,7 +215,77 @@ async function run() {
     (await page.locator('#equation-display').innerText()).includes('v'),
     await page.locator('#equation-display').innerText());
 
-  // 11. Nessun errore in console durante le interazioni
+  // 11. Temi: contrasto del testo (WCAG AA) in chiaro, scuro, alto contrasto
+  const contrastOf = async () => page.evaluate(() => {
+    const lum = (c) => {
+      const [r, g, b] = c.match(/\d+/g).slice(0, 3).map(Number)
+        .map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const effBg = (el) => {
+      let n = el;
+      while (n && n !== document.documentElement) {
+        const bg = getComputedStyle(n).backgroundColor;
+        if (bg && !/rgba\(0, 0, 0, 0\)/.test(bg)) return bg;
+        n = n.parentElement;
+      }
+      return getComputedStyle(document.body).backgroundColor;
+    };
+    const el = document.querySelector('#equation-display .math-node') || document.body;
+    const l1 = lum(getComputedStyle(el).color);
+    const l2 = lum(effBg(el));
+    return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+  });
+
+  const lightContrast = await contrastOf();
+  check('Tema chiaro: contrasto testo ≥ 4.5 (WCAG AA)', lightContrast >= 4.5, lightContrast.toFixed(2));
+
+  await page.locator('#btn-theme').click();
+  await page.waitForTimeout(250);
+  const darkContrast = await contrastOf();
+  check('Tema scuro: contrasto testo ≥ 4.5 (WCAG AA)', darkContrast >= 4.5, darkContrast.toFixed(2));
+
+  await page.locator('#btn-contrast').click();
+  await page.waitForTimeout(250);
+  const hcContrast = await contrastOf();
+  check('Alto contrasto: contrasto testo ≥ 7 (WCAG AAA)', hcContrast >= 7, hcContrast.toFixed(2));
+
+  await page.locator('#btn-contrast').click();
+  await page.locator('#btn-theme').click();
+  await page.waitForTimeout(200);
+
+  // 12. Accessibilità da tastiera (la modalità croce va disattivata prima)
+  await page.locator('#btn-cross').click();
+  await page.waitForTimeout(150);
+  const kb = await page.evaluate(() => {
+    const node = document.querySelector('#equation-display .math-node');
+    node.focus();
+    node.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    return {
+      selected: !!document.querySelector('#equation-display .math-node.selected'),
+      hint: document.querySelector('#action-hint').textContent,
+      role: node.getAttribute('role'),
+      tabindex: node.getAttribute('tabindex'),
+    };
+  });
+  check('Gli elementi dell\'equazione sono raggiungibili da tastiera',
+    kb.role === 'button' && kb.tabindex === '0', JSON.stringify(kb));
+  check('Invio seleziona l\'elemento e mostra le operazioni',
+    kb.selected && /Selezionato: "[^"]+"/.test(kb.hint), kb.hint);
+  check('L\'etichetta dell\'elemento selezionato non è "undefined"',
+    !/undefined/.test(kb.hint), kb.hint);
+
+  // 13. Layout responsive: nessuno scorrimento orizzontale della pagina
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.waitForTimeout(250);
+  const mobileOverflow = await page.evaluate(() =>
+    document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  check('A 390 px la pagina non ha scorrimento orizzontale',
+    mobileOverflow === 0, `overflow ${mobileOverflow}px`);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(200);
+
+  // 14. Nessun errore in console durante le interazioni
   check('Nessun errore JavaScript durante le interazioni',
     consoleErrors.length === 0, consoleErrors.join(' | '));
 

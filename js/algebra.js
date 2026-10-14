@@ -126,8 +126,10 @@ function walk(node, side, out, id, ctx) {
 
 // Dato un id, ritorna l'elemento corrispondente.
 export function findElement(eq, id) {
-  if (id === 'left') return { id, side: 'left', node: unwrap(eq.left), role: 'membro' };
-  if (id === 'right') return { id, side: 'right', node: unwrap(eq.right), role: 'membro' };
+  if (id === 'left' || id === 'right') {
+    const node = unwrap(id === 'left' ? eq.left : eq.right);
+    return { id, side: id, node, role: 'membro', pretty: toPretty(node, 0) };
+  }
   return enumerateElements(eq).find((e) => e.id === id) || null;
 }
 

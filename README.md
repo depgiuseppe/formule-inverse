@@ -43,34 +43,51 @@ Lo scopo di questo laboratorio è trasformare l'algebra in un'esperienza **tangi
 ### 5. 🪞 Regola dello Specchio ($A = B \leftrightarrow B = A$)
 - Pulsante dedicato nella barra strumenti dell'area di lavoro per scambiare istantaneamente i due membri dell'equazione sfruttando la **proprietà simmetrica dell'uguaglianza**.
 
-### 6. 🔄 Rotazione Frazioni & Regola dei Reciproci
-- Ogni singola frazione presenta un pulsante `🔄` per capovolgere numeratore e denominatore.
-- **Verifica didattica alla conferma:**
-  - In una **proporzione** ($\frac{A}{B} = \frac{C}{D}$): capovolgendo entrambi i membri si ottiene $\frac{B}{A} = \frac{D}{C}$ (mossa confermata e valida). Capovolgendo solo un membro, l'app segnala l'errore di bilanciamento.
-  - In una **somma di frazioni** ($\frac{A}{B} + \frac{C}{D} = \frac{E}{F}$): capovolgendo tutti i termini, l'app spiega il fondamentale errore didattico: *il reciproco di una somma NON è la somma dei reciproci* ($\frac{1}{A/B + C/D} \neq \frac{B}{A} + \frac{D}{C}$), insegnando che occorre prima trovare il denominatore comune.
+### 6. 🔁 Regola dei Reciproci (inversione dei membri)
+- Pulsante dedicato **accanto alla regola dello specchio**: scambia numeratore e denominatore di **entrambi i membri** in un solo gesto.
+- Funziona anche con i **denominatori sottintesi** ($F = m \cdot a \Rightarrow \frac{1}{F} = \frac{1}{m \cdot a}$) e con i **fattori frazionari** ($E_c = \frac{1}{2} m v^2 \Rightarrow \frac{1}{E_c} = \frac{2}{m v^2}$).
+- In una **proporzione** ($\frac{A}{B} = \frac{C}{D}$) si ottiene $\frac{B}{A} = \frac{D}{C}$.
+- In una **somma di frazioni** ($\frac{1}{R_{eq}} = \frac{1}{R_1} + \frac{1}{R_2}$) l'app **rifiuta l'operazione** spiegando l'errore didattico fondamentale: *il reciproco di una somma NON è la somma dei reciproci* ($\frac{1}{A/B + C/D} \neq \frac{B}{A} + \frac{D}{C}$). Occorre prima ridurre a denominatore comune.
 
-### 7. Scelta della Grandezza da Ricavare all'Avvio
+### 7. 🧮 Tastierino delle operazioni
+- Tastiera con le sei operazioni ($+$, $−$, $\times$, $\div$, potenza, radice) e una **tastiera con tutte le grandezze e i numeri presenti nell'equazione**, più un campo libero per un numero qualsiasi (es. moltiplicare per 2).
+- Si sceglie l'operazione e poi la grandezza o il numero: le stesse operazioni vengono applicate **a entrambi i membri** (primo e secondo principio di equivalenza).
+- Un'**animazione** segnala l'operazione applicata e l'equazione pulsa per mostrare che il cambiamento ha coinvolto entrambi i membri.
+- Ogni operazione passa dal motore algebrico: se non è lecita (divisione per zero, moltiplicazione per zero) l'app spiega il perché. Tutto è annullabile con **Annulla/Ripristina**.
+
+### 8. ✗ Croce di semplificazione
+- Una **croce rossa trascinabile** (o utilizzabile da tastiera) che elimina due fattori uguali: uno al **numeratore** e uno al **denominatore**.
+- Esempi: $\frac{2 \cdot L}{2} = b \Rightarrow L = b$; $\frac{t \cdot v}{v} = \frac{s}{v} \Rightarrow t = \frac{s}{v}$; $\frac{v^2}{v} = v$.
+- I due fattori **si dissolvono** con un'animazione e la mossa entra nella cronologia.
+- Se i fattori non sono uguali, se sono nella stessa posizione, se stanno in membri diversi o se la semplificazione attraversa una somma, l'app **segnala l'errore** con la motivazione matematica.
+
+### 9. Spazi di inserimento durante il trascinamento
+- Mentre si trascina una lettera, nel membro di destinazione **si apre uno spazio accanto alle quantità già presenti**, nella posizione corretta: **accanto al numeratore** o **accanto al denominatore**.
+- Lo spazio compare solo sul membro di destinazione e si richiude automaticamente se il trascinamento viene annullato.
+
+### 10. Scelta della Grandezza da Ricavare all'Avvio
 - Cliccando su una formula nella libreria si apre una modale interattiva con pulsanti grandi per selezionare quale grandezza isolare.
 - Nelle card della libreria sono presenti chip diretti (`Isola: [s] [a] [t]`) per avviare l'esercizio con 1 click.
 - Nel box **Obiettivo** in alto, una barra di chip consente di cambiare la grandezza obiettivo in qualunque momento durante lo svolgimento.
 
-### 8. Tipografia Matematica Scientifica & Radici Scalabili
+### 11. Tipografia Matematica Scientifica & Radici Scalabili
 - Utilizzo del font scientifico **STIX Two Text** (standard IEEE/AMS per pubblicazioni matematiche).
 - Variabili in corsivo matematico con pedici e apici formattati con tag HTML nativi (`<sub>` e `<sup>`) allineati sulla baseline (nessun underscore o carattere deformato).
+- **Notazione normalizzata:** le costanti restano frazioni esatte ($\frac{1}{2}$, mai `0.5`), i fattori hanno un ordine stabile ($m \cdot v^2$ e non $v^2 \cdot m$), non ci sono parentesi ridondanti ($P - d \cdot g \cdot h = p_0$) e le sottrazioni si scrivono come tali ($v - v_0$, non $v + -1 \cdot v_0$). Le parentesi scritte dall'utente vengono sempre conservate.
 - **Radici quadrate scalabili in stile LaTeX:** realizzate con simbolo SVG vettoriale a tratto costante (`vector-effect="non-scaling-stroke"`) e vinculum continuo che si adatta dinamicamente a qualsiasi altezza del radicando (frazioni, potenze, polinomi).
 
-### 9. Integrazione LaTeX Completa
+### 12. Integrazione LaTeX Completa
 - **Barra Live LaTeX:** sotto l'equazione viene mostrato in tempo reale il codice LaTeX standard della formula corrente, aggiornato ad ogni passaggio.
 - **Pulsante 📐 Copia LaTeX:** copia istantaneamente negli appunti la formula corrente in sintassi LaTeX pulita (es. `v = \frac{s}{t}`).
 - **Pulsante 📐 Copia LaTeX nella Cronologia:** esporta l'intera sequenza dei passaggi formattata per blocchi `\begin{align*} ... \end{align*}` pronta per Overleaf, Notion o tesi di laurea.
 - **Importazione da LaTeX:** campo dedicato nella libreria per incollare formule scritte in LaTeX e convertirle in formule interattive.
 
-### 10. Modalità di Interazione
+### 13. Modalità di Interazione
 - **Modalità Libera:** esplorazione autonoma e sperimentazione con selezione elementi e drag & drop.
 - **Modalità Guidata:** suggerisce passo dopo passo la trasformazione migliore per isolare l'incognita selezionata.
 - **Modalità Multi-operazione:** genera una roadmap visuale con tutti i passaggi necessari ed include la funzione **Risolvi tutto automaticamente** con animazione dei passaggi.
 
-### 11. Libreria di oltre 170 Formule di Fisica
+### 14. Libreria di oltre 170 Formule di Fisica
 Copre l'intero programma del quinquennio scolastico e universitario di base:
 - **Cinematica:** moto uniforme, uniformemente accelerato, circolare, armonico.
 - **Dinamica & Gravitazione:** principi della dinamica, attrito, forza elastica, gravitazione universale, moto dei pianeti.
@@ -81,7 +98,7 @@ Copre l'intero programma del quinquennio scolastico e universitario di base:
 - **Onde, Ottica & Fisica Moderna:** legge dei punti coniugati, rifrazione di Snell, effetto fotoelettrico, equivalenza massa-energia ($E = mc^2$).
 - Filtro combinato per **Argomento**, **Difficoltà (1-5 stelle)** e **Ricerca testuale rapida**.
 
-### 12. Gestione Cronologia, Undo/Redo & Audio Chime
+### 15. Gestione Cronologia, Undo/Redo & Audio Chime
 - Cronologia completa di ogni passaggio con data/ora e indicazione di controllo matematico superato (`✓`) o mossa rifiutata (`✗`).
 - Possibilità di cliccare su qualsiasi passaggio passato per riprendere da quel punto.
 - Tasti **↶ Annulla** (`Ctrl+Z`), **↷ Ripristina** (`Ctrl+Y`) e **↺ Ricomincia**.
@@ -100,21 +117,28 @@ Copre l'intero programma del quinquennio scolastico e universitario di base:
 ├── README.md               # Documentazione dettagliata dell'applicazione
 ├── js/
 │   ├── app.js              # Controller dell'app, gestione stato, eventi UI e cronologia
-│   ├── ast.js              # Definizione dell'AST (Abstract Syntax Tree), toPretty e toLatex
+│   ├── ast.js              # Definizione dell'AST, aritmetica razionale, toPretty e toLatex
 │   ├── parser.js           # Parser di equazioni ed espressioni matematiche
 │   ├── rules.js            # Implementazione rigorosa dei principi di equivalenza
 │   ├── algebra.js          # Motore algebrico: enumerazione nodi, azioni lecite, roadmap
 │   ├── render.js           # Renderizzatore HTML/SVG delle formule e delle componenti interattive
 │   ├── dragdrop.js         # Motore Drag & Drop (trasporto termini, fattori, gruppi e frazioni)
+│   ├── cross.js            # Croce di semplificazione tra numeratore e denominatore
+│   ├── reciprocals.js      # Regola dei reciproci applicata all'intera equazione
+│   ├── operations.js       # Operazioni del tastierino applicate a entrambi i membri
 │   ├── formulas.js         # Libreria formule base e gestione argomenti
 │   ├── formulas-fisica.js  # Formulario avanzato di fisica del quinquennio
 │   ├── formula-db.js       # Archivio locale localStorage, import/export JSON e parser LaTeX
 │   ├── explanations.js     # Spiegazioni didattiche intuitive e formali per ciascuna regola
-│   ├── tests.js            # Suite completa di 39 test automatici interni
+│   ├── tests.js            # Suite completa di 73 test automatici interni
 │   └── bundle.js           # Bundle standalone compilato per esecuzione offline immediata
 └── scripts/
-    ├── bundle.mjs          # Script di compilazione bundle con esbuild
-    ├── run-tests.mjs       # Script Node per eseguire i test unitari da terminale
+    ├── bundle.mjs          # Compilazione del bundle con esbuild (con controlli preliminari)
+    ├── check-dom-ids.mjs   # Verifica che ogni selettore JS esista in index.html
+    ├── check-syntax.mjs    # Verifica della sintassi di tutti i moduli sorgente
+    ├── run-tests.mjs       # Esecuzione dei test unitari da terminale
+    ├── coverage.mjs        # Copertura del risolutore automatico su tutte le formule
+    ├── ui-test.mjs         # Test di interfaccia con Playwright (file://)
     └── test-drag.mjs       # Test automatici per il motore di Drag & Drop
 ```
 
@@ -139,19 +163,50 @@ python3 -m http.server 3000
 ```
 Apri il browser all'indirizzo `http://localhost:3000`.
 
-### 3. Esecuzione dei Test Unitari
-Per verificare la correttezza del parser, delle regole algebriche, della generazione LaTeX e del Drag & Drop:
+### 3. Esecuzione dei Test
 ```bash
-npm test
+npm test          # 73 test unitari: parser, regole, notazione, reciproci, croce, risolutore
+npm run coverage  # copertura del risolutore automatico su tutte le formule
+npm run test:ui   # 35 test di interfaccia nel browser (Playwright, su file://)
+npm run test:all  # build + tutti i test in sequenza
 ```
-È possibile verificare i test anche direttamente dall'applicazione cliccando sul pulsante **"Esegui test automatici"** nell'header.
+È possibile verificare i test unitari anche direttamente dall'applicazione, cliccando sul pulsante **"Esegui test automatici"** nell'header.
+
+I test di interfaccia richiedono i browser di Playwright (`npx playwright install chromium`).
+I controlli preliminari di `npm run build` (selettori DOM e sintassi) bloccano la compilazione se un id usato nel JavaScript non esiste più in `index.html`: è la protezione contro la pagina bianca.
 
 ### 4. Compilazione del Bundle
 Se apporti modifiche ai singoli moduli ES in `js/`:
 ```bash
 npm run build
 ```
-Lo script utilizza `esbuild` per rigenerare in pochi millisecondi il file `js/bundle.js`.
+Lo script esegue in ordine: controllo dei selettori DOM, controllo di sintassi e compilazione con `esbuild` per rigenerare in pochi millisecondi il file `js/bundle.js`.
+
+> ⚠️ `index.html` carica **solo** `js/bundle.js`: dopo aver modificato un modulo in `js/` è sempre necessario eseguire `npm run build`, altrimenti nel browser restano i sorgenti precedenti.
+
+---
+
+## 📊 Copertura del Risolutore Automatico
+
+`npm run coverage` prova a isolare **ogni grandezza di ogni formula** della libreria con il motore dell'app e misura quanti casi vengono risolti automaticamente:
+
+```
+Formule: 176   Abbinamenti formula/grandezza: 650
+Risolti automaticamente: 645   Non risolti: 5   Copertura: 99,2%
+Casi noti non risolvibili: 5   Regressioni: 0
+```
+
+Il comando **fallisce se un caso prima risolto smette di esserlo**, così le regressioni non passano inosservate.
+
+**Limiti noti e documentati:**
+
+| Formula | Grandezza | Motivo |
+|---|---|---|
+| $s = v_0 t + \frac{1}{2} a t^2$ | $t$ | equazione di 2° grado: serve la formula risolutiva |
+| $\theta = \theta_0 + \omega_0 t + \frac{1}{2} \alpha t^2$ | $t$ | equazione di 2° grado: serve la formula risolutiva |
+| $v = -A\,\omega \sin(\omega t + \varphi)$ | $\omega$ | la grandezza compare sia fuori sia dentro la funzione seno: non è ricavabile in forma chiusa |
+| $a = g(\sin\theta - \mu\cos\theta)$ | $\theta$ | l'angolo compare in seno **e** coseno: non basta una funzione inversa |
+| $E^2 - (pc)^2 = (mc^2)^2$ | $c$ | la grandezza compare al quadrato dentro due prodotti |
 
 ---
 

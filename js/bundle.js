@@ -1871,8 +1871,10 @@
     }
   }
   function findElement(eq2, id) {
-    if (id === "left") return { id, side: "left", node: unwrap(eq2.left), role: "membro" };
-    if (id === "right") return { id, side: "right", node: unwrap(eq2.right), role: "membro" };
+    if (id === "left" || id === "right") {
+      const node = unwrap(id === "left" ? eq2.left : eq2.right);
+      return { id, side: id, node, role: "membro", pretty: toPretty(node, 0) };
+    }
     return enumerateElements(eq2).find((e) => e.id === id) || null;
   }
   function availableActions(eq2, element, target) {
