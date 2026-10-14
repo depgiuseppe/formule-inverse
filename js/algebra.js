@@ -13,7 +13,7 @@ import {
   unwrap, canonical, isNum, equivalentExpr, equivalentEq, collectVars, toPretty,
   isIdenticallyZero, clone, FUNC_INFO,
 } from './ast.js';
-import { RULES, applyRule, additiveTerms, cancelFractionFactor } from './rules.js';
+import { RULES, applyRule, additiveTerms, cancelFractionFactor, findCommonFactorInFraction } from './rules.js';
 
 // ---------------------------------------------------------------------------
 // Stato/contesto di lavoro
@@ -432,6 +432,8 @@ function hasCancellableFactor(member, den) {
 export function findCancellableFactor(member) {
   if (!member) return null;
   const m = unwrap(member);
+  // Il meno davanti a una frazione non impedisce la semplificazione.
+  if (m.type === 'Neg') return findCancellableFactor(m.arg);
   if (m.type === 'Mul') {
     const fracIdx = m.args.findIndex((a) => unwrap(a).type === 'Div');
     if (fracIdx >= 0) {
@@ -443,13 +445,8 @@ export function findCancellableFactor(member) {
     }
   }
   if (m.type === 'Div') {
-    const num = unwrap(m.num);
-    const den = unwrap(m.den);
-    if (equivalentExpr(num, den)) return den;
-    if (num.type === 'Mul') {
-      const found = num.args.find((f) => equivalentExpr(f, den));
-      if (found) return den;
-    }
+    const common = findCommonFactorInFraction(m);
+    if (common) return common.cancelled;
   }
   return null;
 }
@@ -465,6 +462,23 @@ export function equationsEquivalent(eqA, eqB) {
 // 6) Modalità guidata: suggerisce il prossimo passo per isolare `target`.
 // ---------------------------------------------------------------------------
 // Ritorna { found:true, action, reason } oppure { found:false, message }.
+// Vero se nel membro c'è un prodotto che contiene una somma in cui compare
+// la grandezza cercata: in quel caso conviene applicare la proprietà
+// distributiva prima di procedere (i termini con la grandezza si separano).
+function hasDistributableSum(node, target) {
+  const u = unwrap(node);
+  if (u.type === 'Mul') {
+    if (u.args.some((a) => {
+      const w = unwrap(a);
+      return (w.type === 'Add' || w.type === 'Sub') && collectVars(w).has(target);
+    })) return true;
+  }
+  if (u.type === 'Add' || u.type === 'Sub') {
+    return u.args.some((a) => hasDistributableSum(a, target));
+  }
+  return false;
+}
+
 export function suggestNextStep(eq, target) {
   if (isGoalReached(eq, target)) {
     if (isolatedSide(eq.right, target) && !isolatedSide(eq.left, target)) {
@@ -550,6 +564,31 @@ export function suggestNextStep(eq, target) {
         reason: `Il termine ${sText} non contiene ${target}: portalo a destra.`,
       };
     }
+    // Se la grandezza è dentro una somma moltiplicata per un fattore, conviene
+    // sviluppare il prodotto: R1·R2 = Req·(R1 + R2) → R1·R2 = Req·R1 + Req·R2.
+    const isDistributable = (node) => {
+      const u = unwrap(node);
+      if (u.type !== 'Mul') return false;
+      return u.args.some((a) => {
+        const w = unwrap(a);
+        return (w.type === 'Add' || w.type === 'Sub') && collectVars(w).has(target);
+      });
+    };
+    const distSide = isDistributable(eq.right) ? 'right' : (isDistributable(eq.left) ? 'left' : null);
+    if (distSide) {
+      return {
+        found: true,
+        action: {
+          id: 'distribute',
+          label: `Sviluppa il prodotto al ${distSide === 'left' ? 'primo' : 'secondo'} membro (proprietà distributiva)`,
+          description: `Applica la proprietà distributiva per separare i termini che contengono ${target}.`,
+          ruleKey: 'distribute',
+          build: () => ({ side: distSide }),
+        },
+        reason: `La grandezza ${target} è in una somma moltiplicata per un fattore: sviluppando il prodotto i termini con ${target} si possono raggruppare.`,
+      };
+    }
+
     return {
       found: true,
       action: {
@@ -569,6 +608,23 @@ export function suggestNextStep(eq, target) {
   const member = side === 'left' ? eq.left : eq.right;
   const other = side === 'left' ? eq.right : eq.left;
   const mU = unwrap(member);
+
+  // Caso 0: segno negativo davanti al membro con la grandezza cercata.
+  // Si moltiplicano entrambi i membri per −1 per liberare l'espressione.
+  if (mU.type === 'Neg' && collectVars(mU.arg).has(target)) {
+    const inner = toPretty(mU.arg, 0);
+    return {
+      found: true,
+      action: {
+        id: 'mul-by-minus-one',
+        label: 'Moltiplica entrambi i membri per −1',
+        description: `Cambia il segno di entrambi i membri per liberare ${inner}.`,
+        ruleKey: 'mulBoth',
+        build: () => ({ value: Num(-1), valueText: '−1' }),
+      },
+      reason: `Il membro con ${target} è preceduto dal segno meno: moltiplicando entrambi i membri per −1 l'espressione diventa positiva e più semplice da isolare.`,
+    };
+  }
 
   // Caso Radicale: Sqrt -> eleva al quadrato
   if (mU.type === 'Sqrt') {
@@ -626,6 +682,34 @@ export function suggestNextStep(eq, target) {
   // Caso 2: somma/sottrazione con termini che non contengono target
   const terms = additiveTerms(member);
   if (terms.length > 1) {
+    // Se la grandezza compare come fattore in TUTTI i termini, si raccoglie a
+    // fattor comune: W = ½·m·v² − ½·m·v0²  →  W = m·(½·v² − ½·v0²).
+    const hasBareTarget = (node) => {
+      const u = unwrap(node);
+      if (u.type === 'Var') return u.name === target;
+      if (u.type === 'Neg') return hasBareTarget(u.arg);
+      if (u.type === 'Mul') {
+        return u.args.some((a) => hasBareTarget(a));
+      }
+      if (u.type === 'Div') return hasBareTarget(u.num);
+      return false;
+    };
+    const allHaveBareTarget = terms.every((t) => hasBareTarget(t.node));
+    if (allHaveBareTarget) {
+      const targetNode = Var(target);
+      return {
+        found: true,
+        action: {
+          id: 'factor-common',
+          label: `Raccogli ${target} a fattor comune`,
+          description: `Metti in evidenza ${target}, presente in tutti i termini del membro.`,
+          ruleKey: 'factorCommon',
+          build: () => ({ common: targetNode, side, commonText: target }),
+        },
+        reason: `La grandezza ${target} compare in tutti i termini del membro: raccogliendola a fattor comune resterà un unico fattore da eliminare.`,
+      };
+    }
+
     const strange = terms.find((t) => !collectVars(t.node).has(target));
     if (strange) {
       const t = toPretty(strange.node, 0);
@@ -688,6 +772,22 @@ export function suggestNextStep(eq, target) {
         build: () => ({ side, insideVar: target }),
       },
       reason: `${target} è elevata a un esponente dispari: estraendo la radice di indice dispari si isola senza ± e senza condizioni di segno.`,
+    };
+  }
+
+  // Ultimo passo automatico: se la grandezza è dentro una somma moltiplicata
+  // per un fattore, si sviluppa il prodotto per poterla raggruppare.
+  if (hasDistributableSum(member, target)) {
+    return {
+      found: true,
+      action: {
+        id: 'distribute',
+        label: `Sviluppa il prodotto al ${side === 'left' ? 'primo' : 'secondo'} membro (proprietà distributiva)`,
+        description: `Applica la proprietà distributiva per separare i termini che contengono ${target}.`,
+        ruleKey: 'distribute',
+        build: () => ({ side }),
+      },
+      reason: `La grandezza ${target} è in una somma moltiplicata per un fattore: sviluppando il prodotto i termini con ${target} si possono raggruppare.`,
     };
   }
 

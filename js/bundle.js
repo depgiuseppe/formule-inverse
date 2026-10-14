@@ -560,7 +560,10 @@
         return canon(Add(...terms));
       }
       case "Mul": {
-        const parts = node.args.map(canon);
+        const parts = node.args.map((a) => {
+          const c = canon(a);
+          return c.type === "Neg" ? Mul(Num(-1), c.arg) : c;
+        });
         const flat = [];
         for (const p of parts) {
           if (p.type === "Mul") flat.push(...p.args);
@@ -600,10 +603,30 @@
         return negative ? Neg(product) : product;
       }
       case "Div": {
-        const num = canon(node.num);
-        const den = canon(node.den);
-        if (isNum(den) && den.value === 1) return num;
-        return { type: "Div", num, den };
+        let num = canon(node.num);
+        let den = canon(node.den);
+        while (num.type === "Div") {
+          den = canon(Mul(den, num.den));
+          num = num.num;
+        }
+        if (den.type === "Div") {
+          num = canon(Mul(num, den.den));
+          den = den.num;
+        }
+        let sign = 1;
+        if (num.type === "Neg") {
+          sign = -sign;
+          num = num.arg;
+        }
+        if (den.type === "Neg") {
+          sign = -sign;
+          den = den.arg;
+        }
+        if (isNum(den) && den.value === 1) {
+          return sign < 0 ? canon(Neg(num)) : num;
+        }
+        const frac = Div(num, den);
+        return sign < 0 ? Neg(frac) : frac;
       }
       case "Pow": {
         const base = canon(node.base);
@@ -637,6 +660,7 @@
       case "Neg": {
         const arg = canon(node.arg);
         if (isNum(arg)) return Num(-arg.value);
+        if (arg.type === "Neg") return arg.arg;
         return canon(Mul(Num(-1), arg));
       }
       case "Eq":
@@ -1107,6 +1131,7 @@
     return [node];
   }
   function productOf(list) {
+    if (list.length === 0) return Num(1);
     if (list.length === 1) return list[0];
     return Mul(...list);
   }
@@ -1575,8 +1600,37 @@
     }
     return [{ node, sign: "+" }];
   }
+  function findCommonFactorInFraction(frac) {
+    const u = unwrap(frac);
+    if (u.type !== "Div") return null;
+    const numFactors = factorsOf(u.num);
+    const denFactors = factorsOf(u.den);
+    if (denFactors.length === 0 || numFactors.length === 0) return null;
+    const usedNum = /* @__PURE__ */ new Set();
+    const usedDen = /* @__PURE__ */ new Set();
+    for (let d = 0; d < denFactors.length; d++) {
+      const idx = numFactors.findIndex((n, i) => !usedNum.has(i) && equivalentExpr(n, denFactors[d]));
+      if (idx >= 0) {
+        usedNum.add(idx);
+        usedDen.add(d);
+      }
+    }
+    if (usedDen.size === 0) return null;
+    const remaining = numFactors.filter((_, i) => !usedNum.has(i));
+    const remainingDen = denFactors.filter((_, d) => !usedDen.has(d));
+    const cancelledList = denFactors.filter((_, d) => usedDen.has(d));
+    return {
+      remaining,
+      remainingDen,
+      cancelled: cancelledList.length === 1 ? cancelledList[0] : Mul(...cancelledList)
+    };
+  }
   function cancelFractionFactor(node, denNode) {
     node = unwrap(node);
+    if (node.type === "Neg") {
+      const inner = cancelFractionFactor(node.arg, denNode);
+      return inner === null ? null : Neg(inner);
+    }
     if (node.type === "Mul") {
       const fracIdx = node.args.findIndex((a) => unwrap(a).type === "Div");
       if (fracIdx >= 0) {
@@ -1592,17 +1646,11 @@
       }
     }
     if (node.type === "Div") {
-      const num = unwrap(node.num);
-      const den = unwrap(node.den);
-      if (equivalentExpr(den, denNode)) {
-        if (equivalentExpr(num, denNode)) return Num(1);
-        if (num.type === "Mul") {
-          const idx = num.args.findIndex((f) => equivalentExpr(f, denNode));
-          if (idx >= 0) {
-            const restFactors = num.args.filter((_, i) => i !== idx);
-            return productOf(restFactors);
-          }
-        }
+      const common = findCommonFactorInFraction(node);
+      if (common) {
+        const numPart = productOf(common.remaining);
+        if (common.remainingDen.length === 0) return numPart;
+        return Div(numPart, productOf(common.remainingDen));
       }
     }
     return null;
@@ -1670,6 +1718,15 @@
     expr2 = unwrap(expr2);
     common = unwrap(common);
     if (equivalentExpr(expr2, common)) return Num(1);
+    if (expr2.type === "Neg") {
+      const inner = removeCommonFactor(expr2.arg, common);
+      return inner ? Neg(inner) : null;
+    }
+    if (expr2.type === "Div") {
+      const innerNum = removeCommonFactor(expr2.num, common);
+      if (!innerNum) return null;
+      return Div(innerNum, expr2.den);
+    }
     if (expr2.type === "Mul") {
       const idx = expr2.args.findIndex((a) => equivalentExpr(a, common));
       if (idx >= 0) {
@@ -2056,6 +2113,7 @@
   function findCancellableFactor(member) {
     if (!member) return null;
     const m = unwrap(member);
+    if (m.type === "Neg") return findCancellableFactor(m.arg);
     if (m.type === "Mul") {
       const fracIdx = m.args.findIndex((a) => unwrap(a).type === "Div");
       if (fracIdx >= 0) {
@@ -2067,15 +2125,23 @@
       }
     }
     if (m.type === "Div") {
-      const num = unwrap(m.num);
-      const den = unwrap(m.den);
-      if (equivalentExpr(num, den)) return den;
-      if (num.type === "Mul") {
-        const found = num.args.find((f) => equivalentExpr(f, den));
-        if (found) return den;
-      }
+      const common = findCommonFactorInFraction(m);
+      if (common) return common.cancelled;
     }
     return null;
+  }
+  function hasDistributableSum(node, target) {
+    const u = unwrap(node);
+    if (u.type === "Mul") {
+      if (u.args.some((a) => {
+        const w = unwrap(a);
+        return (w.type === "Add" || w.type === "Sub") && collectVars(w).has(target);
+      })) return true;
+    }
+    if (u.type === "Add" || u.type === "Sub") {
+      return u.args.some((a) => hasDistributableSum(a, target));
+    }
+    return false;
   }
   function suggestNextStep(eq2, target) {
     if (isGoalReached(eq2, target)) {
@@ -2158,6 +2224,28 @@
           reason: `Il termine ${sText} non contiene ${target}: portalo a destra.`
         };
       }
+      const isDistributable = (node) => {
+        const u = unwrap(node);
+        if (u.type !== "Mul") return false;
+        return u.args.some((a) => {
+          const w = unwrap(a);
+          return (w.type === "Add" || w.type === "Sub") && collectVars(w).has(target);
+        });
+      };
+      const distSide = isDistributable(eq2.right) ? "right" : isDistributable(eq2.left) ? "left" : null;
+      if (distSide) {
+        return {
+          found: true,
+          action: {
+            id: "distribute",
+            label: `Sviluppa il prodotto al ${distSide === "left" ? "primo" : "secondo"} membro (propriet\xE0 distributiva)`,
+            description: `Applica la propriet\xE0 distributiva per separare i termini che contengono ${target}.`,
+            ruleKey: "distribute",
+            build: () => ({ side: distSide })
+          },
+          reason: `La grandezza ${target} \xE8 in una somma moltiplicata per un fattore: sviluppando il prodotto i termini con ${target} si possono raggruppare.`
+        };
+      }
       return {
         found: true,
         action: {
@@ -2176,6 +2264,20 @@
     const member = side === "left" ? eq2.left : eq2.right;
     const other = side === "left" ? eq2.right : eq2.left;
     const mU = unwrap(member);
+    if (mU.type === "Neg" && collectVars(mU.arg).has(target)) {
+      const inner = toPretty(mU.arg, 0);
+      return {
+        found: true,
+        action: {
+          id: "mul-by-minus-one",
+          label: "Moltiplica entrambi i membri per \u22121",
+          description: `Cambia il segno di entrambi i membri per liberare ${inner}.`,
+          ruleKey: "mulBoth",
+          build: () => ({ value: Num(-1), valueText: "\u22121" })
+        },
+        reason: `Il membro con ${target} \xE8 preceduto dal segno meno: moltiplicando entrambi i membri per \u22121 l'espressione diventa positiva e pi\xF9 semplice da isolare.`
+      };
+    }
     if (mU.type === "Sqrt") {
       return {
         found: true,
@@ -2223,6 +2325,31 @@
     }
     const terms = additiveTerms(member);
     if (terms.length > 1) {
+      const hasBareTarget = (node) => {
+        const u = unwrap(node);
+        if (u.type === "Var") return u.name === target;
+        if (u.type === "Neg") return hasBareTarget(u.arg);
+        if (u.type === "Mul") {
+          return u.args.some((a) => hasBareTarget(a));
+        }
+        if (u.type === "Div") return hasBareTarget(u.num);
+        return false;
+      };
+      const allHaveBareTarget = terms.every((t) => hasBareTarget(t.node));
+      if (allHaveBareTarget) {
+        const targetNode = Var(target);
+        return {
+          found: true,
+          action: {
+            id: "factor-common",
+            label: `Raccogli ${target} a fattor comune`,
+            description: `Metti in evidenza ${target}, presente in tutti i termini del membro.`,
+            ruleKey: "factorCommon",
+            build: () => ({ common: targetNode, side, commonText: target })
+          },
+          reason: `La grandezza ${target} compare in tutti i termini del membro: raccogliendola a fattor comune rester\xE0 un unico fattore da eliminare.`
+        };
+      }
       const strange = terms.find((t) => !collectVars(t.node).has(target));
       if (strange) {
         const t = toPretty(strange.node, 0);
@@ -2281,6 +2408,19 @@
           build: () => ({ side, insideVar: target })
         },
         reason: `${target} \xE8 elevata a un esponente dispari: estraendo la radice di indice dispari si isola senza \xB1 e senza condizioni di segno.`
+      };
+    }
+    if (hasDistributableSum(member, target)) {
+      return {
+        found: true,
+        action: {
+          id: "distribute",
+          label: `Sviluppa il prodotto al ${side === "left" ? "primo" : "secondo"} membro (propriet\xE0 distributiva)`,
+          description: `Applica la propriet\xE0 distributiva per separare i termini che contengono ${target}.`,
+          ruleKey: "distribute",
+          build: () => ({ side })
+        },
+        reason: `La grandezza ${target} \xE8 in una somma moltiplicata per un fattore: sviluppando il prodotto i termini con ${target} si possono raggruppare.`
       };
     }
     return {
@@ -5634,6 +5774,53 @@
     results.push(test("Croce: non elimina un addendo di una somma", () => {
       const r = crossCancel(eq("x + a = b"), "left/Add0", "left/Add0");
       return r.ok ? "accettata ma doveva essere rifiutata" : true;
+    }));
+    const autoResolve = (formula, target) => {
+      let curr = eq(formula);
+      for (let i = 0; i < 25; i++) {
+        if (isGoalReached(curr, target)) break;
+        const sug = suggestNextStep(curr, target);
+        if (!sug.found) return `bloccata su ${toPretty(curr, 0)} (${sug.message})`;
+        const res = performAction(curr, sug.action);
+        if (!res.ok) return `passo fallito: ${res.error}`;
+        curr = res.equation;
+      }
+      return isGoalReached(curr, target) ? true : `non isolata: ${toPretty(curr, 0)}`;
+    };
+    results.push(test("Risoluzione: v = s/t isola t", () => autoResolve("v = s/t", "t")));
+    results.push(test("Risoluzione: v = s/t isola s", () => autoResolve("v = s/t", "s")));
+    results.push(test("Risoluzione: F = m*a isola m", () => autoResolve("F = m*a", "m")));
+    results.push(test("Risoluzione: h = v0^2/(2*g) isola g (fattori comuni)", () => autoResolve("h = v0^2/(2*g)", "g")));
+    results.push(test("Risoluzione: h = v0^2/(2*g) isola v0", () => autoResolve("h = v0^2/(2*g)", "v0")));
+    results.push(test("Risoluzione: U = -G*(M*m)/r isola r (segno davanti alla frazione)", () => autoResolve("U = -G*(M*m)/r", "r")));
+    results.push(test("Risoluzione: En = -E1/n^2 isola n", () => autoResolve("En = -E1/n^2", "n")));
+    results.push(test("Risoluzione: J = m*v - m*v0 isola m (raccoglimento)", () => autoResolve("J = m*v - m*v0", "m")));
+    results.push(test("Risoluzione: Req = (R1*R2)/(R1+R2) isola R1", () => autoResolve("Req = (R1*R2)/(R1+R2)", "R1")));
+    results.push(test("Risoluzione: W = (1/2)*m*v^2 - (1/2)*m*v0^2 isola m", () => autoResolve("W = (1/2)*m*v^2 - (1/2)*m*v0^2", "m")));
+    results.push(test("Risoluzione: F = G*(m1*m2)/r^2 isola r", () => autoResolve("F = G*(m1*m2)/r^2", "r")));
+    results.push(test("Risoluzione: p = (1/2)*rho*v^2 + rho*g*z isola rho", () => autoResolve("p = (1/2)*rho*v^2 + rho*g*z", "rho")));
+    results.push(test("Risoluzione: ingrandimento G = -q/p isola p", () => autoResolve("G = -q/p", "p")));
+    results.push(test("Risoluzione: nessuna equazione va in ciclo infinito", () => {
+      const casi = ["v = s/t", "Req = (R1*R2)/(R1+R2)", "h = v0^2/(2*g)", "U = -G*(M*m)/r"];
+      for (const f of casi) {
+        const start = eq(f);
+        for (const target of collectVars(start)) {
+          let curr = clone(start);
+          const seen = /* @__PURE__ */ new Set();
+          for (let i = 0; i < 25; i++) {
+            if (isGoalReached(curr, target)) break;
+            const key = toPretty(curr, 0);
+            if (seen.has(key)) return `ciclo su ${key} isolando ${target} in ${f}`;
+            seen.add(key);
+            const sug = suggestNextStep(curr, target);
+            if (!sug.found) break;
+            const res = performAction(curr, sug.action);
+            if (!res.ok) break;
+            curr = res.equation;
+          }
+        }
+      }
+      return true;
     }));
     return results;
   }

@@ -398,6 +398,81 @@ export function runAllTests() {
     return r.ok ? 'accettata ma doveva essere rifiutata' : true;
   }));
 
+  // ---- Risoluzione automatica: regressioni su casi reali ----
+  const autoResolve = (formula, target) => {
+    let curr = eq(formula);
+    for (let i = 0; i < 25; i++) {
+      if (isGoalReached(curr, target)) break;
+      const sug = suggestNextStep(curr, target);
+      if (!sug.found) return `bloccata su ${toPretty(curr, 0)} (${sug.message})`;
+      const res = performAction(curr, sug.action);
+      if (!res.ok) return `passo fallito: ${res.error}`;
+      curr = res.equation;
+    }
+    return isGoalReached(curr, target) ? true : `non isolata: ${toPretty(curr, 0)}`;
+  };
+
+  results.push(test('Risoluzione: v = s/t isola t', () => autoResolve('v = s/t', 't')));
+
+  results.push(test('Risoluzione: v = s/t isola s', () => autoResolve('v = s/t', 's')));
+
+  results.push(test('Risoluzione: F = m*a isola m', () => autoResolve('F = m*a', 'm')));
+
+  results.push(test('Risoluzione: h = v0^2/(2*g) isola g (fattori comuni)', () =>
+    autoResolve('h = v0^2/(2*g)', 'g')));
+
+  results.push(test('Risoluzione: h = v0^2/(2*g) isola v0', () =>
+    autoResolve('h = v0^2/(2*g)', 'v0')));
+
+  results.push(test('Risoluzione: U = -G*(M*m)/r isola r (segno davanti alla frazione)', () =>
+    autoResolve('U = -G*(M*m)/r', 'r')));
+
+  results.push(test('Risoluzione: En = -E1/n^2 isola n', () =>
+    autoResolve('En = -E1/n^2', 'n')));
+
+  results.push(test('Risoluzione: J = m*v - m*v0 isola m (raccoglimento)', () =>
+    autoResolve('J = m*v - m*v0', 'm')));
+
+  results.push(test('Risoluzione: Req = (R1*R2)/(R1+R2) isola R1', () =>
+    autoResolve('Req = (R1*R2)/(R1+R2)', 'R1')));
+
+  results.push(test('Risoluzione: W = (1/2)*m*v^2 - (1/2)*m*v0^2 isola m', () =>
+    autoResolve('W = (1/2)*m*v^2 - (1/2)*m*v0^2', 'm')));
+
+  results.push(test('Risoluzione: F = G*(m1*m2)/r^2 isola r', () =>
+    autoResolve('F = G*(m1*m2)/r^2', 'r')));
+
+  results.push(test('Risoluzione: p = (1/2)*rho*v^2 + rho*g*z isola rho', () =>
+    autoResolve('p = (1/2)*rho*v^2 + rho*g*z', 'rho')));
+
+  results.push(test('Risoluzione: ingrandimento G = -q/p isola p', () =>
+    autoResolve('G = -q/p', 'p')));
+
+  results.push(test('Risoluzione: nessuna equazione va in ciclo infinito', () => {
+    // Ogni passo deve cambiare davvero l'equazione: se il motore riproponesse
+    // la stessa mossa all'infinito, il ciclo non terminerebbe.
+    const casi = ['v = s/t', 'Req = (R1*R2)/(R1+R2)', 'h = v0^2/(2*g)', 'U = -G*(M*m)/r'];
+    for (const f of casi) {
+      const start = eq(f);
+      for (const target of collectVars(start)) {
+        let curr = clone(start);
+        const seen = new Set();
+        for (let i = 0; i < 25; i++) {
+          if (isGoalReached(curr, target)) break;
+          const key = toPretty(curr, 0);
+          if (seen.has(key)) return `ciclo su ${key} isolando ${target} in ${f}`;
+          seen.add(key);
+          const sug = suggestNextStep(curr, target);
+          if (!sug.found) break;
+          const res = performAction(curr, sug.action);
+          if (!res.ok) break;
+          curr = res.equation;
+        }
+      }
+    }
+    return true;
+  }));
+
   return results;
 }
 

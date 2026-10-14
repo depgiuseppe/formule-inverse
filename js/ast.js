@@ -589,7 +589,12 @@ function canon(node) {
     }
 
     case 'Mul': {
-      const parts = node.args.map(canon);
+      // Un segno meno dentro un prodotto diventa un fattore (−1)·y:
+      // così non si formano negazioni annidate e i segni si semplificano.
+      const parts = node.args.map((a) => {
+        const c = canon(a);
+        return c.type === 'Neg' ? Mul(Num(-1), c.arg) : c;
+      });
       const flat = [];
       for (const p of parts) {
         if (p.type === 'Mul') flat.push(...p.args);
@@ -635,10 +640,28 @@ function canon(node) {
     }
 
     case 'Div': {
-      const num = canon(node.num);
-      const den = canon(node.den);
-      if (isNum(den) && den.value === 1) return num;
-      return { type: 'Div', num, den };
+      let num = canon(node.num);
+      let den = canon(node.den);
+      // (a/b)/c  =>  a/(b·c): evita frazioni di frazioni poco leggibili.
+      while (num.type === 'Div') {
+        den = canon(Mul(den, num.den));
+        num = num.num;
+      }
+      // a/(b/c)  =>  (a·c)/b
+      if (den.type === 'Div') {
+        num = canon(Mul(num, den.den));
+        den = den.num;
+      }
+      // Il segno meno va davanti alla frazione, non dentro numeratore o
+      // denominatore: così i fattori comuni si riconoscono.
+      let sign = 1;
+      if (num.type === 'Neg') { sign = -sign; num = num.arg; }
+      if (den.type === 'Neg') { sign = -sign; den = den.arg; }
+      if (isNum(den) && den.value === 1) {
+        return sign < 0 ? canon(Neg(num)) : num;
+      }
+      const frac = Div(num, den);
+      return sign < 0 ? Neg(frac) : frac;
     }
 
     case 'Pow': {
@@ -677,6 +700,8 @@ function canon(node) {
     case 'Neg': {
       const arg = canon(node.arg);
       if (isNum(arg)) return Num(-arg.value);
+      // −(−x) => x
+      if (arg.type === 'Neg') return arg.arg;
       // -(...)  =>  (-1)*(...) normalizzato dentro il prodotto
       return canon(Mul(Num(-1), arg));
     }

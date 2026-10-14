@@ -8,7 +8,8 @@
     "build": "node scripts/bundle.mjs",
     "start": "npx -y serve -p 3000 .",
     "test:ui": "node scripts/ui-test.mjs",
-    "test:all": "npm run build && npm test && npm run test:ui"
+    "test:all": "npm run build && npm test && npm run coverage && npm run test:ui",
+    "coverage": "node scripts/coverage.mjs"
   },
   "keywords": [
     "fisica",

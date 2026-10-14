@@ -52,6 +52,7 @@ function factorsOf(node) {
 
 // Ricostruisce un prodotto a partire da una lista di fattori.
 function productOf(list) {
+  if (list.length === 0) return Num(1);
   if (list.length === 1) return list[0];
   return Mul(...list);
 }
@@ -670,8 +671,45 @@ export function additiveTerms(node) {
 // fattore equivalente a B; restituisce il membro riscritto con (A/B)·B -> A.
 // Gestisce anche il caso B·(A/B) e prodotto con più fattori. Ritorna null se
 // non trova alcuna cancellazione possibile.
+// Fattori comuni tra numeratore e denominatore di una frazione.
+// Gestisce i fattori sparsi nei prodotti e la cancellazione parziale:
+//   (2·g·v0²)/(2·g)      →  resta v0²
+//   (r²·q1·q2)/(4·eps0·pi·r²)  →  resta (q1·q2)/(4·eps0·pi)
+export function findCommonFactorInFraction(frac) {
+  const u = unwrap(frac);
+  if (u.type !== 'Div') return null;
+  const numFactors = factorsOf(u.num);
+  const denFactors = factorsOf(u.den);
+  if (denFactors.length === 0 || numFactors.length === 0) return null;
+
+  const usedNum = new Set();
+  const usedDen = new Set();
+  for (let d = 0; d < denFactors.length; d++) {
+    const idx = numFactors.findIndex((n, i) => !usedNum.has(i) && equivalentExpr(n, denFactors[d]));
+    if (idx >= 0) {
+      usedNum.add(idx);
+      usedDen.add(d);
+    }
+  }
+  if (usedDen.size === 0) return null;
+
+  const remaining = numFactors.filter((_, i) => !usedNum.has(i));
+  const remainingDen = denFactors.filter((_, d) => !usedDen.has(d));
+  const cancelledList = denFactors.filter((_, d) => usedDen.has(d));
+  return {
+    remaining,
+    remainingDen,
+    cancelled: cancelledList.length === 1 ? cancelledList[0] : Mul(...cancelledList),
+  };
+}
+
 export function cancelFractionFactor(node, denNode) {
   node = unwrap(node);
+  // Frazione con il segno meno davanti: si semplifica e il meno resta.
+  if (node.type === 'Neg') {
+    const inner = cancelFractionFactor(node.arg, denNode);
+    return inner === null ? null : Neg(inner);
+  }
   if (node.type === 'Mul') {
     const fracIdx = node.args.findIndex((a) => unwrap(a).type === 'Div');
     if (fracIdx >= 0) {
@@ -691,17 +729,14 @@ export function cancelFractionFactor(node, denNode) {
   }
 
   if (node.type === 'Div') {
-    const num = unwrap(node.num);
-    const den = unwrap(node.den);
-    if (equivalentExpr(den, denNode)) {
-      if (equivalentExpr(num, denNode)) return Num(1);
-      if (num.type === 'Mul') {
-        const idx = num.args.findIndex((f) => equivalentExpr(f, denNode));
-        if (idx >= 0) {
-          const restFactors = num.args.filter((_, i) => i !== idx);
-          return productOf(restFactors);
-        }
-      }
+    // Cancellazione dei fattori comuni tra numeratore e denominatore,
+    // anche quando il fattore comune è formato da più fattori (2·g) o
+    // quando la cancellazione è solo parziale (r²·q1·q2)/(4·pi·r²).
+    const common = findCommonFactorInFraction(node);
+    if (common) {
+      const numPart = productOf(common.remaining);
+      if (common.remainingDen.length === 0) return numPart;
+      return Div(numPart, productOf(common.remainingDen));
     }
   }
 
@@ -780,6 +815,17 @@ function removeCommonFactor(expr, common) {
   expr = unwrap(expr);
   common = unwrap(common);
   if (equivalentExpr(expr, common)) return Num(1);
+  if (expr.type === 'Neg') {
+    const inner = removeCommonFactor(expr.arg, common);
+    return inner ? Neg(inner) : null;
+  }
+  if (expr.type === 'Div') {
+    // Il fattore comune può stare al numeratore di una frazione:
+    // u·u1·v/c²  →  u·v/c².
+    const innerNum = removeCommonFactor(expr.num, common);
+    if (!innerNum) return null;
+    return Div(innerNum, expr.den);
+  }
   if (expr.type === 'Mul') {
     const idx = expr.args.findIndex((a) => equivalentExpr(a, common));
     if (idx >= 0) {
