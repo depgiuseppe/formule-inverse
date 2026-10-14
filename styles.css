@@ -1,0 +1,1765 @@
+/* styles.css — Laboratorio di Formule Inverse
+   Design System moderno: tipografia Google Fonts, Dark Mode nativo, Glassmorphism,
+   interazione a micro-animazioni, notazione matematica chiara e accessibilità AA/AAA. */
+
+/* I font sono caricati una sola volta da index.html, con fallback locali. */
+
+/* ------------------------------------------------------------------------- */
+/* 1. Variabili di Tema & Tokens                                              */
+/* ------------------------------------------------------------------------- */
+:root {
+  --bg: #f1f5f9;
+  --bg-panel: rgba(255, 255, 255, 0.95);
+  --bg-card: #ffffff;
+  --bg-soft: #f8fafc;
+  --bg-hover: #e2e8f0;
+  
+  --ink: #0f172a;
+  --ink-soft: #334155;
+  --ink-muted: #64748b;
+  
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --primary-light: #60a5fa;
+  --primary-soft: #eff6ff;
+  
+  --accent: #7c3aed;
+  --accent-soft: #f5f3ff;
+  
+  --success: #10b981;
+  --success-dark: #059669;
+  --success-soft: #ecfdf5;
+  
+  --warning: #f59e0b;
+  --warning-dark: #d97706;
+  --warning-soft: #fffbeb;
+  
+  --danger: #ef4444;
+  --danger-soft: #fef2f2;
+  
+  --radius: 14px;
+  --radius-sm: 8px;
+  --radius-pill: 9999px;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  --glow-primary: 0 0 20px rgba(37, 99, 235, 0.25);
+  --glow-success: 0 0 25px rgba(16, 185, 129, 0.35);
+
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: 'Outfit', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  --font-math: 'STIX Two Text', 'KaTeX_Math', 'Latin Modern Math', 'Cambria Math', 'Times New Roman', serif;
+}
+
+/* ------------------------------------------------------------------------- */
+/* 2. Dark Mode Nativo                                                        */
+/* ------------------------------------------------------------------------- */
+body.dark-theme {
+  --bg: #0b0f19;
+  --bg-panel: rgba(17, 24, 39, 0.92);
+  --bg-card: #151d2e;
+  --bg-soft: #1a2336;
+  --bg-hover: #243048;
+  
+  --ink: #f8fafc;
+  --ink-soft: #cbd5e1;
+  --ink-muted: #94a3b8;
+  
+  --line: #243048;
+  --line-strong: #334155;
+  
+  --primary: #3b82f6;
+  --primary-dark: #60a5fa;
+  --primary-light: #93c5fd;
+  --primary-soft: rgba(59, 130, 246, 0.14);
+  
+  --accent: #a78bfa;
+  --accent-soft: rgba(167, 139, 250, 0.14);
+  
+  --success: #34d399;
+  --success-dark: #10b981;
+  --success-soft: rgba(52, 211, 153, 0.14);
+  
+  --warning: #fbbf24;
+  --warning-dark: #f59e0b;
+  --warning-soft: rgba(251, 191, 36, 0.14);
+  
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.14);
+  
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+}
+
+/* ------------------------------------------------------------------------- */
+/* 3. Alto Contrasto                                                          */
+/* ------------------------------------------------------------------------- */
+body.high-contrast {
+  --bg: #000000;
+  --bg-panel: #0d0d0d;
+  --bg-card: #000000;
+  --bg-soft: #16181d;
+  --bg-hover: #333333;
+  --ink: #ffffff;
+  --ink-soft: #eaeaea;
+  --ink-muted: #c8c8c8;
+  --line: #777777;
+  --line-strong: #aaaaaa;
+  --primary: #66b3ff;
+  --primary-dark: #99ccff;
+  --primary-soft: #10314f;
+  --success: #6ee7a0;
+  --success-soft: #10311f;
+  --warning: #ffd166;
+  --warning-soft: #3a2f10;
+  --danger: #ff8080;
+  --danger-soft: #3a1414;
+}
+
+/* ------------------------------------------------------------------------- */
+/* 4. Base & Reset                                                            */
+/* ------------------------------------------------------------------------- */
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; padding: 0; }
+button, input, select, textarea { font: inherit; }
+button { touch-action: manipulation; }
+:where(button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+:where(.panel, .modal, .field, .latex-live-code) { min-width: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  transition: background-color .2s ease, color .2s ease;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  margin: 0 0 .5rem;
+  line-height: 1.2;
+}
+
+code {
+  font-family: var(--mono);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: .1em .35em;
+  font-size: .88em;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--primary);
+  color: #fff;
+  padding: .6rem 1.2rem;
+  border-radius: 0 0 var(--radius-sm) 0;
+  z-index: 1000;
+  font-weight: 600;
+}
+.skip-link:focus { left: 0; }
+
+/* ------------------------------------------------------------------------- */
+/* 5. Header                                                                  */
+/* ------------------------------------------------------------------------- */
+.app-header {
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #4338ca 100%);
+  color: #fff;
+  padding: 1.4rem clamp(1rem, 4vw, 2.8rem);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+body.dark-theme .app-header {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #1e1b4b 100%);
+  border-bottom: 1px solid var(--line);
+}
+
+.header-brand {
+  max-width: 650px;
+}
+
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(8px);
+  padding: .2rem .65rem;
+  border-radius: var(--radius-pill);
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  margin-bottom: .4rem;
+}
+
+.app-header h1 {
+  font-size: clamp(1.4rem, 2.5vw, 2.1rem);
+  letter-spacing: -.02em;
+  margin-bottom: .25rem;
+  color: #fff;
+}
+
+.subtitle {
+  margin: 0;
+  opacity: .92;
+  font-size: .95rem;
+  line-height: 1.4;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+}
+
+/* ------------------------------------------------------------------------- */
+/* 6. Pulsanti                                                                */
+/* ------------------------------------------------------------------------- */
+.btn {
+  font-family: var(--font);
+  font-weight: 600;
+  font-size: .88rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  padding: .5rem .95rem;
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+}
+.btn:active { transform: scale(0.98); }
+.btn:focus-visible,
+.mode-btn:focus-visible,
+.action-btn:focus-visible,
+.formula-card:focus-visible,
+.math-node:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+}
+.btn-primary:hover {
+  background: var(--primary-dark);
+  box-shadow: var(--glow-primary);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+.btn-secondary:hover {
+  background: var(--bg-hover);
+}
+
+.app-header .btn-secondary {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(6px);
+}
+.app-header .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.btn-mini {
+  font-size: .78rem;
+  padding: .25rem .6rem;
+  background: var(--bg-soft);
+  color: var(--ink-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  transition: background .12s, color .12s;
+}
+.btn-mini:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.btn-mini.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary-dark);
+}
+
+.btn-flip-frac {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 0.74rem;
+  background: var(--bg-card);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  margin-bottom: 2px;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.btn-flip-frac:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: rotate(180deg) scale(1.2);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
+}
+
+/* Selettore grandezza da isolare nell'Obiettivo */
+.objective-target-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed var(--line);
+}
+.target-picker-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.target-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.target-chip {
+  font-family: var(--font-math);
+  font-style: italic;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-strong);
+  background: var(--bg-card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.target-chip:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+.target-chip.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary-dark);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+/* Chips nella libreria delle formule */
+.isolate-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-left: 0.35rem;
+}
+.isolate-chip {
+  font-family: var(--font-math);
+  font-style: italic;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--primary-light);
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.isolate-chip:hover {
+  background: var(--primary);
+  color: #fff;
+  transform: scale(1.1);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+}
+
+/* Griglia modale scelta grandezza */
+.pick-target-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+.pick-target-btn {
+  font-family: var(--font-math);
+  font-style: italic;
+  font-size: 1.4rem;
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--primary-light);
+  background: var(--bg-card);
+  color: var(--primary-dark);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+.pick-target-btn:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary-dark);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.pick-target-btn small {
+  font-family: var(--font);
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.pick-formula-preview {
+  margin: 0.75rem 0;
+  padding: 0.6rem;
+  background: var(--bg-soft);
+  border-radius: var(--radius-sm);
+  display: flex;
+  justify-content: center;
+}
+
+/* Hint bar Drag & Drop */
+.drag-hint-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.75rem;
+  background: linear-gradient(90deg, rgba(99,102,241,0.09), rgba(99,102,241,0.03));
+  border-left: 3px solid var(--primary-light);
+  border-radius: 6px 6px 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+.drag-hint-badge {
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.drag-hint-text { line-height: 1.4; }
+.drag-hint-text strong { color: var(--primary); }
+
+.btn-hint {
+  font-size: .84rem;
+  padding: .35rem .75rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 700;
+  transition: all .15s ease;
+}
+.btn-hint:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ------------------------------------------------------------------------- */
+/* 7. Layout a Griglia                                                        */
+/* ------------------------------------------------------------------------- */
+.app-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  grid-template-areas:
+    "library work"
+    "rules   history";
+  gap: 1.25rem;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 1.5rem clamp(.75rem, 2.5vw, 2rem);
+  align-items: start;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.2rem;
+  backdrop-filter: blur(12px);
+  transition: box-shadow .2s ease, border-color .2s ease;
+}
+.panel:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.panel-library { grid-area: library; }
+.panel-work    { grid-area: work; }
+.panel-rules   { grid-area: rules; }
+.panel-history { grid-area: history; }
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .75rem;
+  margin-bottom: 1rem;
+  padding-bottom: .75rem;
+  border-bottom: 1px solid var(--line);
+}
+.panel-header h2 { margin: 0; font-size: 1.15rem; color: var(--ink); }
+
+.panel-badge {
+  font-size: .75rem;
+  font-weight: 700;
+  background: var(--primary-soft);
+  color: var(--primary);
+  padding: .15rem .55rem;
+  border-radius: var(--radius-pill);
+}
+
+/* ------------------------------------------------------------------------- */
+/* 8. Campi di input & filtri                                                 */
+/* ------------------------------------------------------------------------- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  margin-bottom: .7rem;
+}
+.field-label {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.field input,
+.field select {
+  font-family: var(--font);
+  font-size: .9rem;
+  padding: .5rem .7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--ink);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.filter-row {
+  display: flex;
+  gap: .6rem;
+  margin-bottom: .7rem;
+}
+.filter-half {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.hint {
+  font-size: .82rem;
+  color: var(--ink-muted);
+  margin: .2rem 0 .6rem;
+}
+.error-msg {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-sm);
+  padding: .5rem .7rem;
+  font-size: .84rem;
+  margin-top: .5rem;
+}
+
+/* ------------------------------------------------------------------------- */
+/* 9. Libreria delle formule                                                  */
+/* ------------------------------------------------------------------------- */
+.library-list {
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+  max-height: 440px;
+  overflow-y: auto;
+  padding: .15rem;
+  margin-bottom: .9rem;
+}
+
+.formula-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  padding: .65rem .8rem;
+  cursor: pointer;
+  transition: all .15s ease;
+  box-shadow: var(--shadow-sm);
+}
+.formula-card:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+.formula-card:active { transform: translateY(0); }
+
+.formula-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .25rem;
+}
+.formula-topic {
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 700;
+  color: var(--primary);
+}
+.formula-diff { color: var(--warning); font-size: .8rem; }
+.formula-name { font-weight: 600; font-size: .95rem; margin-bottom: .25rem; }
+.formula-math { margin: .35rem 0; font-size: 1.05rem; }
+.formula-isolate { font-size: .78rem; color: var(--ink-muted); }
+
+.library-actions .btn { width: 100%; font-size: .95rem; padding: .65rem 1rem; }
+
+/* Editor & Archivio */
+.editor-toggle {
+  margin-top: .9rem;
+  border-top: 1px dashed var(--line);
+  padding-top: .7rem;
+}
+.editor-toggle > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--primary);
+  font-size: .88rem;
+}
+.editor-body { padding-top: .75rem; }
+
+.field textarea,
+#json-area {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: .88rem;
+  padding: .6rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--ink);
+  resize: vertical;
+}
+.field textarea:focus,
+#json-area:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.latex-actions,
+.storage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-bottom: .6rem;
+}
+.latex-preview {
+  background: var(--bg-soft);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: .75rem;
+  margin-top: .6rem;
+  text-align: center;
+  overflow-x: auto;
+}
+.latex-preview .conv-label {
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  display: block;
+  margin-bottom: .3rem;
+  text-transform: uppercase;
+}
+.latex-preview .conv-code { font-family: var(--mono); font-weight: 700; }
+
+/* ------------------------------------------------------------------------- */
+/* 10. Area di lavoro                                                         */
+/* ------------------------------------------------------------------------- */
+.work-header-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+.work-header-tools .btn-mini,
+.history-header-tools .btn-mini { min-height: 36px; }
+.panel-work > .panel-header { align-items: flex-start; }
+.panel-work > .panel-header h2 { flex-basis: 100%; }
+
+.objective {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .6rem;
+  background: var(--primary-soft);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-sm);
+  padding: .7rem .95rem;
+  margin-bottom: 1rem;
+  transition: all .2s ease;
+}
+.objective-main {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+.objective-label { font-weight: 700; color: var(--primary-dark); font-size: .92rem; }
+body.dark-theme .objective-label { color: var(--primary-light); }
+body.high-contrast .objective-label { color: var(--primary); }
+
+.objective-done {
+  background: var(--success-soft);
+  border-left-color: var(--success);
+  animation: celebratePulse 1.8s infinite alternate ease-in-out;
+  box-shadow: var(--glow-success);
+}
+@keyframes celebratePulse {
+  0%   { transform: scale(1); }
+  100% { transform: scale(1.01); }
+}
+
+.status-badge {
+  font-size: .78rem;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  padding: .2rem .7rem;
+}
+.status-progress { background: var(--warning-soft); color: var(--warning-dark); }
+.status-success  { background: var(--success-soft); color: var(--success); font-weight: 800; }
+
+/* Modalità */
+.mode-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .45rem;
+  margin-bottom: 1rem;
+}
+.mode-label { font-weight: 600; color: var(--ink-soft); font-size: .88rem; }
+.mode-btn {
+  font-family: var(--font);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-card);
+  color: var(--ink);
+  border-radius: var(--radius-pill);
+  padding: .35rem .9rem;
+  cursor: pointer;
+  font-size: .86rem;
+  font-weight: 600;
+  transition: all .15s ease;
+}
+.mode-btn:hover { background: var(--bg-hover); }
+.mode-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+}
+
+/* Card dell'equazione */
+.equation-display-card {
+  background: var(--bg-card);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1rem;
+  transition: border-color .2s ease;
+}
+body.dark-theme .equation-display-card {
+  background: #111a2e;
+  border-color: #243048;
+}
+.objective-done ~ .equation-display-card {
+  border-color: var(--success);
+  box-shadow: var(--glow-success);
+}
+
+.equation-display {
+  padding: 2rem 1rem;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: safe center;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+/* Condizioni di validità */
+.conditions-box {
+  background: var(--warning-soft);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--radius-sm);
+  padding: .65rem .9rem;
+  margin-bottom: 1rem;
+  font-size: .88rem;
+}
+.conditions-box ul { margin: .3rem 0 0; padding-left: 1.2rem; }
+
+/* Anteprima */
+.preview-box {
+  background: var(--primary-soft);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  padding: .85rem 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .65rem;
+}
+.preview-box p { margin: 0; font-size: .95rem; }
+.preview-eq {
+  font-family: var(--mono);
+  font-weight: 700;
+  background: var(--bg-card);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  padding: .15rem .5rem;
+  margin: 0 .3rem;
+}
+.preview-actions {
+  display: flex;
+  gap: .5rem;
+}
+
+/* Messaggi */
+.message-box {
+  border-radius: var(--radius-sm);
+  padding: .75rem 1rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  font-size: .92rem;
+  border-left: 4px solid transparent;
+  animation: fadeIn .15s ease;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.message-info    { background: var(--primary-soft); border-left-color: var(--primary); color: var(--primary); }
+.message-success { background: var(--success-soft); border-left-color: var(--success); color: var(--success-dark); }
+.message-error   { background: var(--danger-soft); border-left-color: var(--danger); color: var(--danger); }
+
+/* Barra Azioni */
+.action-bar {
+  border-top: 1px dashed var(--line);
+  padding-top: .85rem;
+}
+.action-bar-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .65rem;
+}
+.action-hint {
+  font-size: .88rem;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.action-btn {
+  text-align: left;
+  width: 100%;
+  font-family: var(--font);
+  background: var(--bg-card);
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-sm);
+  padding: .65rem .9rem;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.action-btn:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  transform: translateX(2px);
+}
+.action-btn:active { transform: scale(0.99); }
+.action-btn.guided {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.action-btn.auto-solve {
+  border-left-color: var(--success);
+  background: var(--success-soft);
+}
+.action-label { display: block; font-weight: 700; font-size: .92rem; color: var(--ink); }
+.action-desc  { display: block; font-size: .8rem; color: var(--ink-muted); margin-top: .15rem; }
+
+/* Multi-operazione roadmap */
+.multi-controls {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+.roadmap-card {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: .85rem;
+  margin-top: .6rem;
+}
+.roadmap-header {
+  font-size: .84rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--primary);
+  margin-bottom: .6rem;
+}
+.roadmap-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.roadmap-item {
+  display: flex;
+  gap: .65rem;
+  align-items: flex-start;
+  font-size: .86rem;
+  padding: .4rem .55rem;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--line-strong);
+  background: var(--bg-card);
+}
+.roadmap-current {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.roadmap-step-num {
+  font-family: var(--mono);
+  font-weight: 700;
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-radius: var(--radius-pill);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .75rem;
+  flex-shrink: 0;
+}
+.roadmap-step-content p {
+  margin: .15rem 0 0;
+  font-size: .78rem;
+  color: var(--ink-muted);
+}
+
+/* ------------------------------------------------------------------------- */
+/* 11. Pannello Regole                                                        */
+/* ------------------------------------------------------------------------- */
+.rule-panel { font-size: .92rem; }
+.rule-name {
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 1.05rem;
+  margin-bottom: .65rem;
+}
+.rule-section {
+  margin-bottom: .75rem;
+  padding-bottom: .65rem;
+  border-bottom: 1px solid var(--line);
+}
+.rule-section:last-child { border-bottom: none; }
+.rule-section strong { display: block; margin-bottom: .25rem; font-size: .88rem; color: var(--ink-soft); }
+.rule-section p { margin: .2rem 0; }
+.rule-section ul { margin: .3rem 0 0; padding-left: 1.25rem; }
+.rule-section.warning {
+  background: var(--warning-soft);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--radius-sm);
+  padding: .55rem .8rem;
+  border-bottom: none;
+}
+.rule-section.conditions {
+  background: var(--primary-soft);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-sm);
+  padding: .55rem .8rem;
+  border-bottom: none;
+}
+.rule-eq .rule-math {
+  margin-top: .4rem;
+  text-align: center;
+  font-size: 1.25rem;
+  padding: .4rem;
+  background: var(--bg-soft);
+  border-radius: var(--radius-sm);
+}
+.steps-list li { margin-bottom: .2rem; }
+
+/* ------------------------------------------------------------------------- */
+/* 12. Cronologia                                                             */
+/* ------------------------------------------------------------------------- */
+.history-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  margin-bottom: .8rem;
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.history-empty {
+  color: var(--ink-muted);
+  font-style: italic;
+  padding: .6rem 0;
+}
+.history-item {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  padding: .6rem .8rem;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.history-item:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.history-item.current {
+  border-left-color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+.history-item.failed {
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+  opacity: .8;
+}
+.history-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .25rem;
+}
+.history-step {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: .8rem;
+  background: var(--bg-soft);
+  color: var(--ink-soft);
+  padding: .1rem .45rem;
+  border-radius: var(--radius-pill);
+}
+.history-rule {
+  font-weight: 700;
+  font-size: .84rem;
+  color: var(--primary);
+}
+.history-eq { margin: .3rem 0; font-size: 1.1rem; }
+.history-cond { font-size: .78rem; color: var(--warning-dark); }
+.history-note { font-size: .78rem; color: var(--danger); }
+.history-status { font-size: .74rem; color: var(--ink-muted); margin-top: .2rem; }
+
+/* ------------------------------------------------------------------------- */
+/* 13. Notazione Matematica & Nodi Interattivi                                */
+/* ------------------------------------------------------------------------- */
+.math-eq {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: 1.55rem;
+  font-family: var(--font-math);
+  font-variant-numeric: tabular-nums;
+}
+.eq-sign {
+  font-family: var(--font-math);
+  font-weight: 600;
+  margin: 0 .4rem;
+  color: var(--ink-soft);
+}
+
+.math-node {
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 2px 4px;
+  transition: all .15s ease;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-math);
+}
+.node-var {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: var(--font-math);
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.var-base {
+  font-family: var(--font-math);
+  font-style: italic;
+  font-weight: 500;
+}
+.var-sub {
+  font-family: var(--font-math);
+  font-size: 0.66em;
+  line-height: 1;
+  position: relative;
+  top: .28em;
+  font-style: normal;
+  font-weight: 600;
+  margin-left: 0.04em;
+  display: inline-block;
+}
+.node-num {
+  font-family: var(--font-math);
+  font-style: normal;
+  font-weight: 600;
+}
+.math-node:hover {
+  background: var(--primary-soft);
+  box-shadow: 0 0 0 2px var(--primary-light);
+  transform: scale(1.05);
+}
+.math-node.selected {
+  background: var(--primary);
+  color: #fff !important;
+  box-shadow: 0 0 0 3px var(--primary-dark), var(--glow-primary);
+  transform: scale(1.08);
+}
+.math-node.selected * {
+  color: #fff !important;
+}
+
+.math-node.node-target {
+  font-weight: 700;
+  color: #d97706;
+  border-bottom: 2.5px solid #f59e0b;
+}
+body.dark-theme .math-node.node-target {
+  color: #fbbf24;
+}
+.math-node.selected.node-target {
+  border-bottom-color: #fde047 !important;
+}
+.math-node.dimmed { opacity: .45; }
+
+.op {
+  font-family: var(--font-math);
+  color: var(--ink-muted);
+  margin: 0 .2rem;
+  font-weight: 600;
+}
+
+/* Frazioni */
+.frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: middle;
+  margin: 0 .25rem;
+  font-family: var(--font-math);
+}
+.frac-num, .frac-den {
+  padding: .1rem .35rem;
+  font-family: var(--font-math);
+}
+.frac-bar {
+  width: 100%;
+  height: 2px;
+  background: currentColor;
+  margin: 2px 0;
+  border-radius: 1px;
+}
+
+/* Potenze / radicali */
+.node-pow {
+  display: inline-flex;
+  align-items: baseline;
+  position: relative;
+}
+.pow-base {
+  display: inline-flex;
+  align-items: baseline;
+}
+.node-pow sup.node-exp,
+sup.node-exp {
+  font-family: var(--font-math);
+  font-size: 0.62em !important;
+  position: relative;
+  top: -.65em;
+  font-weight: 600;
+  line-height: 0 !important;
+  margin-left: 0.05em;
+  padding: 0 !important;
+  display: inline !important;
+}
+.node-pow sup.node-exp * {
+  display: inline !important;
+  padding: 0 !important;
+  font-size: inherit !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* Radicale in stile LaTeX scalabile con SVG surd e vinculum */
+.node-sqrt {
+  display: inline-flex;
+  vertical-align: middle;
+  margin: 0 .2rem;
+  padding: 0 2px;
+}
+.math-radical {
+  display: inline-flex;
+  align-items: stretch;
+  vertical-align: middle;
+  position: relative;
+}
+.radical-surd {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: .85em;
+  height: 100%;
+  overflow: visible;
+  color: currentColor;
+  display: block;
+}
+.radical-body {
+  display: inline-flex;
+  align-items: center;
+  border-top: 2.2px solid currentColor;
+  padding: 0.15rem 0.35rem 0.05rem 0.25rem;
+  margin-left: .8em;
+  font-family: var(--font-math);
+}
+
+.node-fn .fn-name { font-style: italic; font-weight: 600; margin-right: .1rem; }
+.node-fn .fn-args { padding: 0; font-family: var(--font-math); }
+.node-fn.node-asin .fn-name,
+.node-fn.node-acos .fn-name,
+.node-fn.node-atan .fn-name {
+  font-size: .85em;
+  vertical-align: .1em;
+}
+
+/* Barra Live LaTeX e strumenti header */
+.history-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.latex-live-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.65rem;
+  margin-top: 0.75rem;
+  font-size: 0.82rem;
+}
+.latex-live-label {
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  background: var(--primary-soft);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+.latex-live-code {
+  font-family: var(--mono);
+  color: var(--ink-soft);
+  overflow-x: auto;
+  white-space: nowrap;
+  flex-grow: 1;
+  font-size: 0.85rem;
+}
+.btn-icon-mini {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 0.95rem;
+  border-radius: 4px;
+  color: var(--ink-muted);
+  transition: all 0.15s ease;
+}
+.btn-icon-mini:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------------- */
+/* 14. Modali                                                                 */
+/* ------------------------------------------------------------------------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 1000;
+}
+.modal-backdrop[hidden] { display: none; }
+
+.modal {
+  background: var(--bg-panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: min(600px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 1.4rem;
+}
+.modal-wide { width: min(860px, 100%); }
+.modal h3 {
+  color: var(--primary);
+  border-bottom: 2px solid var(--primary-soft);
+  padding-bottom: .5rem;
+  margin-bottom: 1rem;
+}
+.modal-body { font-size: .92rem; }
+.modal-body h4 { margin-top: 1rem; font-size: 1.05rem; color: var(--ink-soft); }
+.modal-body ol, .modal-body ul { padding-left: 1.3rem; }
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: .6rem;
+  margin-top: 1.2rem;
+}
+
+.tests-summary {
+  font-weight: 700;
+  margin-bottom: .8rem;
+  font-size: 1.1rem;
+}
+.test-pass  { color: var(--success); }
+.test-fail  { color: var(--danger); }
+.test-total { color: var(--ink-soft); }
+.tests-body { font-family: var(--mono); font-size: .82rem; }
+.tests-body .test-row {
+  padding: .35rem .5rem;
+  border-radius: 4px;
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+}
+.tests-body .test-row:nth-child(even) { background: var(--bg-soft); }
+.tests-body .pass { color: var(--success); }
+.tests-body .fail { color: var(--danger); font-weight: 700; }
+
+/* ------------------------------------------------------------------------- */
+/* 15. Responsive Design                                                      */
+/* ------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .app-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "work"
+      "library"
+      "rules"
+      "history";
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/* ------------------------------------------------------------------------- */
+/* 16. Drag & Drop Interattivo & Frazioni Dinamiche                          */
+/* ------------------------------------------------------------------------- */
+.interactive-math-eq {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  font-size: 1.6rem;
+  padding: 0.6rem;
+  position: relative;
+  user-select: none;
+}
+
+.math-member-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.math-member-content {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.eq-sign-wrap {
+  display: inline-flex;
+  align-items: center;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--primary);
+  padding: 0 0.4rem;
+}
+
+/* Elementi trascinabili */
+.draggable-token {
+  cursor: grab !important;
+  border: 1.5px dashed transparent;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.node-pow.draggable-token {
+  display: inline-flex;
+  align-items: baseline;
+  border-radius: 6px;
+  padding: 1px 4px;
+}
+
+.node-pow.draggable-token:hover {
+  background: var(--accent-soft) !important;
+  border-color: var(--accent) !important;
+}
+
+.draggable-token:hover {
+  cursor: grab !important;
+  background: var(--primary-soft) !important;
+  border-color: var(--primary-light) !important;
+  transform: translateY(-2px) scale(1.08);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.28);
+}
+
+.draggable-token:active,
+.draggable-token.is-being-dragged {
+  cursor: grabbing !important;
+  opacity: 0.45;
+  transform: scale(0.95);
+  border-color: var(--primary);
+}
+
+/* Badge fluttuante per touch drag */
+.touch-drag-badge {
+  position: fixed;
+  pointer-events: none;
+  z-index: 99999;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -120%);
+  transition: transform 0.05s ease;
+}
+
+/* Termini composti (es. d*g*h o m*v) */
+.math-term-group {
+  display: inline-flex;
+  align-items: baseline;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: 2px 5px;
+  margin: 0 2px;
+  background: rgba(248, 250, 252, 0.7);
+  transition: all 0.2s ease;
+  position: relative;
+  cursor: grab !important;
+}
+.math-term-group:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent), 0 3px 8px rgba(124, 58, 237, 0.15);
+  transform: translateY(-1px);
+}
+.term-group-tag {
+  font-size: 0.68rem;
+  margin-right: 4px;
+  opacity: 0.6;
+  user-select: none;
+  cursor: grab;
+}
+.math-term-group:hover .term-group-tag {
+  opacity: 1;
+}
+
+/* Lettere singole all'interno del termine composto */
+.math-term-group .draggable-token:not(.math-term-group) {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin: 0 1px;
+}
+.math-term-group .draggable-token:not(.math-term-group):hover {
+  background: var(--primary-soft) !important;
+  border-color: var(--primary) !important;
+  transform: scale(1.1);
+  z-index: 10;
+}
+
+/* Zone di rilascio (Dropzones) */
+.dropzone {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 8px;
+  position: relative;
+}
+
+/* Slot adiacente per trasporto termine (compare solo durante il drag) */
+.dropzone-adjacent {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.55rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.is-dragging-equation .dropzone-adjacent {
+  display: inline-flex;
+  opacity: 0.75;
+}
+.is-dragging-equation .dropzone-adjacent.dropzone-hover {
+  opacity: 1;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  transform: scale(1.05);
+}
+
+/* Linea di frazione dinamica (per membri senza frazione) */
+.dynamic-fraction-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-5px);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.is-dragging-equation .dynamic-fraction-wrapper {
+  max-height: 55px;
+  opacity: 0.45;
+  overflow: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.is-dragging-equation .dynamic-fraction-wrapper.wrapper-expanded,
+.is-dragging-equation .dynamic-fraction-wrapper:hover,
+.is-dragging-equation .dynamic-frac-den.dropzone-hover {
+  opacity: 1;
+  max-height: 55px;
+  background: var(--primary-soft);
+}
+
+.dynamic-frac-bar {
+  width: 100%;
+  min-width: 50px;
+  height: 2.5px;
+  background: linear-gradient(90deg, var(--primary-light), var(--primary));
+  margin: 6px 0 3px;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
+.dynamic-frac-den {
+  min-width: 90px;
+  padding: 5px 10px;
+  margin-top: 3px;
+  border: 1.5px dashed var(--primary-light);
+  background: var(--primary-soft);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.dropzone-label {
+  font-size: 0.74rem;
+  font-family: var(--font);
+  font-weight: 600;
+  color: var(--primary-dark);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.implicit-den-indicator {
+  display: none;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+/* Quando l'utente attiva "Mostra denominatori sottintesi" */
+.show-implicit-denominators .dynamic-fraction-wrapper {
+  max-height: 50px;
+  opacity: 0.8;
+  transform: translateY(0);
+}
+
+.show-implicit-denominators .dynamic-frac-bar {
+  opacity: 0.4;
+}
+
+.show-implicit-denominators .dynamic-frac-den {
+  border-color: transparent;
+  background: transparent;
+}
+
+.show-implicit-denominators .dynamic-frac-den .dropzone-label {
+  display: none;
+}
+
+.show-implicit-denominators .dynamic-frac-den .implicit-den-indicator {
+  display: inline-block;
+  opacity: 0.65;
+}
+
+/* Quando si inizia il trascinamento di una variabile */
+.is-dragging-equation .dynamic-fraction-wrapper,
+.wrapper-expanded {
+  max-height: 75px !important;
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+  overflow: visible !important;
+}
+
+.is-dragging-equation .show-implicit-denominators .dynamic-frac-den .implicit-den-indicator {
+  display: none;
+}
+
+.is-dragging-equation .show-implicit-denominators .dynamic-frac-den .dropzone-label {
+  display: flex;
+}
+
+.is-dragging-equation .dropzone-active-target {
+  border: 2px dashed var(--primary) !important;
+  background: var(--primary-soft) !important;
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.25);
+  animation: pulseDropzone 1.4s infinite ease-in-out;
+}
+
+@keyframes pulseDropzone {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+  50% { transform: scale(1.03); box-shadow: 0 0 14px 2px rgba(99, 102, 241, 0.5); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+}
+
+/* Quando si passa sopra a una zona di rilascio valida (dragover / dropzone-hover) */
+.dropzone.dropzone-hover {
+  border: 2px solid var(--accent) !important;
+  background: rgba(16, 185, 129, 0.18) !important;
+  box-shadow: 0 0 22px rgba(16, 185, 129, 0.55) !important;
+  transform: scale(1.08) !important;
+}
+
+.dropzone.dropzone-hover * {
+  color: var(--accent) !important;
+}
+
+/* Dark mode adattamento */
+body.dark-theme .dynamic-frac-den {
+  background: rgba(99, 102, 241, 0.14);
+  border-color: rgba(165, 180, 252, 0.4);
+}
+
+body.dark-theme .dropzone-label {
+  color: #a5b4fc;
+}
+
+body.dark-theme .dropzone.dropzone-hover {
+  background: rgba(16, 185, 129, 0.28) !important;
+  box-shadow: 0 0 26px rgba(16, 185, 129, 0.65) !important;
+}
+

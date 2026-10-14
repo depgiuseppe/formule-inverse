@@ -1,0 +1,19 @@
+{
+  "name": "laboratorio-formule-inverse",
+  "version": "2.0.0",
+  "description": "Applicazione didattica per imparare a ricavare le formule inverse con i principi di equivalenza",
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/run-tests.mjs",
+    "build": "node scripts/bundle.mjs",
+    "start": "npx -y serve -p 3000 ."
+  },
+  "keywords": [
+    "fisica",
+    "matematica",
+    "formule-inverse",
+    "didattica"
+  ],
+  "author": "",
+  "license": "MIT"
+}

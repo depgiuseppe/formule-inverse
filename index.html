@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laboratorio di Formule Inverse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@500;600;700;800&family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip-link" href="#workarea">Salta al contenuto principale</a>
+
+<header class="app-header">
+  <div class="header-brand">
+    <div class="brand-badge">⚡ Fisica &amp; Matematica</div>
+    <h1>Laboratorio di Formule Inverse</h1>
+    <p class="subtitle">Impara a ricavare le formule inverse applicando i principi di equivalenza in modo rigoroso e interattivo</p>
+  </div>
+  <div class="header-actions">
+    <button id="btn-theme" class="btn btn-secondary" type="button" aria-label="Cambia tema chiaro/scuro">🌙 Modalità scura</button>
+    <button id="btn-contrast" class="btn btn-secondary" type="button" aria-pressed="false">Alto contrasto</button>
+    <button id="btn-help" class="btn btn-secondary" type="button">Guida rapida</button>
+    <button id="btn-run-tests" class="btn btn-secondary" type="button">Esegui test automatici</button>
+  </div>
+</header>
+
+<main class="app-grid">
+
+  <!-- A. LIBRERIA -->
+  <section class="panel panel-library" aria-labelledby="h-library">
+    <div class="panel-header">
+      <h2 id="h-library">A. Libreria delle formule</h2>
+      <span class="panel-badge" id="library-count-badge">176 formule</span>
+    </div>
+
+    <label class="field">
+      <span class="field-label">Cerca</span>
+      <input id="library-search" type="search" placeholder="es. velocità, energia, densità, ohm" aria-label="Cerca formula">
+    </label>
+
+    <div class="filter-row">
+      <label class="field filter-half">
+        <span class="field-label">Argomento</span>
+        <select id="library-topic" aria-label="Filtra per argomento">
+          <option value="">Tutti gli argomenti</option>
+        </select>
+      </label>
+      <label class="field filter-half">
+        <span class="field-label">Difficoltà</span>
+        <select id="library-difficulty" aria-label="Filtra per difficoltà">
+          <option value="">Tutti i livelli</option>
+          <option value="1">★☆☆☆☆ Livello 1 (Base)</option>
+          <option value="2">★★☆☆☆ Livello 2 (Medio)</option>
+          <option value="3">★★★☆☆ Livello 3 (Intermedio)</option>
+          <option value="4">★★★★☆ Livello 4 (Avanzato)</option>
+          <option value="5">★★★★★ Livello 5 (Esperto)</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="library-list" id="library-list" role="listbox" aria-label="Elenco delle formule">
+      <!-- popolato da app.js -->
+    </div>
+
+    <div class="library-actions">
+      <button id="btn-random" class="btn btn-primary" type="button">🎲 Esercizio casuale</button>
+    </div>
+
+    <details class="editor-toggle">
+      <summary>Formula personalizzata (editor)</summary>
+      <div class="editor-body">
+        <p class="hint">Sintassi: usa <code>+ - * / ^ ( )</code>. Esempi: <code>v = s/t</code>, <code>F = m*a</code>, <code>E = (m*v^2)/2</code>, <code>y = a*x^2 + b</code>, <code>p = F/S</code></p>
+        <label class="field">
+          <span class="field-label">Formula</span>
+          <input id="custom-formula" type="text" placeholder="E = (m*v^2)/2" aria-label="Inserisci formula personalizzata">
+        </label>
+        <label class="field">
+          <span class="field-label">Grandezza da isolare</span>
+          <input id="custom-target" type="text" placeholder="m" aria-label="Grandezza da isolare">
+        </label>
+        <button id="btn-load-custom" class="btn btn-primary" type="button">Carica formula</button>
+        <p id="custom-error" class="error-msg" role="alert" hidden></p>
+      </div>
+    </details>
+
+    <details class="editor-toggle" id="latex-import-toggle">
+      <summary>Importa da LaTeX (anteprima &amp; salvataggio)</summary>
+      <div class="editor-body">
+        <p class="hint">Incolla un'equazione in LaTeX. Esempi: <code>v = \\frac{s}{t}</code>, <code>E = \\frac{1}{2} m v^2</code>, <code>r = \\sqrt{\\frac{S}{\\pi}}</code>, <code>c = \\sqrt{a^2 + b^2}</code>.</p>
+        <label class="field">
+          <span class="field-label">Equazione LaTeX</span>
+          <textarea id="latex-input" rows="2" placeholder="v = \\frac{s}{t}" aria-label="Equazione LaTeX da importare"></textarea>
+        </label>
+        <div class="latex-actions">
+          <button id="btn-latex-preview" class="btn btn-secondary" type="button">Anteprima conversione</button>
+          <button id="btn-latex-save" class="btn btn-primary" type="button">Salva nell'archivio</button>
+        </div>
+        <label class="field">
+          <span class="field-label">Nome (opzionale)</span>
+          <input id="latex-name" type="text" placeholder="es. Velocità media" aria-label="Nome da assegnare alla formula">
+        </label>
+        <label class="field">
+          <span class="field-label">Grandezza da isolare (opzionale)</span>
+          <input id="latex-target" type="text" placeholder="es. t" aria-label="Grandezza da isolare">
+        </label>
+        <div id="latex-preview" class="latex-preview" hidden aria-live="polite"></div>
+        <p id="latex-error" class="error-msg" role="alert" hidden></p>
+      </div>
+    </details>
+
+    <details class="editor-toggle" id="my-formulas-toggle">
+      <summary>Le mie formule (archivio salvato)</summary>
+      <div class="editor-body">
+        <p class="hint" id="my-formulas-count"></p>
+        <div class="library-list" id="my-formulas-list" role="listbox" aria-label="Formule salvate">
+          <!-- popolato da app.js -->
+        </div>
+        <div class="storage-actions">
+          <button id="btn-export-formulas" class="btn btn-secondary" type="button">Esporta JSON</button>
+          <button id="btn-import-formulas" class="btn btn-secondary" type="button">Importa JSON</button>
+          <button id="btn-clear-formulas" class="btn btn-secondary" type="button">Svuota archivio</button>
+        </div>
+        <textarea id="json-area" rows="4" placeholder="Incolla qui un JSON esportato, poi premi &quot;Importa JSON&quot;." aria-label="Area JSON per importazione ed esportazione" hidden></textarea>
+        <p id="storage-error" class="error-msg" role="alert" hidden></p>
+      </div>
+    </details>
+  </section>
+
+  <!-- B + E. AREA DI LAVORO -->
+  <section class="panel panel-work" id="workarea" aria-labelledby="h-work">
+    <div class="panel-header">
+      <h2 id="h-work">B. Area di lavoro</h2>
+      <div class="work-header-tools">
+        <button id="btn-mirror" class="btn-mini" type="button" title="Regola dello specchio: scambia i due membri dell'equazione (A = B ↔ B = A)">🪞 Regola dello specchio</button>
+        <button id="btn-toggle-implicit-den" class="btn-mini" type="button" title="Mostra o nascondi i denominatori sottintesi (/1)">👁 Denominatori sottintesi (/1)</button>
+        <button id="btn-copy-formula" class="btn-mini" type="button" title="Copia equazione corrente negli appunti">📋 Copia testo</button>
+        <button id="btn-copy-latex" class="btn-mini" type="button" title="Copia equazione in formato LaTeX">📐 Copia LaTeX</button>
+      </div>
+    </div>
+
+    <!-- E. Obiettivo -->
+    <div class="objective" id="objective-box" role="status">
+      <div class="objective-main">
+        <span class="objective-label">Obiettivo:</span>
+        <span id="objective-text">Seleziona una formula dalla libreria.</span>
+      </div>
+      <div class="objective-target-picker" id="objective-target-picker" hidden>
+        <span class="target-picker-label">Isola:</span>
+        <div class="target-chips" id="target-chips"></div>
+      </div>
+      <span id="objective-status" class="status-badge" hidden></span>
+    </div>
+
+    <div class="mode-row" role="group" aria-label="Modalità di interazione">
+      <span class="mode-label">Modalità:</span>
+      <button class="mode-btn active" data-mode="free" type="button" aria-pressed="true">Libera</button>
+      <button class="mode-btn" data-mode="guided" type="button" aria-pressed="false">Guidata</button>
+      <button class="mode-btn" data-mode="multi" type="button" aria-pressed="false">Multi-operazione</button>
+    </div>
+
+    <div class="equation-display-card">
+      <div class="drag-hint-bar">
+        <span class="drag-hint-badge">✨ Drag &amp; Drop attivo</span>
+        <span class="drag-hint-text">Trascina una variabile dall'altra parte dell'uguale: rilasciala <strong>sotto la linea di frazione</strong> per dividere, o al numeratore per moltiplicare!</span>
+      </div>
+      <div class="equation-display" id="equation-display" aria-live="polite">
+        <p class="placeholder">Nessuna equazione caricata.</p>
+      </div>
+      <div class="latex-live-bar" id="latex-live-bar" title="Codice LaTeX dinamico della formula attuale">
+        <span class="latex-live-label">LaTeX</span>
+        <code class="latex-live-code" id="latex-live-code"></code>
+        <button id="btn-copy-latex-inline" class="btn-icon-mini" type="button" title="Copia codice LaTeX" aria-label="Copia codice LaTeX">📋</button>
+      </div>
+    </div>
+
+    <div class="conditions-box" id="conditions-box" aria-live="polite" hidden>
+      <strong>Condizioni di validità:</strong>
+      <ul id="conditions-list"></ul>
+    </div>
+
+    <!-- Suggerimenti / anteprima -->
+    <div class="preview-box" id="preview-box" aria-live="polite" hidden>
+      <p id="preview-text"></p>
+      <div class="preview-actions">
+        <button id="btn-confirm" class="btn btn-primary" type="button">✓ Conferma mossa</button>
+        <button id="btn-cancel" class="btn btn-secondary" type="button">✕ Annulla</button>
+      </div>
+    </div>
+
+    <div class="message-box" id="message-box" role="alert" aria-live="assertive" hidden></div>
+
+    <!-- Comandi accessibili (interazione guidata o libera) -->
+    <div class="action-bar" id="action-bar">
+      <div class="action-bar-top">
+        <span class="action-hint" id="action-hint">Seleziona un elemento dell'equazione per vedere le operazioni disponibili.</span>
+        <button id="btn-quick-hint" class="btn-hint" type="button" title="Suggerisci la mossa migliore">💡 Suggerimento</button>
+      </div>
+      <div class="action-buttons" id="action-buttons"></div>
+    </div>
+  </section>
+
+  <!-- C. PANNELLO REGOLE -->
+  <section class="panel panel-rules" aria-labelledby="h-rules">
+    <div class="panel-header">
+      <h2 id="h-rules">C. Regola applicata</h2>
+    </div>
+    <div id="rule-panel" class="rule-panel">
+      <p class="placeholder">Le regole compariranno qui dopo ogni trasformazione.</p>
+    </div>
+  </section>
+
+  <!-- D. CRONOLOGIA -->
+  <section class="panel panel-history" aria-labelledby="h-history">
+    <div class="panel-header">
+      <h2 id="h-history">D. Cronologia passaggi</h2>
+      <div class="history-header-tools">
+        <button id="btn-copy-steps" class="btn-mini" type="button" title="Copia passaggi negli appunti">📋 Copia testo</button>
+        <button id="btn-copy-steps-latex" class="btn-mini" type="button" title="Copia passaggi formattati per LaTeX">📐 Copia LaTeX</button>
+      </div>
+    </div>
+    <div class="history-controls">
+      <button id="btn-undo" class="btn btn-secondary" type="button" title="Annulla ultima trasformazione">↶ Annulla</button>
+      <button id="btn-redo" class="btn btn-secondary" type="button" title="Ripristina trasformazione annullata">↷ Ripristina</button>
+      <button id="btn-reset" class="btn btn-secondary" type="button">↺ Ricomincia</button>
+    </div>
+    <ol class="history-list" id="history-list">
+      <li class="history-empty">Nessun passaggio registrato.</li>
+    </ol>
+  </section>
+</main>
+
+<!-- Modal guidata -->
+<div class="modal-backdrop" id="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h3 id="modal-title">Guida</h3>
+    <div id="modal-body" class="modal-body"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<!-- Pannello risultati test -->
+<div class="modal-backdrop" id="tests-backdrop" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="tests-title">
+    <h3 id="tests-title">Test automatici di correttezza</h3>
+    <div id="tests-summary" class="tests-summary"></div>
+    <div id="tests-body" class="tests-body"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" type="button" data-close="tests-backdrop">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal scelta grandezza iniziale -->
+<div class="modal-backdrop" id="pick-target-backdrop" hidden>
+  <div class="modal modal-compact" role="dialog" aria-modal="true" aria-labelledby="pick-target-title">
+    <h3 id="pick-target-title">🎯 Scegli la grandezza da ricavare</h3>
+    <p id="pick-target-formula-name" class="modal-subtitle"></p>
+    <div id="pick-target-formula-preview" class="pick-formula-preview"></div>
+    <p class="hint">Clicca sulla grandezza che vuoi isolare per iniziare:</p>
+    <div id="pick-target-buttons" class="pick-target-grid"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" type="button" data-close="pick-target-backdrop">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bundle JavaScript standalone: esecuzione istantanea offline e compatibile al 100% con file:// -->
+<script src="js/bundle.js"></script>
+</body>
+</html>
