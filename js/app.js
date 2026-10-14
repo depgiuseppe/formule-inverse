@@ -6,6 +6,7 @@ import {
   clone, toPretty, toLatex, unwrap, collectVars, equivalentEq, Eq,
 } from './ast.js';
 import { reciprocalEquation } from './reciprocals.js';
+import { KEYPAD_OPERATIONS, equationKeypadTokens, parseOperand, applyKeypadOperation } from './operations.js';
 import {
   isGoalReached, findElement, availableActions, globalActions,
   performAction, suggestNextStep, mergeConditions,
@@ -40,6 +41,9 @@ const state = {
   pendingMove: null,
   goalReached: false,
   showImplicitDen: false,
+  keypadOp: null,
+  crossMode: false,
+  crossPicked: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -62,6 +66,9 @@ const dom = {
   btnReciprocal: $('#btn-reciprocal'),
   btnToggleImplicitDen: $('#btn-toggle-implicit-den'),
   equationDisplay: $('#equation-display'),
+  keypadOps: $('#keypad-ops'),
+  keypadOperands: $('#keypad-operands'),
+  keypadHint: $('#keypad-hint'),
   latexLiveCode: $('#latex-live-code'),
   btnCopyLatexInline: $('#btn-copy-latex-inline'),
   objectiveTargetPicker: $('#objective-target-picker'),
@@ -294,6 +301,9 @@ function loadFormula(formulaEntry, targetVar) {
   state.selectedId = null;
   state.pendingMove = null;
   state.goalReached = false;
+  state.keypadOp = null;
+  state.crossMode = false;
+  state.crossPicked = null;
 
   pushHistory({
     equation: clone(eq),
@@ -321,6 +331,7 @@ function renderEquationView() {
   if (!state.currentEq) {
     dom.equationDisplay.innerHTML = '<p class="placeholder">Nessuna equazione caricata.</p>';
     if (dom.latexLiveCode) dom.latexLiveCode.textContent = '';
+    renderKeypad();
     return;
   }
   dom.equationDisplay.innerHTML = renderEquation(state.currentEq, {
@@ -338,6 +349,206 @@ function renderEquationView() {
     onApplyMove: applyDragResult,
   });
   renderConditions();
+  renderKeypad();
+}
+
+// ---------------------------------------------------------------------------
+// Tastierino: operazioni applicate a entrambi i membri
+// ---------------------------------------------------------------------------
+function renderKeypad() {
+  if (!dom.keypadOps || !dom.keypadOperands) return;
+
+  dom.keypadOps.innerHTML = '';
+  for (const op of KEYPAD_OPERATIONS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'keypad-op' + (state.keypadOp === op.id ? ' active' : '');
+    btn.dataset.op = op.id;
+    btn.textContent = op.label;
+    btn.title = op.title;
+    btn.setAttribute('aria-label', op.title);
+    btn.setAttribute('aria-pressed', state.keypadOp === op.id ? 'true' : 'false');
+    btn.disabled = !state.currentEq;
+    btn.addEventListener('click', () => handleKeypadOpClick(op));
+    dom.keypadOps.appendChild(btn);
+  }
+
+  dom.keypadOperands.innerHTML = '';
+  if (!state.currentEq) {
+    dom.keypadOperands.innerHTML = '<p class="placeholder small">Carica una formula per usare il tastierino.</p>';
+    updateKeypadHint();
+    return;
+  }
+
+  const { letters, numbers } = equationKeypadTokens(state.currentEq);
+  for (const name of letters) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'keypad-operand keypad-letter';
+    btn.textContent = prettyVar(name);
+    btn.title = `Usa ${name}`;
+    btn.addEventListener('click', () => handleKeypadOperandClick(name));
+    dom.keypadOperands.appendChild(btn);
+  }
+  for (const value of numbers) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'keypad-operand keypad-number';
+    btn.textContent = String(value);
+    btn.title = `Usa ${value}`;
+    btn.addEventListener('click', () => handleKeypadOperandClick(String(value)));
+    dom.keypadOperands.appendChild(btn);
+  }
+
+  // Campo libero: serve a moltiplicare per un numero non presente nell'equazione.
+  const custom = document.createElement('span');
+  custom.className = 'keypad-custom';
+  custom.innerHTML =
+    '<input class="keypad-custom-value" type="text" inputmode="numeric" placeholder="n" aria-label="Altro numero o grandezza" size="3">' +
+    '<button type="button" class="btn-mini keypad-custom-apply">usa</button>';
+  dom.keypadOperands.appendChild(custom);
+  const input = custom.querySelector('.keypad-custom-value');
+  const applyBtn = custom.querySelector('.keypad-custom-apply');
+  const submit = () => {
+    const value = (input.value || '').trim();
+    if (!value) return;
+    handleKeypadOperandClick(value);
+    input.value = '';
+  };
+  applyBtn.addEventListener('click', submit);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+
+  updateKeypadHint();
+}
+
+function updateKeypadHint() {
+  if (!dom.keypadHint) return;
+  if (!state.currentEq) {
+    dom.keypadHint.textContent = 'Carica una formula per usare il tastierino.';
+    return;
+  }
+  if (!state.keypadOp) {
+    dom.keypadHint.textContent = 'Scegli un\'operazione: verrà applicata a entrambi i membri.';
+    return;
+  }
+  const op = KEYPAD_OPERATIONS.find((o) => o.id === state.keypadOp);
+  dom.keypadHint.textContent = op && !op.needsOperand
+    ? 'Premi di nuovo per applicare la radice quadrata a entrambi i membri.'
+    : `Operazione ${op ? op.label : ''} scelta: ora tocca una grandezza o un numero.`;
+}
+
+function handleKeypadOpClick(op) {
+  if (!state.currentEq) return;
+  if (state.keypadOp === op.id) {
+    // Secondo clic sulla stessa operazione senza operando: la annulla,
+    // tranne per le operazioni che non richiedono un operando (radice).
+    if (op.needsOperand) {
+      state.keypadOp = null;
+      renderKeypad();
+      return;
+    }
+    applyKeypadMove(op.id, null, null);
+    return;
+  }
+  state.keypadOp = op.id;
+  renderKeypad();
+  if (!op.needsOperand) applyKeypadMove(op.id, null, null);
+}
+
+function handleKeypadOperandClick(text) {
+  if (!state.currentEq) return;
+  if (!state.keypadOp) {
+    showMessage('Prima scegli un\'operazione nel tastierino (+ − × ÷ ^ √), poi la grandezza o il numero.', 'info');
+    return;
+  }
+  applyKeypadMove(state.keypadOp, parseOperand(text), text);
+}
+
+function applyKeypadMove(opId, operandNode, operandText) {
+  const op = KEYPAD_OPERATIONS.find((o) => o.id === opId);
+  const label = op ? op.label : opId;
+  const before = state.currentEq;
+
+  const res = applyKeypadOperation(before, opId, operandNode, operandText, state.targetVar);
+  if (!res.ok) {
+    state.keypadOp = null;
+    renderKeypad();
+    clearPreview();
+    animateOperationBadge(label, operandText);
+    showInvalidMove(res.error, res.hint, { label: `Applica ${label} a entrambi i membri` });
+    return;
+  }
+
+  const newEq = res.equation;
+  if (equivalentEq(newEq, before)) {
+    state.keypadOp = null;
+    renderKeypad();
+    showMessage('Questa operazione non cambia l\'equazione: prova un\'altra trasformazione.', 'info');
+    return;
+  }
+
+  state.currentEq = newEq;
+  state.conditions = mergeConditions(state.conditions, res.conditions || []);
+  state.selectedId = null;
+  state.keypadOp = null;
+  clearPreview();
+
+  const ruleName = `Applica ${label}${operandText ? ' ' + prettyVar(operandText) : ''} a entrambi i membri`;
+  pushHistory({
+    equation: clone(newEq),
+    ruleName,
+    rulePrinciple: res.note || '',
+    ruleId: 'keypad-' + opId,
+    steps: res.steps || [],
+    conditions: (res.conditions || []).slice(),
+    explanationKey: null,
+    note: res.note || null,
+    verified: true,
+  }, false);
+
+  updateObjective();
+  renderEquationView();
+  showRulePanel(
+    { name: ruleName, principle: res.steps && res.steps.length ? res.steps.join(' ') : '', explanation: null },
+    { steps: res.steps || [], conditions: res.conditions || [], note: res.note || null },
+    newEq
+  );
+  clearMessage();
+  animateOperationBadge(label, operandText);
+  showMessage(`✓ ${ruleName}.`, 'success');
+  if (res.note) showMessage(res.note, 'info');
+
+  if (state.goalReached) {
+    playSuccessChime();
+    showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
+  } else if (state.mode === 'guided') {
+    showGuidedSuggestion();
+  } else if (state.mode === 'multi') {
+    showMultiMode();
+  }
+}
+
+// Piccola animazione: l'equazione pulsa e un badge mostra l'operazione applicata.
+function animateOperationBadge(label, operandText) {
+  if (!dom.equationDisplay) return;
+  const card = dom.equationDisplay.closest('.equation-display-card') || dom.equationDisplay;
+  card.classList.remove('op-animating');
+  // Forza il riavvio dell'animazione.
+  void card.offsetWidth;
+  card.classList.add('op-animating');
+
+  const badge = document.createElement('span');
+  badge.className = 'op-anim-badge';
+  badge.textContent = operandText ? `${label}${prettyVar(operandText)}` : label;
+  badge.setAttribute('aria-hidden', 'true');
+  card.appendChild(badge);
+
+  const cleanup = () => {
+    card.classList.remove('op-animating');
+    if (badge.parentNode) badge.parentNode.removeChild(badge);
+  };
+  badge.addEventListener('animationend', cleanup);
+  setTimeout(cleanup, 1200);
 }
 
 function attachEquationHandlers() {

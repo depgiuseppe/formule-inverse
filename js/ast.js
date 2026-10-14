@@ -257,6 +257,13 @@ export function toPretty(node, parentPrec = 0) {
       return node.name;
     case 'Add':
     case 'Sub': {
+      // Segno ± davanti a una radice: ±√(...) e non ± + √(...)
+      if (node.type === 'Add' && node.args.length === 2) {
+        const first = unwrap(node.args[0]);
+        if (first.type === 'Var' && first.name === '±') {
+          return wrap('±' + toPretty(node.args[1], 2), 1, parentPrec > 1);
+        }
+      }
       // I termini negativi sono mostrati come sottrazione (v − v0, non v + −v0).
       const isSub = node.type === 'Sub';
       let s = '';
@@ -364,6 +371,13 @@ export function toLatex(node, parentPrec = 0) {
     }
     case 'Add':
     case 'Sub': {
+      // Segno ± davanti a una radice: ±√(...) e non ± + √(...)
+      if (node.type === 'Add' && node.args.length === 2) {
+        const first = unwrap(node.args[0]);
+        if (first.type === 'Var' && first.name === '±') {
+          return wrap('±' + toLatex(node.args[1], 2), parentPrec > 1);
+        }
+      }
       // I termini negativi diventano sottrazioni: v - v_0, non v + -v_0.
       const isSub = node.type === 'Sub';
       let s = '';

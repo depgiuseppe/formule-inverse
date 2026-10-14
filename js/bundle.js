@@ -225,6 +225,12 @@
         return node.name;
       case "Add":
       case "Sub": {
+        if (node.type === "Add" && node.args.length === 2) {
+          const first = unwrap(node.args[0]);
+          if (first.type === "Var" && first.name === "\xB1") {
+            return wrap("\xB1" + toPretty(node.args[1], 2), 1, parentPrec > 1);
+          }
+        }
         const isSub = node.type === "Sub";
         let s = "";
         node.args.forEach((a, i) => {
@@ -362,6 +368,12 @@
       }
       case "Add":
       case "Sub": {
+        if (node.type === "Add" && node.args.length === 2) {
+          const first = unwrap(node.args[0]);
+          if (first.type === "Var" && first.name === "\xB1") {
+            return wrap("\xB1" + toLatex(node.args[1], 2), parentPrec > 1);
+          }
+        }
         const isSub = node.type === "Sub";
         let s = "";
         node.args.forEach((a, i) => {
@@ -2261,6 +2273,124 @@
     const set = new Set(existing);
     for (const c of added) set.add(c);
     return Array.from(set);
+  }
+
+  // js/operations.js
+  var KEYPAD_OPERATIONS = [
+    { id: "add", label: "+", title: "Somma la stessa grandezza o numero a entrambi i membri", needsOperand: true },
+    { id: "sub", label: "\u2212", title: "Sottrai la stessa grandezza o numero a entrambi i membri", needsOperand: true },
+    { id: "mul", label: "\xD7", title: "Moltiplica entrambi i membri per la stessa grandezza o numero", needsOperand: true },
+    { id: "div", label: "\xF7", title: "Dividi entrambi i membri per la stessa grandezza o numero (\u2260 0)", needsOperand: true },
+    { id: "pow", label: "^", title: "Eleva entrambi i membri alla stessa potenza", needsOperand: true },
+    { id: "sqrt", label: "\u221A", title: "Estrai la radice quadrata di entrambi i membri", needsOperand: false }
+  ];
+  var RULE_BY_OP = {
+    add: "addBoth",
+    sub: "subBoth",
+    mul: "mulBoth",
+    div: "divBoth",
+    pow: "powBoth"
+  };
+  function equationKeypadTokens(eq2) {
+    const letters = [...collectVars(eq2)].sort();
+    const numbers = /* @__PURE__ */ new Set();
+    const walk2 = (node) => {
+      if (!node) return;
+      const u = unwrap(node);
+      if (u.type === "Num" && Number.isFinite(u.value)) numbers.add(u.value);
+      switch (u.type) {
+        case "Eq":
+          walk2(u.left);
+          walk2(u.right);
+          break;
+        case "Add":
+        case "Sub":
+        case "Mul":
+          u.args.forEach(walk2);
+          break;
+        case "Div":
+          walk2(u.num);
+          walk2(u.den);
+          break;
+        case "Pow":
+          walk2(u.base);
+          walk2(u.exp);
+          break;
+        default:
+          if (u.arg) walk2(u.arg);
+      }
+    };
+    walk2(eq2);
+    return {
+      letters,
+      numbers: [...numbers].sort((a, b) => a - b)
+    };
+  }
+  function parseOperand(text) {
+    const t = String(text || "").trim();
+    if (!t) return null;
+    try {
+      return parseExpression(t);
+    } catch {
+      return null;
+    }
+  }
+  function evenPowerOf(node) {
+    const u = unwrap(node);
+    if (u.type === "Pow" && isNum(u.exp) && Number.isInteger(u.exp.value) && u.exp.value % 2 === 0 && u.exp.value > 0) {
+      return u.exp.value;
+    }
+    return null;
+  }
+  function applySqrtBothSides(eq2, targetVar) {
+    const side = targetVar ? whichSideHas(eq2, targetVar) : null;
+    if (side === "left" || side === "right") {
+      const res = applyRule(RULES.sqrtBoth, eq2, { side, insideVar: targetVar });
+      if (res.ok) {
+        return {
+          ok: true,
+          equation: res.equation,
+          conditions: res.conditions || [],
+          steps: res.steps || [],
+          note: res.note || null
+        };
+      }
+    }
+    for (const member of [eq2.left, eq2.right]) {
+      if (evenPowerOf(member) !== null) {
+        return {
+          ok: false,
+          error: "Un membro \xE8 una potenza a esponente pari: la radice va presa con la regola dedicata, che introduce il segno \xB1, perch\xE9 \u221A(x\xB2) = |x|.",
+          hint: `Seleziona prima la potenza nell'area di lavoro e usa l'azione "Estrai la radice", oppure isola la potenza su un membro.`
+        };
+      }
+    }
+    const newEq = canonical(Eq(Sqrt(eq2.left), Sqrt(eq2.right)));
+    return {
+      ok: true,
+      equation: newEq,
+      conditions: [conditionText(eq2.left, "\u2265 0"), conditionText(eq2.right, "\u2265 0")],
+      steps: ["Estraggo la radice quadrata di entrambi i membri."],
+      note: "La radice di un quadrato \xE8 un valore assoluto: \u221A(x\xB2) = |x|. Perch\xE9 la radice di entrambi i membri abbia senso, entrambi devono essere \u2265 0."
+    };
+  }
+  function applyKeypadOperation(eq2, opId, operandNode, operandText, targetVar) {
+    if (!eq2 || eq2.type !== "Eq") {
+      return { ok: false, error: "Nessuna equazione su cui operare." };
+    }
+    if (opId === "sqrt") return applySqrtBothSides(eq2, targetVar);
+    const ruleKey = RULE_BY_OP[opId];
+    if (!ruleKey) return { ok: false, error: `Operazione sconosciuta: ${opId}.` };
+    if (!operandNode) return { ok: false, error: "Scegli prima una grandezza o un numero." };
+    const res = applyRule(RULES[ruleKey], eq2, { value: operandNode, valueText: operandText });
+    if (!res.ok) return { ok: false, error: res.error, hint: res.hint };
+    return {
+      ok: true,
+      equation: res.equation,
+      conditions: res.conditions || [],
+      steps: res.steps || [],
+      note: res.note || null
+    };
   }
 
   // js/formulas-fisica.js
@@ -4165,17 +4295,23 @@
     const rightMember = renderMember(eq2.right, "right", opts);
     return `<div class="math-eq interactive-math-eq ${showImplicitDen ? "show-implicit-denominators" : ""}">  <div class="math-member-wrap math-member-left">${leftMember}</div>  <div class="eq-sign-wrap"><span class="eq-sign" aria-label="uguale">=</span></div>  <div class="math-member-wrap math-member-right">${rightMember}</div></div>`;
   }
+  function insertionSlot(side, slot) {
+    const where = slot === "num" ? "accanto al numeratore" : "accanto al denominatore";
+    return `<span class="drop-slot drop-slot-${slot}" data-side="${side}" data-slot="${slot}" aria-hidden="true" title="Rilascia qui ${where}"><span class="drop-slot-plus">+</span></span>`;
+  }
   function renderMember(node, side, opts) {
     const raw = unwrap(node);
     const isDiv = raw.type === "Div";
     const adjacentDropzone = opts.interactive ? `<div class="dropzone dropzone-adjacent" data-side="${side}" data-slot="add" title="Rilascia qui per trasportare con cambio di segno (regola del trasporto)"><span class="dropzone-label"><span class="dropzone-icon">\xB1</span> sposta termine</span></div>` : "";
+    const numSlot = opts.interactive ? insertionSlot(side, "num") : "";
+    const denSlot = opts.interactive ? insertionSlot(side, "den") : "";
     if (isDiv) {
       const numContent2 = renderNode(raw.num, side + "/num", opts);
       const denContent = renderNode(raw.den, side + "/den", opts);
-      return `<div class="math-member-content member-has-frac" data-side="${side}">  ${adjacentDropzone}  <div class="frac">    <div class="frac-num dropzone" data-side="${side}" data-slot="num" title="Numeratore di ${side === "left" ? "sinistra" : "destra"} (rilascia per moltiplicare)">${numContent2}</div>    <div class="frac-bar"></div>    <div class="frac-den dropzone" data-side="${side}" data-slot="den" title="Denominatore di ${side === "left" ? "sinistra" : "destra"} (rilascia per dividere)">${denContent}</div>  </div></div>`;
+      return `<div class="math-member-content member-has-frac" data-side="${side}">  ${adjacentDropzone}  <div class="frac">    <div class="frac-num dropzone" data-side="${side}" data-slot="num" title="Numeratore di ${side === "left" ? "sinistra" : "destra"} (rilascia per moltiplicare)">${numContent2}${numSlot}</div>    <div class="frac-bar"></div>    <div class="frac-den dropzone" data-side="${side}" data-slot="den" title="Denominatore di ${side === "left" ? "sinistra" : "destra"} (rilascia per dividere)">${denContent}${denSlot}</div>  </div></div>`;
     }
     const numContent = renderNode(node, side, opts);
-    return `<div class="math-member-content member-no-frac" data-side="${side}">  ${adjacentDropzone}  <div class="member-num dropzone" data-side="${side}" data-slot="num" title="Membro di ${side === "left" ? "sinistra" : "destra"}">${numContent}</div>  <div class="dynamic-fraction-wrapper" data-side="${side}">    <div class="dynamic-frac-bar"></div>    <div class="dynamic-frac-den dropzone" data-side="${side}" data-slot="den" title="Rilascia qui al denominatore per dividere">      <span class="dropzone-label"><span class="dropzone-icon">\xF7</span> rilascia al denominatore</span>    </div>  </div></div>`;
+    return `<div class="math-member-content member-no-frac" data-side="${side}">  ${adjacentDropzone}  <div class="member-num dropzone" data-side="${side}" data-slot="num" title="Membro di ${side === "left" ? "sinistra" : "destra"}">${numContent}${numSlot}</div>  <div class="dynamic-fraction-wrapper" data-side="${side}">    <div class="dynamic-frac-bar"></div>    <div class="dynamic-frac-den dropzone" data-side="${side}" data-slot="den" title="Rilascia qui al denominatore per dividere">      <span class="dropzone-label"><span class="dropzone-icon">\xF7</span> rilascia al denominatore</span>${denSlot}    </div>  </div></div>`;
   }
   function renderNode(node, id, opts) {
     const raw = node;
@@ -4212,6 +4348,15 @@
       case "Add":
       case "Sub": {
         const isSub = node.type === "Sub";
+        if (!isSub && node.args.length === 2) {
+          const first = unwrap(node.args[0]);
+          if (first.type === "Var" && first.name === "\xB1") {
+            return span(
+              `<span class="op">\xB1</span>` + renderNode(node.args[1], id + "/Add1", { ...opts, hideSign: true }),
+              "node-add"
+            );
+          }
+        }
         const inner = node.args.map((a, i) => {
           const neg = unwrap(a).type === "Neg";
           const path = id + "/" + node.type + i;
@@ -4727,8 +4872,10 @@
         const fromSlot = token.dataset.slot || "num";
         const nodeType = token.dataset.nodeType || "Var";
         activeDragData = { varName, fromSide, fromSlot, nodeType };
-        e.dataTransfer.setData("text/plain", JSON.stringify(activeDragData));
-        e.dataTransfer.effectAllowed = "move";
+        if (e.dataTransfer) {
+          e.dataTransfer.setData("text/plain", JSON.stringify(activeDragData));
+          e.dataTransfer.effectAllowed = "move";
+        }
         token.classList.add("is-being-dragged");
         container.classList.add("is-dragging-equation");
         highlightDropzones(container, activeDragData);
@@ -4743,18 +4890,24 @@
     container.querySelectorAll(".dropzone").forEach((dropzone) => {
       dropzone.addEventListener("dragover", (e) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
         dropzone.classList.add("dropzone-hover");
+        const slot = dropzone.querySelector(".drop-slot");
+        if (slot) slot.classList.add("drop-slot-hover");
       });
       dropzone.addEventListener("dragleave", () => {
         dropzone.classList.remove("dropzone-hover");
+        const slot = dropzone.querySelector(".drop-slot");
+        if (slot) slot.classList.remove("drop-slot-hover");
       });
       dropzone.addEventListener("drop", (e) => {
         e.preventDefault();
         dropzone.classList.remove("dropzone-hover");
+        const slot = dropzone.querySelector(".drop-slot");
+        if (slot) slot.classList.remove("drop-slot-hover");
         container.classList.remove("is-dragging-equation");
         let dragData = activeDragData;
-        if (!dragData) {
+        if (!dragData && e.dataTransfer) {
           try {
             const raw = e.dataTransfer.getData("text/plain");
             if (raw) dragData = JSON.parse(raw);
@@ -4788,6 +4941,9 @@
     container.querySelectorAll(`.dropzone[data-side="${oppositeSide}"]`).forEach((dz) => {
       dz.classList.add("dropzone-active-target");
     });
+    container.querySelectorAll(`.drop-slot[data-side="${oppositeSide}"]`).forEach((slot) => {
+      slot.classList.add("drop-slot-visible");
+    });
     container.querySelectorAll(`.dynamic-fraction-wrapper[data-side="${oppositeSide}"]`).forEach((wrap) => {
       wrap.classList.add("wrapper-expanded");
     });
@@ -4798,6 +4954,9 @@
   function clearDropzonesHighlight(container) {
     container.querySelectorAll(".dropzone").forEach((dz) => {
       dz.classList.remove("dropzone-active-target", "dropzone-hover");
+    });
+    container.querySelectorAll(".drop-slot").forEach((slot) => {
+      slot.classList.remove("drop-slot-visible", "drop-slot-hover");
     });
     container.querySelectorAll(".dynamic-fraction-wrapper").forEach((wrap) => {
       wrap.classList.remove("wrapper-expanded");
@@ -4835,8 +4994,16 @@
         touchDragClone.style.top = `${e.clientY}px`;
         const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
         const dropzone = elemBelow ? elemBelow.closest(".dropzone") : null;
-        container.querySelectorAll(".dropzone").forEach((dz) => dz.classList.remove("dropzone-hover"));
-        if (dropzone) dropzone.classList.add("dropzone-hover");
+        container.querySelectorAll(".dropzone").forEach((dz) => {
+          dz.classList.remove("dropzone-hover");
+          const slot = dz.querySelector(".drop-slot");
+          if (slot) slot.classList.remove("drop-slot-hover");
+        });
+        if (dropzone) {
+          dropzone.classList.add("dropzone-hover");
+          const slot = dropzone.querySelector(".drop-slot");
+          if (slot) slot.classList.add("drop-slot-hover");
+        }
       });
       token.addEventListener("pointerup", (e) => {
         if (!draggedElem || draggedElem !== token) return;
@@ -5550,7 +5717,10 @@
     selectedId: null,
     pendingMove: null,
     goalReached: false,
-    showImplicitDen: false
+    showImplicitDen: false,
+    keypadOp: null,
+    crossMode: false,
+    crossPicked: null
   };
   var $ = (sel) => document.querySelector(sel);
   var dom = {
@@ -5569,6 +5739,9 @@
     btnReciprocal: $("#btn-reciprocal"),
     btnToggleImplicitDen: $("#btn-toggle-implicit-den"),
     equationDisplay: $("#equation-display"),
+    keypadOps: $("#keypad-ops"),
+    keypadOperands: $("#keypad-operands"),
+    keypadHint: $("#keypad-hint"),
     latexLiveCode: $("#latex-live-code"),
     btnCopyLatexInline: $("#btn-copy-latex-inline"),
     objectiveTargetPicker: $("#objective-target-picker"),
@@ -5784,6 +5957,9 @@
     state.selectedId = null;
     state.pendingMove = null;
     state.goalReached = false;
+    state.keypadOp = null;
+    state.crossMode = false;
+    state.crossPicked = null;
     pushHistory({
       equation: clone(eq2),
       ruleName: "Formula di partenza",
@@ -5805,6 +5981,7 @@
     if (!state.currentEq) {
       dom.equationDisplay.innerHTML = '<p class="placeholder">Nessuna equazione caricata.</p>';
       if (dom.latexLiveCode) dom.latexLiveCode.textContent = "";
+      renderKeypad();
       return;
     }
     dom.equationDisplay.innerHTML = renderEquation(state.currentEq, {
@@ -5822,6 +5999,180 @@
       onApplyMove: applyDragResult
     });
     renderConditions();
+    renderKeypad();
+  }
+  function renderKeypad() {
+    if (!dom.keypadOps || !dom.keypadOperands) return;
+    dom.keypadOps.innerHTML = "";
+    for (const op of KEYPAD_OPERATIONS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "keypad-op" + (state.keypadOp === op.id ? " active" : "");
+      btn.dataset.op = op.id;
+      btn.textContent = op.label;
+      btn.title = op.title;
+      btn.setAttribute("aria-label", op.title);
+      btn.setAttribute("aria-pressed", state.keypadOp === op.id ? "true" : "false");
+      btn.disabled = !state.currentEq;
+      btn.addEventListener("click", () => handleKeypadOpClick(op));
+      dom.keypadOps.appendChild(btn);
+    }
+    dom.keypadOperands.innerHTML = "";
+    if (!state.currentEq) {
+      dom.keypadOperands.innerHTML = '<p class="placeholder small">Carica una formula per usare il tastierino.</p>';
+      updateKeypadHint();
+      return;
+    }
+    const { letters, numbers } = equationKeypadTokens(state.currentEq);
+    for (const name of letters) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "keypad-operand keypad-letter";
+      btn.textContent = prettyVar(name);
+      btn.title = `Usa ${name}`;
+      btn.addEventListener("click", () => handleKeypadOperandClick(name));
+      dom.keypadOperands.appendChild(btn);
+    }
+    for (const value of numbers) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "keypad-operand keypad-number";
+      btn.textContent = String(value);
+      btn.title = `Usa ${value}`;
+      btn.addEventListener("click", () => handleKeypadOperandClick(String(value)));
+      dom.keypadOperands.appendChild(btn);
+    }
+    const custom = document.createElement("span");
+    custom.className = "keypad-custom";
+    custom.innerHTML = '<input class="keypad-custom-value" type="text" inputmode="numeric" placeholder="n" aria-label="Altro numero o grandezza" size="3"><button type="button" class="btn-mini keypad-custom-apply">usa</button>';
+    dom.keypadOperands.appendChild(custom);
+    const input = custom.querySelector(".keypad-custom-value");
+    const applyBtn = custom.querySelector(".keypad-custom-apply");
+    const submit = () => {
+      const value = (input.value || "").trim();
+      if (!value) return;
+      handleKeypadOperandClick(value);
+      input.value = "";
+    };
+    applyBtn.addEventListener("click", submit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      }
+    });
+    updateKeypadHint();
+  }
+  function updateKeypadHint() {
+    if (!dom.keypadHint) return;
+    if (!state.currentEq) {
+      dom.keypadHint.textContent = "Carica una formula per usare il tastierino.";
+      return;
+    }
+    if (!state.keypadOp) {
+      dom.keypadHint.textContent = "Scegli un'operazione: verr\xE0 applicata a entrambi i membri.";
+      return;
+    }
+    const op = KEYPAD_OPERATIONS.find((o) => o.id === state.keypadOp);
+    dom.keypadHint.textContent = op && !op.needsOperand ? "Premi di nuovo per applicare la radice quadrata a entrambi i membri." : `Operazione ${op ? op.label : ""} scelta: ora tocca una grandezza o un numero.`;
+  }
+  function handleKeypadOpClick(op) {
+    if (!state.currentEq) return;
+    if (state.keypadOp === op.id) {
+      if (op.needsOperand) {
+        state.keypadOp = null;
+        renderKeypad();
+        return;
+      }
+      applyKeypadMove(op.id, null, null);
+      return;
+    }
+    state.keypadOp = op.id;
+    renderKeypad();
+    if (!op.needsOperand) applyKeypadMove(op.id, null, null);
+  }
+  function handleKeypadOperandClick(text) {
+    if (!state.currentEq) return;
+    if (!state.keypadOp) {
+      showMessage("Prima scegli un'operazione nel tastierino (+ \u2212 \xD7 \xF7 ^ \u221A), poi la grandezza o il numero.", "info");
+      return;
+    }
+    applyKeypadMove(state.keypadOp, parseOperand(text), text);
+  }
+  function applyKeypadMove(opId, operandNode, operandText) {
+    const op = KEYPAD_OPERATIONS.find((o) => o.id === opId);
+    const label = op ? op.label : opId;
+    const before = state.currentEq;
+    const res = applyKeypadOperation(before, opId, operandNode, operandText, state.targetVar);
+    if (!res.ok) {
+      state.keypadOp = null;
+      renderKeypad();
+      clearPreview();
+      animateOperationBadge(label, operandText);
+      showInvalidMove(res.error, res.hint, { label: `Applica ${label} a entrambi i membri` });
+      return;
+    }
+    const newEq = res.equation;
+    if (equivalentEq(newEq, before)) {
+      state.keypadOp = null;
+      renderKeypad();
+      showMessage("Questa operazione non cambia l'equazione: prova un'altra trasformazione.", "info");
+      return;
+    }
+    state.currentEq = newEq;
+    state.conditions = mergeConditions(state.conditions, res.conditions || []);
+    state.selectedId = null;
+    state.keypadOp = null;
+    clearPreview();
+    const ruleName = `Applica ${label}${operandText ? " " + prettyVar(operandText) : ""} a entrambi i membri`;
+    pushHistory({
+      equation: clone(newEq),
+      ruleName,
+      rulePrinciple: res.note || "",
+      ruleId: "keypad-" + opId,
+      steps: res.steps || [],
+      conditions: (res.conditions || []).slice(),
+      explanationKey: null,
+      note: res.note || null,
+      verified: true
+    }, false);
+    updateObjective();
+    renderEquationView();
+    showRulePanel(
+      { name: ruleName, principle: res.steps && res.steps.length ? res.steps.join(" ") : "", explanation: null },
+      { steps: res.steps || [], conditions: res.conditions || [], note: res.note || null },
+      newEq
+    );
+    clearMessage();
+    animateOperationBadge(label, operandText);
+    showMessage(`\u2713 ${ruleName}.`, "success");
+    if (res.note) showMessage(res.note, "info");
+    if (state.goalReached) {
+      playSuccessChime();
+      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
+    } else if (state.mode === "guided") {
+      showGuidedSuggestion();
+    } else if (state.mode === "multi") {
+      showMultiMode();
+    }
+  }
+  function animateOperationBadge(label, operandText) {
+    if (!dom.equationDisplay) return;
+    const card = dom.equationDisplay.closest(".equation-display-card") || dom.equationDisplay;
+    card.classList.remove("op-animating");
+    void card.offsetWidth;
+    card.classList.add("op-animating");
+    const badge = document.createElement("span");
+    badge.className = "op-anim-badge";
+    badge.textContent = operandText ? `${label}${prettyVar(operandText)}` : label;
+    badge.setAttribute("aria-hidden", "true");
+    card.appendChild(badge);
+    const cleanup = () => {
+      card.classList.remove("op-animating");
+      if (badge.parentNode) badge.parentNode.removeChild(badge);
+    };
+    badge.addEventListener("animationend", cleanup);
+    setTimeout(cleanup, 1200);
   }
   function attachEquationHandlers() {
     dom.equationDisplay.querySelectorAll(".math-node").forEach((el) => {

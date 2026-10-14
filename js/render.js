@@ -40,6 +40,15 @@ export function renderEquation(eq, opts = {}) {
   );
 }
 
+// Spazio di inserimento che si apre DURANTE il trascinamento accanto alle
+// quantità già presenti, rispettando la posizione (numeratore o denominatore).
+// È solo visivo: non è una dropzone, così il rilascio resta gestito dal
+// contenitore (numeratore/denominatore) in cui si trova.
+function insertionSlot(side, slot) {
+  const where = slot === 'num' ? 'accanto al numeratore' : 'accanto al denominatore';
+  return `<span class="drop-slot drop-slot-${slot}" data-side="${side}" data-slot="${slot}" aria-hidden="true" title="Rilascia qui ${where}"><span class="drop-slot-plus">+</span></span>`;
+}
+
 function renderMember(node, side, opts) {
   const raw = unwrap(node);
   const isDiv = raw.type === 'Div';
@@ -47,6 +56,8 @@ function renderMember(node, side, opts) {
   const adjacentDropzone = opts.interactive
     ? `<div class="dropzone dropzone-adjacent" data-side="${side}" data-slot="add" title="Rilascia qui per trasportare con cambio di segno (regola del trasporto)"><span class="dropzone-label"><span class="dropzone-icon">±</span> sposta termine</span></div>`
     : '';
+  const numSlot = opts.interactive ? insertionSlot(side, 'num') : '';
+  const denSlot = opts.interactive ? insertionSlot(side, 'den') : '';
 
   if (isDiv) {
     const numContent = renderNode(raw.num, side + '/num', opts);
@@ -55,9 +66,9 @@ function renderMember(node, side, opts) {
       `<div class="math-member-content member-has-frac" data-side="${side}">` +
       `  ${adjacentDropzone}` +
       `  <div class="frac">` +
-      `    <div class="frac-num dropzone" data-side="${side}" data-slot="num" title="Numeratore di ${side === 'left' ? 'sinistra' : 'destra'} (rilascia per moltiplicare)">${numContent}</div>` +
+      `    <div class="frac-num dropzone" data-side="${side}" data-slot="num" title="Numeratore di ${side === 'left' ? 'sinistra' : 'destra'} (rilascia per moltiplicare)">${numContent}${numSlot}</div>` +
       `    <div class="frac-bar"></div>` +
-      `    <div class="frac-den dropzone" data-side="${side}" data-slot="den" title="Denominatore di ${side === 'left' ? 'sinistra' : 'destra'} (rilascia per dividere)">${denContent}</div>` +
+      `    <div class="frac-den dropzone" data-side="${side}" data-slot="den" title="Denominatore di ${side === 'left' ? 'sinistra' : 'destra'} (rilascia per dividere)">${denContent}${denSlot}</div>` +
       `  </div>` +
       `</div>`
     );
@@ -68,11 +79,11 @@ function renderMember(node, side, opts) {
   return (
     `<div class="math-member-content member-no-frac" data-side="${side}">` +
     `  ${adjacentDropzone}` +
-    `  <div class="member-num dropzone" data-side="${side}" data-slot="num" title="Membro di ${side === 'left' ? 'sinistra' : 'destra'}">${numContent}</div>` +
+    `  <div class="member-num dropzone" data-side="${side}" data-slot="num" title="Membro di ${side === 'left' ? 'sinistra' : 'destra'}">${numContent}${numSlot}</div>` +
     `  <div class="dynamic-fraction-wrapper" data-side="${side}">` +
     `    <div class="dynamic-frac-bar"></div>` +
     `    <div class="dynamic-frac-den dropzone" data-side="${side}" data-slot="den" title="Rilascia qui al denominatore per dividere">` +
-    `      <span class="dropzone-label"><span class="dropzone-icon">÷</span> rilascia al denominatore</span>` +
+    `      <span class="dropzone-label"><span class="dropzone-icon">÷</span> rilascia al denominatore</span>${denSlot}` +
     `    </div>` +
     `  </div>` +
     `</div>`
@@ -125,7 +136,17 @@ function renderNode(node, id, opts) {
     case 'Add':
     case 'Sub': {
       // Stampa i termini negativi come sottrazioni: x − y, non x + −y.
+      // Il segno ± davanti a una radice si scrive ±√(...).
       const isSub = node.type === 'Sub';
+      if (!isSub && node.args.length === 2) {
+        const first = unwrap(node.args[0]);
+        if (first.type === 'Var' && first.name === '±') {
+          return span(
+            `<span class="op">±</span>` + renderNode(node.args[1], id + '/Add1', { ...opts, hideSign: true }),
+            'node-add'
+          );
+        }
+      }
       const inner = node.args.map((a, i) => {
         const neg = unwrap(a).type === 'Neg';
         const path = id + '/' + node.type + i;

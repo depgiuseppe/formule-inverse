@@ -820,6 +820,144 @@ body.dark-theme .equation-display-card {
   scrollbar-width: thin;
 }
 
+/* Tastierino delle operazioni su entrambi i membri */
+.keypad {
+  margin: 0 0 1rem;
+  padding: .7rem .85rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.keypad-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .5rem;
+  margin-bottom: .55rem;
+}
+.keypad-title {
+  font-weight: 700;
+  font-size: .9rem;
+  color: var(--ink);
+}
+.keypad-hint {
+  font-size: .8rem;
+  color: var(--ink-muted);
+}
+.keypad-ops,
+.keypad-operands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  align-items: center;
+}
+.keypad-operands { margin-top: .5rem; }
+
+.keypad-op {
+  font-family: var(--font-math);
+  font-size: 1.05rem;
+  font-weight: 700;
+  min-width: 2.4rem;
+  padding: .3rem .5rem;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.keypad-op:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+.keypad-op.active {
+  background: var(--primary);
+  border-color: var(--primary-dark);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+.keypad-op:disabled { opacity: .45; cursor: not-allowed; }
+
+.keypad-operand {
+  font-family: var(--font-math);
+  font-size: .95rem;
+  font-weight: 700;
+  padding: .22rem .6rem;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--bg-card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.keypad-operand:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+.keypad-number {
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
+}
+.keypad-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  margin-left: .3rem;
+  padding-left: .4rem;
+  border-left: 1px dashed var(--line-strong);
+}
+.keypad-custom-value {
+  width: 3.4rem;
+  font-family: var(--font-math);
+  font-size: .9rem;
+  padding: .2rem .35rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--ink);
+  text-align: center;
+}
+
+/* Animazione dell'applicazione di un'operazione a entrambi i membri */
+.equation-display-card { position: relative; }
+.equation-display-card.op-animating .equation-display {
+  animation: opApplyPulse .7s ease;
+}
+.op-anim-badge {
+  position: absolute;
+  top: .6rem;
+  right: .8rem;
+  font-family: var(--font-math);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--accent);
+  padding: .2rem .7rem;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.35);
+  pointer-events: none;
+  animation: opBadgeFloat .9s ease forwards;
+}
+@keyframes opApplyPulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.04); filter: drop-shadow(0 0 10px rgba(124, 58, 237, .35)); }
+  100% { transform: scale(1); }
+}
+@keyframes opBadgeFloat {
+  0% { opacity: 0; transform: translateY(10px) scale(.8); }
+  30% { opacity: 1; transform: translateY(0) scale(1.05); }
+  70% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-14px) scale(.95); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .equation-display-card.op-animating .equation-display { animation: none; }
+  .op-anim-badge { animation: none; opacity: 1; }
+}
+
 /* Condizioni di validità */
 .conditions-box {
   background: var(--warning-soft);
@@ -1579,6 +1717,58 @@ sup.node-exp {
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   border-radius: 8px;
   position: relative;
+}
+
+/* Spazio di inserimento accanto alle quantità già presenti.
+   Compare solo durante il trascinamento, sul membro di destinazione,
+   nella posizione corrispondente (numeratore o denominatore). */
+.drop-slot {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  min-width: 2.1rem;
+  height: 2.1rem;
+  margin: 0 .25rem;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.06);
+  transition: all .18s ease;
+}
+.drop-slot-visible {
+  display: inline-flex;
+  animation: dropSlotOpen .22s ease;
+}
+.drop-slot-plus {
+  font-family: var(--font-math);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--ink-muted);
+  line-height: 1;
+}
+.drop-slot-num { align-self: center; }
+.drop-slot-den {
+  height: 1.7rem;
+  min-width: 1.8rem;
+}
+.drop-slot-hover,
+.drop-slot:hover {
+  border-color: var(--accent);
+  border-style: solid;
+  background: var(--accent-soft);
+  transform: scale(1.12);
+  box-shadow: 0 0 14px rgba(124, 58, 237, 0.3);
+}
+.drop-slot-hover .drop-slot-plus,
+.drop-slot:hover .drop-slot-plus {
+  color: var(--accent);
+}
+@keyframes dropSlotOpen {
+  from { opacity: 0; transform: scale(.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drop-slot-visible { animation: none; }
 }
 
 /* Slot adiacente per trasporto termine (compare solo durante il drag) */

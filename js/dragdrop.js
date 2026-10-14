@@ -323,8 +323,12 @@ export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEqu
       const nodeType = token.dataset.nodeType || 'Var';
 
       activeDragData = { varName, fromSide, fromSlot, nodeType };
-      e.dataTransfer.setData('text/plain', JSON.stringify(activeDragData));
-      e.dataTransfer.effectAllowed = 'move';
+      // dataTransfer può mancare se l'evento è sintetico (test automatici):
+      // l'app funziona comunque tramite activeDragData.
+      if (e.dataTransfer) {
+        e.dataTransfer.setData('text/plain', JSON.stringify(activeDragData));
+        e.dataTransfer.effectAllowed = 'move';
+      }
 
       token.classList.add('is-being-dragged');
       container.classList.add('is-dragging-equation');
@@ -345,21 +349,27 @@ export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEqu
   container.querySelectorAll('.dropzone').forEach((dropzone) => {
     dropzone.addEventListener('dragover', (e) => {
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
       dropzone.classList.add('dropzone-hover');
+      const slot = dropzone.querySelector('.drop-slot');
+      if (slot) slot.classList.add('drop-slot-hover');
     });
 
     dropzone.addEventListener('dragleave', () => {
       dropzone.classList.remove('dropzone-hover');
+      const slot = dropzone.querySelector('.drop-slot');
+      if (slot) slot.classList.remove('drop-slot-hover');
     });
 
     dropzone.addEventListener('drop', (e) => {
       e.preventDefault();
       dropzone.classList.remove('dropzone-hover');
+      const slot = dropzone.querySelector('.drop-slot');
+      if (slot) slot.classList.remove('drop-slot-hover');
       container.classList.remove('is-dragging-equation');
 
       let dragData = activeDragData;
-      if (!dragData) {
+      if (!dragData && e.dataTransfer) {
         try {
           const raw = e.dataTransfer.getData('text/plain');
           if (raw) dragData = JSON.parse(raw);
@@ -403,6 +413,12 @@ function highlightDropzones(container, dragData) {
     dz.classList.add('dropzone-active-target');
   });
 
+  // Mostra gli spazi di inserimento accanto alle quantità già presenti,
+  // rispettando la posizione (numeratore o denominatore).
+  container.querySelectorAll(`.drop-slot[data-side="${oppositeSide}"]`).forEach((slot) => {
+    slot.classList.add('drop-slot-visible');
+  });
+
   // Mostra lo slot additivo e la linea di frazione dinamica dell'altro membro
   container.querySelectorAll(`.dynamic-fraction-wrapper[data-side="${oppositeSide}"]`).forEach((wrap) => {
     wrap.classList.add('wrapper-expanded');
@@ -415,6 +431,9 @@ function highlightDropzones(container, dragData) {
 function clearDropzonesHighlight(container) {
   container.querySelectorAll('.dropzone').forEach((dz) => {
     dz.classList.remove('dropzone-active-target', 'dropzone-hover');
+  });
+  container.querySelectorAll('.drop-slot').forEach((slot) => {
+    slot.classList.remove('drop-slot-visible', 'drop-slot-hover');
   });
   container.querySelectorAll('.dynamic-fraction-wrapper').forEach((wrap) => {
     wrap.classList.remove('wrapper-expanded');
@@ -465,8 +484,16 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
       const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
       const dropzone = elemBelow ? elemBelow.closest('.dropzone') : null;
 
-      container.querySelectorAll('.dropzone').forEach((dz) => dz.classList.remove('dropzone-hover'));
-      if (dropzone) dropzone.classList.add('dropzone-hover');
+      container.querySelectorAll('.dropzone').forEach((dz) => {
+        dz.classList.remove('dropzone-hover');
+        const slot = dz.querySelector('.drop-slot');
+        if (slot) slot.classList.remove('drop-slot-hover');
+      });
+      if (dropzone) {
+        dropzone.classList.add('dropzone-hover');
+        const slot = dropzone.querySelector('.drop-slot');
+        if (slot) slot.classList.add('drop-slot-hover');
+      }
     });
 
     token.addEventListener('pointerup', (e) => {
