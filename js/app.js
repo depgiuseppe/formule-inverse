@@ -3,8 +3,9 @@
 
 import { parseEquation, ParseError } from './parser.js';
 import {
-  clone, toPretty, toLatex, unwrap, collectVars, equivalentEq, Eq, Div, Group,
+  clone, toPretty, toLatex, unwrap, collectVars, equivalentEq, Eq,
 } from './ast.js';
+import { reciprocalEquation } from './reciprocals.js';
 import {
   isGoalReached, findElement, availableActions, globalActions,
   performAction, suggestNextStep, mergeConditions,
@@ -58,6 +59,7 @@ const dom = {
   btnCopyFormula: $('#btn-copy-formula'),
   btnCopyLatex: $('#btn-copy-latex'),
   btnMirror: $('#btn-mirror'),
+  btnReciprocal: $('#btn-reciprocal'),
   btnToggleImplicitDen: $('#btn-toggle-implicit-den'),
   equationDisplay: $('#equation-display'),
   latexLiveCode: $('#latex-live-code'),
@@ -349,12 +351,6 @@ function attachEquationHandlers() {
     });
   });
 
-  dom.equationDisplay.querySelectorAll('.btn-flip-frac').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      handleFractionFlip(btn.dataset.flipPath);
-    });
-  });
 }
 
 // Callback per il drag and drop: valuta e applica immediatamente al rilascio (senza tasto di conferma)
@@ -414,159 +410,63 @@ function applyDragResult(result) {
   }
 }
 
-// Gestione rotazione / capovolgimento frazione (regola dei reciproci)
-function handleFractionFlip(path) {
+// ---------------------------------------------------------------------------
+// Regola dei reciproci (inversione di entrambi i membri)
+// ---------------------------------------------------------------------------
+// La matematica dell'operazione è in reciprocals.js, testabile da Node.
+function applyReciprocalRule() {
   if (!state.currentEq) return;
-  if (!state.flippedFracPaths) state.flippedFracPaths = new Set();
-  if (!state.stagedFlippedEq) state.stagedFlippedEq = clone(state.currentEq);
+  const eq = state.currentEq;
+  const res = reciprocalEquation(eq);
 
-  if (state.flippedFracPaths.has(path)) {
-    state.flippedFracPaths.delete(path);
-  } else {
-    state.flippedFracPaths.add(path);
+  if (!res.ok) {
+    clearPreview();
+    renderEquationView();
+    showInvalidMove(res.error, res.hint, { label: 'Regola dei reciproci' });
+    return;
   }
 
-  // Applica la rotazione alla frazione identificata da path
-  state.stagedFlippedEq = flipFractionInTree(state.stagedFlippedEq, path);
+  const newEq = res.newEq;
+  if (equivalentEq(newEq, eq)) {
+    showMessage('Questa operazione non cambia l\'equazione: prova un\'altra trasformazione.', 'info');
+    return;
+  }
 
-  state.pendingMove = {
-    kind: 'flip',
+  state.currentEq = newEq;
+  state.selectedId = null;
+  clearPreview();
+
+  const rule = {
+    id: 'reciprocal',
+    name: 'Regola dei reciproci (inversione dei membri)',
+    principle: 'Proprietà dell\'inversione: se A = B allora 1/A = 1/B; in una proporzione A/B = C/D si ottiene B/A = D/C.',
+    explanation: null,
   };
+  pushHistory({
+    equation: clone(newEq),
+    ruleName: rule.name,
+    rulePrinciple: rule.principle,
+    ruleId: 'reciprocal',
+    steps: [`Calcolo il reciproco di entrambi i membri: ${toPretty(eq, 0)} → ${toPretty(newEq, 0)}.`],
+    conditions: state.conditions.slice(),
+    explanationKey: null,
+    note: null,
+    verified: true,
+  }, false);
 
-  dom.previewBox.hidden = false;
-  dom.previewText.innerHTML = `Frazione/i capovolta/e (${state.flippedFracPaths.size} invertita/e).<br>Nuova forma: <span class="preview-eq">${escapeHtml(toPretty(state.stagedFlippedEq, 0))}</span>.<br>Premi <strong>✓ Conferma mossa</strong> per verificare la regola dei reciproci.`;
-  dom.btnConfirm.focus();
-
-  // Mostra immediatamente l'equazione con le frazioni ruotate
-  dom.equationDisplay.innerHTML = renderEquation(state.stagedFlippedEq, {
-    interactive: true,
-    showImplicitDen: state.showImplicitDen,
-    targetVar: state.targetVar,
-  });
-  attachEquationHandlers();
-}
-
-function flipFractionInTree(node, targetPath, currentPath = '') {
-  if (!node) return node;
-  if (currentPath === targetPath && node.type === 'Div') {
-    return Div(node.den, node.num);
+  updateObjective();
+  renderEquationView();
+  showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
+  clearMessage();
+  showMessage('🔁 Regola dei reciproci applicata a entrambi i membri!', 'success');
+  if (state.goalReached) {
+    playSuccessChime();
+    showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
+  } else if (state.mode === 'guided') {
+    showGuidedSuggestion();
+  } else if (state.mode === 'multi') {
+    showMultiMode();
   }
-  if (currentPath === targetPath && node.type === 'Group' && unwrap(node).type === 'Div') {
-    const u = unwrap(node);
-    return Group(Div(u.den, u.num));
-  }
-  if (node.type === 'Eq') {
-    return Eq(
-      flipFractionInTree(node.left, targetPath, 'left'),
-      flipFractionInTree(node.right, targetPath, 'right')
-    );
-  }
-  if (node.type === 'Add' || node.type === 'Sub' || node.type === 'Mul') {
-    return {
-      ...node,
-      args: node.args.map((child, i) => flipFractionInTree(child, targetPath, currentPath + '/' + node.type + i)),
-    };
-  }
-  if (node.type === 'Div') {
-    return Div(
-      flipFractionInTree(node.num, targetPath, currentPath + '/num'),
-      flipFractionInTree(node.den, targetPath, currentPath + '/den')
-    );
-  }
-  if (node.type === 'Group') {
-    return Group(flipFractionInTree(node.arg, targetPath, currentPath + '/g'));
-  }
-  return node;
-}
-
-function verifyFlippedFractions() {
-  const orig = state.currentEq;
-  const flippedCount = state.flippedFracPaths ? state.flippedFracPaths.size : 0;
-  if (flippedCount === 0) {
-    return { ok: false, error: 'Nessuna frazione capovolta.' };
-  }
-
-  const totalFracs = countFractionsInTree(orig);
-  const leftIsFrac = unwrap(orig.left).type === 'Div';
-  const rightIsFrac = unwrap(orig.right).type === 'Div';
-
-  // Caso 1: Proporzione pura A/B = C/D (entrambi i membri sono singole frazioni)
-  if (leftIsFrac && rightIsFrac && totalFracs === 2) {
-    if (flippedCount === 2) {
-      return {
-        ok: true,
-        ruleName: 'Regola dei reciproci (inversione della proporzione)',
-        rulePrinciple: 'Proprietà dell\'inversione: se A/B = C/D allora B/A = D/C (calcolando il reciproco di entrambi i membri).',
-      };
-    }
-    return {
-      ok: false,
-      error: 'Hai capovolto solo un membro! Per il secondo principio di equivalenza, se calcoli il reciproco a sinistra devi calcolarlo anche a destra (B/A = D/C, non B/A = C/D).',
-      hint: 'Capovolgi entrambe le frazioni prima di confermare.',
-    };
-  }
-
-  // Caso 2: Equazione con somma di frazioni (es. A/B + C/D = E/F o 1/Req = 1/R1 + 1/R2)
-  if (totalFracs >= 3 || hasSumOfFractions(orig)) {
-    if (flippedCount < totalFracs) {
-      return {
-        ok: false,
-        error: `Hai capovolto solo ${flippedCount} frazioni su ${totalFracs}. L'operazione non è bilanciata su tutta l'equazione.`,
-        hint: 'Non puoi capovolgere solo alcuni termini.',
-      };
-    }
-    // Ha capovolto tutte le 3 frazioni: classico errore da spiegare pedagogicamente!
-    return {
-      ok: false,
-      error: 'Attenzione, errore matematico fondamentale! Il reciproco di una somma NON è la somma dei reciproci: 1/(A/B + C/D) ≠ B/A + D/C. Non puoi capovolgere singolarmente ogni frazione sommata: devi prima calcolare il denominatore comune!',
-      hint: 'Trova il denominatore comune prima di poter invertire.',
-    };
-  }
-
-  // Caso 3: Un membro è frazione e l'altro no (es. v = s/t)
-  if (totalFracs === 1) {
-    return {
-      ok: false,
-      error: 'Hai capovolto solo una frazione isolata! Per la regola dei reciproci dovresti avere 1/v = t/s, non v = t/s.',
-      hint: 'Se calcoli il reciproco a destra (t/s), a sinistra devi avere 1/membro.',
-    };
-  }
-
-  return {
-    ok: false,
-    error: 'Operazione di inversione non bilanciata o non valida per questa struttura di equazione.',
-  };
-}
-
-function countFractionsInTree(node) {
-  if (!node) return 0;
-  let count = 0;
-  function walk(n) {
-    if (!n) return;
-    const u = unwrap(n);
-    if (u.type === 'Div') count++;
-    if (u.type === 'Eq') { walk(u.left); walk(u.right); }
-    else if (u.type === 'Add' || u.type === 'Sub' || u.type === 'Mul') {
-      u.args.forEach(walk);
-    } else if (u.type === 'Div') {
-      walk(u.num); walk(u.den);
-    }
-  }
-  walk(node);
-  return count;
-}
-
-function hasSumOfFractions(eq) {
-  function check(node) {
-    if (!node) return false;
-    const u = unwrap(node);
-    if ((u.type === 'Add' || u.type === 'Sub') && u.args.some((a) => unwrap(a).type === 'Div')) {
-      return true;
-    }
-    if (u.type === 'Eq') return check(u.left) || check(u.right);
-    return false;
-  }
-  return check(eq);
 }
 
 function renderConditions() {
@@ -680,52 +580,7 @@ function clearPreview() {
 function confirmMove() {
   if (!state.pendingMove) return;
 
-  // CASO 1: Capovolgimento frazioni (regola dei reciproci)
-  if (state.pendingMove.kind === 'flip') {
-    const check = verifyFlippedFractions();
-    if (!check.ok) {
-      // Ripristina l'equazione non ruotata
-      state.stagedFlippedEq = null;
-      state.flippedFracPaths = new Set();
-      clearPreview();
-      renderEquationView();
-      showInvalidMove(check.error, check.hint || 'La proprietà dei reciproci deve essere applicata bilateralmente a entrambi i membri.', { label: 'Regola dei reciproci (inversione frazioni)' });
-      return;
-    }
-    // Mossa valida
-    state.currentEq = state.stagedFlippedEq;
-    state.stagedFlippedEq = null;
-    state.flippedFracPaths = new Set();
-    const rule = {
-      name: check.ruleName,
-      principle: check.rulePrinciple,
-      explanation: 'inversioneMembri',
-    };
-    pushHistory({
-      equation: clone(state.currentEq),
-      ruleName: check.ruleName,
-      rulePrinciple: check.rulePrinciple,
-      ruleId: 'reciprocal',
-      steps: [check.ruleName],
-      conditions: state.conditions.slice(),
-      explanationKey: null,
-      note: null,
-      verified: true,
-    }, false);
-    clearPreview();
-    updateObjective();
-    renderEquationView();
-    showRulePanel(rule, { steps: [check.rulePrinciple], conditions: [] }, state.currentEq);
-    clearMessage();
-    showMessage(`✓ ${check.ruleName}: mossa verificata e corretta!`, 'success');
-    if (state.goalReached) {
-      playSuccessChime();
-      showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
-    }
-    return;
-  }
-
-  // CASO 2: Drag and drop
+  // CASO 1: Drag and drop
   if (state.pendingMove.kind === 'drag') {
     const res = state.pendingMove.result;
     if (!res.ok) {
@@ -770,7 +625,7 @@ function confirmMove() {
     return;
   }
 
-  // CASO 3: Azione da barra comandi
+  // CASO 2: Azione da barra comandi
   const { action, result } = state.pendingMove;
 
   state.currentEq = result.equation;
@@ -806,10 +661,6 @@ function confirmMove() {
 }
 
 function cancelPreview() {
-  if (state.pendingMove && state.pendingMove.kind === 'flip') {
-    state.stagedFlippedEq = null;
-    state.flippedFracPaths = new Set();
-  }
   clearPreview();
   renderEquationView();
 }
@@ -1087,6 +938,7 @@ function bindWorkAreaEvents() {
   dom.btnConfirm.addEventListener('click', confirmMove);
   dom.btnCancel.addEventListener('click', cancelPreview);
   if (dom.btnMirror) dom.btnMirror.addEventListener('click', applyMirrorRule);
+  if (dom.btnReciprocal) dom.btnReciprocal.addEventListener('click', applyReciprocalRule);
   if (dom.btnCopyFormula) dom.btnCopyFormula.addEventListener('click', copyFormulaText);
   if (dom.btnCopyLatex) dom.btnCopyLatex.addEventListener('click', copyLatexFormula);
   if (dom.btnCopyLatexInline) dom.btnCopyLatexInline.addEventListener('click', copyLatexFormula);

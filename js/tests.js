@@ -12,6 +12,7 @@ import { toPretty, toLatex, equivalentEq, unwrap, collectVars, clone } from './a
 import { prettyVar } from './render.js';
 import { RULES, applyRule } from './rules.js';
 import { isGoalReached, performAction, suggestNextStep, enumerateElements } from './algebra.js';
+import { reciprocalEquation } from './reciprocals.js';
 
 let counter = 0;
 function test(name, fn) {
@@ -267,6 +268,46 @@ export function runAllTests() {
       const l = toLatex(eq('theta = theta0 + omega0*t'));
       return l === '\\theta = \\theta_0 + \\omega_0 \\cdot t';
     }));
+
+  // ---- Regola dei reciproci ----
+  results.push(test('Reciproci: v = s/t diventa 1/v = t/s', () => {
+    const r = reciprocalEquation(eq('v = s/t'));
+    if (!r.ok) return `rifiutata: ${r.error}`;
+    return equivalentEq(r.newEq, eq('1/v = t/s')) || `ottenuto ${toPretty(r.newEq, 0)}`;
+  }));
+
+  results.push(test('Reciproci: A/B = C/D diventa B/A = D/C', () => {
+    const r = reciprocalEquation(eq('A/B = C/D'));
+    if (!r.ok) return `rifiutata: ${r.error}`;
+    return equivalentEq(r.newEq, eq('B/A = D/C')) || `ottenuto ${toPretty(r.newEq, 0)}`;
+  }));
+
+  results.push(test('Reciproci: denominatore sottinteso F = m*a diventa 1/F = 1/(m*a)', () => {
+    const r = reciprocalEquation(eq('F = m*a'));
+    if (!r.ok) return `rifiutata: ${r.error}`;
+    return equivalentEq(r.newEq, eq('1/F = 1/(m*a)')) || `ottenuto ${toPretty(r.newEq, 0)}`;
+  }));
+
+  results.push(test('Reciproci: (1/2)*m*v^2 estrae il fattore 2 al numeratore', () => {
+    const r = reciprocalEquation(eq('Ec = (1/2)*m*v^2'));
+    if (!r.ok) return `rifiutata: ${r.error}`;
+    return equivalentEq(r.newEq, eq('1/Ec = 2/(m*v^2)')) || `ottenuto ${toPretty(r.newEq, 0)}`;
+  }));
+
+  results.push(test('Reciproci: somma di frazioni viene rifiutata con spiegazione', () => {
+    const r = reciprocalEquation(eq('1/Req = 1/R1 + 1/R2'));
+    if (r.ok) return 'accettata ma doveva essere rifiutata';
+    return !/somma/.test(r.error) ? `messaggio poco chiaro: ${r.error}` : true;
+  }));
+
+  results.push(test('Reciproci: applicata due volte torna all\'equazione di partenza', () => {
+    const start = eq('a = (v - v0)/t');
+    const once = reciprocalEquation(start);
+    if (!once.ok) return `rifiutata: ${once.error}`;
+    const twice = reciprocalEquation(once.newEq);
+    if (!twice.ok) return `rifiutata al secondo passaggio: ${twice.error}`;
+    return equivalentEq(twice.newEq, start) || `ottenuto ${toPretty(twice.newEq, 0)}`;
+  }));
 
   return results;
 }

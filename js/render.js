@@ -51,14 +51,10 @@ function renderMember(node, side, opts) {
   if (isDiv) {
     const numContent = renderNode(raw.num, side + '/num', opts);
     const denContent = renderNode(raw.den, side + '/den', opts);
-    const flipBtn = opts.interactive
-      ? `<button class="btn-flip-frac" type="button" data-flip-path="${side}" title="Capovolgi frazione (scambia numeratore e denominatore)" aria-label="Capovolgi frazione">🔄</button>`
-      : '';
     return (
       `<div class="math-member-content member-has-frac" data-side="${side}">` +
       `  ${adjacentDropzone}` +
       `  <div class="frac">` +
-      `    ${flipBtn}` +
       `    <div class="frac-num dropzone" data-side="${side}" data-slot="num" title="Numeratore di ${side === 'left' ? 'sinistra' : 'destra'} (rilascia per moltiplicare)">${numContent}</div>` +
       `    <div class="frac-bar"></div>` +
       `    <div class="frac-den dropzone" data-side="${side}" data-slot="den" title="Denominatore di ${side === 'left' ? 'sinistra' : 'destra'} (rilascia per dividere)">${denContent}</div>` +
@@ -142,9 +138,8 @@ function renderNode(node, id, opts) {
       );
     }
     case 'Div': {
-      const flipBtn = ''; // Rimosso pulsante di scambio sopra le frazioni
       return span(
-        `<span class="frac">${flipBtn}<span class="frac-num">${renderNode(node.num, id + '/num', opts)}</span>` +
+        `<span class="frac"><span class="frac-num">${renderNode(node.num, id + '/num', opts)}</span>` +
         `<span class="frac-bar"></span>` +
         `<span class="frac-den">${renderNode(node.den, id + '/den', opts)}</span></span>`,
         'node-div'

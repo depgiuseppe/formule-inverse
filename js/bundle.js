@@ -880,6 +880,77 @@
     }
   }
 
+  // js/reciprocals.js
+  var isOne = (node) => {
+    const u = unwrap(node);
+    return u.type === "Num" && u.value === 1;
+  };
+  function treeHasFraction(node) {
+    if (!node) return false;
+    const u = unwrap(node);
+    switch (u.type) {
+      case "Div":
+        return true;
+      case "Eq":
+        return treeHasFraction(u.left) || treeHasFraction(u.right);
+      case "Add":
+      case "Sub":
+      case "Mul":
+        return u.args.some(treeHasFraction);
+      case "Neg":
+      case "Group":
+        return treeHasFraction(u.arg);
+      case "Pow":
+        return treeHasFraction(u.base) || treeHasFraction(u.exp);
+      default:
+        return false;
+    }
+  }
+  function memberIsFractionSum(node) {
+    const u = unwrap(node);
+    return (u.type === "Add" || u.type === "Sub") && treeHasFraction(u);
+  }
+  function memberAsFraction(node) {
+    const u = unwrap(node);
+    if (u.type === "Div") {
+      return { num: clone(u.num), den: clone(u.den) };
+    }
+    if (u.type === "Mul") {
+      const nums = [];
+      const dens = [];
+      for (const arg of u.args) {
+        const part = memberAsFraction(arg);
+        if (!isOne(part.num)) nums.push(part.num);
+        if (!isOne(part.den)) dens.push(part.den);
+      }
+      return {
+        num: nums.length === 0 ? Num(1) : nums.length === 1 ? nums[0] : Mul(...nums),
+        den: dens.length === 0 ? Num(1) : dens.length === 1 ? dens[0] : Mul(...dens)
+      };
+    }
+    return { num: clone(u), den: Num(1) };
+  }
+  function reciprocalOfMember(node) {
+    const { num, den } = memberAsFraction(node);
+    return canonical(Div(den, num));
+  }
+  function reciprocalEquation(eq2) {
+    if (!eq2 || eq2.type !== "Eq") {
+      return { ok: false, error: "Nessuna equazione valida da invertire." };
+    }
+    if (memberIsFractionSum(eq2.left) || memberIsFractionSum(eq2.right)) {
+      return {
+        ok: false,
+        error: "il reciproco di una somma di frazioni NON \xE8 la somma dei reciproci: 1/(A/B + C/D) \u2260 B/A + D/C.",
+        hint: "Riduci prima la somma a denominatore comune: solo allora potrai invertire i due membri."
+      };
+    }
+    return {
+      ok: true,
+      newEq: Eq(reciprocalOfMember(eq2.left), reciprocalOfMember(eq2.right))
+    };
+  }
+
   // js/rules.js
   var RuleError = class extends Error {
     constructor(message, hint) {
@@ -3996,8 +4067,7 @@
     if (isDiv) {
       const numContent2 = renderNode(raw.num, side + "/num", opts);
       const denContent = renderNode(raw.den, side + "/den", opts);
-      const flipBtn = opts.interactive ? `<button class="btn-flip-frac" type="button" data-flip-path="${side}" title="Capovolgi frazione (scambia numeratore e denominatore)" aria-label="Capovolgi frazione">\u{1F504}</button>` : "";
-      return `<div class="math-member-content member-has-frac" data-side="${side}">  ${adjacentDropzone}  <div class="frac">    ${flipBtn}    <div class="frac-num dropzone" data-side="${side}" data-slot="num" title="Numeratore di ${side === "left" ? "sinistra" : "destra"} (rilascia per moltiplicare)">${numContent2}</div>    <div class="frac-bar"></div>    <div class="frac-den dropzone" data-side="${side}" data-slot="den" title="Denominatore di ${side === "left" ? "sinistra" : "destra"} (rilascia per dividere)">${denContent}</div>  </div></div>`;
+      return `<div class="math-member-content member-has-frac" data-side="${side}">  ${adjacentDropzone}  <div class="frac">    <div class="frac-num dropzone" data-side="${side}" data-slot="num" title="Numeratore di ${side === "left" ? "sinistra" : "destra"} (rilascia per moltiplicare)">${numContent2}</div>    <div class="frac-bar"></div>    <div class="frac-den dropzone" data-side="${side}" data-slot="den" title="Denominatore di ${side === "left" ? "sinistra" : "destra"} (rilascia per dividere)">${denContent}</div>  </div></div>`;
     }
     const numContent = renderNode(node, side, opts);
     return `<div class="math-member-content member-no-frac" data-side="${side}">  ${adjacentDropzone}  <div class="member-num dropzone" data-side="${side}" data-slot="num" title="Membro di ${side === "left" ? "sinistra" : "destra"}">${numContent}</div>  <div class="dynamic-fraction-wrapper" data-side="${side}">    <div class="dynamic-frac-bar"></div>    <div class="dynamic-frac-den dropzone" data-side="${side}" data-slot="den" title="Rilascia qui al denominatore per dividere">      <span class="dropzone-label"><span class="dropzone-icon">\xF7</span> rilascia al denominatore</span>    </div>  </div></div>`;
@@ -4049,9 +4119,8 @@
         );
       }
       case "Div": {
-        const flipBtn = "";
         return span(
-          `<span class="frac">${flipBtn}<span class="frac-num">${renderNode(node.num, id + "/num", opts)}</span><span class="frac-bar"></span><span class="frac-den">${renderNode(node.den, id + "/den", opts)}</span></span>`,
+          `<span class="frac"><span class="frac-num">${renderNode(node.num, id + "/num", opts)}</span><span class="frac-bar"></span><span class="frac-den">${renderNode(node.den, id + "/den", opts)}</span></span>`,
           "node-div"
         );
       }
@@ -4964,6 +5033,39 @@
         return l === "\\theta = \\theta_0 + \\omega_0 \\cdot t";
       }
     ));
+    results.push(test("Reciproci: v = s/t diventa 1/v = t/s", () => {
+      const r = reciprocalEquation(eq("v = s/t"));
+      if (!r.ok) return `rifiutata: ${r.error}`;
+      return equivalentEq(r.newEq, eq("1/v = t/s")) || `ottenuto ${toPretty(r.newEq, 0)}`;
+    }));
+    results.push(test("Reciproci: A/B = C/D diventa B/A = D/C", () => {
+      const r = reciprocalEquation(eq("A/B = C/D"));
+      if (!r.ok) return `rifiutata: ${r.error}`;
+      return equivalentEq(r.newEq, eq("B/A = D/C")) || `ottenuto ${toPretty(r.newEq, 0)}`;
+    }));
+    results.push(test("Reciproci: denominatore sottinteso F = m*a diventa 1/F = 1/(m*a)", () => {
+      const r = reciprocalEquation(eq("F = m*a"));
+      if (!r.ok) return `rifiutata: ${r.error}`;
+      return equivalentEq(r.newEq, eq("1/F = 1/(m*a)")) || `ottenuto ${toPretty(r.newEq, 0)}`;
+    }));
+    results.push(test("Reciproci: (1/2)*m*v^2 estrae il fattore 2 al numeratore", () => {
+      const r = reciprocalEquation(eq("Ec = (1/2)*m*v^2"));
+      if (!r.ok) return `rifiutata: ${r.error}`;
+      return equivalentEq(r.newEq, eq("1/Ec = 2/(m*v^2)")) || `ottenuto ${toPretty(r.newEq, 0)}`;
+    }));
+    results.push(test("Reciproci: somma di frazioni viene rifiutata con spiegazione", () => {
+      const r = reciprocalEquation(eq("1/Req = 1/R1 + 1/R2"));
+      if (r.ok) return "accettata ma doveva essere rifiutata";
+      return !/somma/.test(r.error) ? `messaggio poco chiaro: ${r.error}` : true;
+    }));
+    results.push(test("Reciproci: applicata due volte torna all'equazione di partenza", () => {
+      const start = eq("a = (v - v0)/t");
+      const once = reciprocalEquation(start);
+      if (!once.ok) return `rifiutata: ${once.error}`;
+      const twice = reciprocalEquation(once.newEq);
+      if (!twice.ok) return `rifiutata al secondo passaggio: ${twice.error}`;
+      return equivalentEq(twice.newEq, start) || `ottenuto ${toPretty(twice.newEq, 0)}`;
+    }));
     return results;
   }
   function formatTestResults(results) {
@@ -5309,6 +5411,7 @@
     btnCopyFormula: $("#btn-copy-formula"),
     btnCopyLatex: $("#btn-copy-latex"),
     btnMirror: $("#btn-mirror"),
+    btnReciprocal: $("#btn-reciprocal"),
     btnToggleImplicitDen: $("#btn-toggle-implicit-den"),
     equationDisplay: $("#equation-display"),
     latexLiveCode: $("#latex-live-code"),
@@ -5581,12 +5684,6 @@
         }
       });
     });
-    dom.equationDisplay.querySelectorAll(".btn-flip-frac").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        handleFractionFlip(btn.dataset.flipPath);
-      });
-    });
   }
   function applyDragResult(result) {
     if (!result) return;
@@ -5635,141 +5732,54 @@
       showMultiMode();
     }
   }
-  function handleFractionFlip(path) {
+  function applyReciprocalRule() {
     if (!state.currentEq) return;
-    if (!state.flippedFracPaths) state.flippedFracPaths = /* @__PURE__ */ new Set();
-    if (!state.stagedFlippedEq) state.stagedFlippedEq = clone(state.currentEq);
-    if (state.flippedFracPaths.has(path)) {
-      state.flippedFracPaths.delete(path);
-    } else {
-      state.flippedFracPaths.add(path);
+    const eq2 = state.currentEq;
+    const res = reciprocalEquation(eq2);
+    if (!res.ok) {
+      clearPreview();
+      renderEquationView();
+      showInvalidMove(res.error, res.hint, { label: "Regola dei reciproci" });
+      return;
     }
-    state.stagedFlippedEq = flipFractionInTree(state.stagedFlippedEq, path);
-    state.pendingMove = {
-      kind: "flip"
+    const newEq = res.newEq;
+    if (equivalentEq(newEq, eq2)) {
+      showMessage("Questa operazione non cambia l'equazione: prova un'altra trasformazione.", "info");
+      return;
+    }
+    state.currentEq = newEq;
+    state.selectedId = null;
+    clearPreview();
+    const rule = {
+      id: "reciprocal",
+      name: "Regola dei reciproci (inversione dei membri)",
+      principle: "Propriet\xE0 dell'inversione: se A = B allora 1/A = 1/B; in una proporzione A/B = C/D si ottiene B/A = D/C.",
+      explanation: null
     };
-    dom.previewBox.hidden = false;
-    dom.previewText.innerHTML = `Frazione/i capovolta/e (${state.flippedFracPaths.size} invertita/e).<br>Nuova forma: <span class="preview-eq">${escapeHtml3(toPretty(state.stagedFlippedEq, 0))}</span>.<br>Premi <strong>\u2713 Conferma mossa</strong> per verificare la regola dei reciproci.`;
-    dom.btnConfirm.focus();
-    dom.equationDisplay.innerHTML = renderEquation(state.stagedFlippedEq, {
-      interactive: true,
-      showImplicitDen: state.showImplicitDen,
-      targetVar: state.targetVar
-    });
-    attachEquationHandlers();
-  }
-  function flipFractionInTree(node, targetPath, currentPath = "") {
-    if (!node) return node;
-    if (currentPath === targetPath && node.type === "Div") {
-      return Div(node.den, node.num);
+    pushHistory({
+      equation: clone(newEq),
+      ruleName: rule.name,
+      rulePrinciple: rule.principle,
+      ruleId: "reciprocal",
+      steps: [`Calcolo il reciproco di entrambi i membri: ${toPretty(eq2, 0)} \u2192 ${toPretty(newEq, 0)}.`],
+      conditions: state.conditions.slice(),
+      explanationKey: null,
+      note: null,
+      verified: true
+    }, false);
+    updateObjective();
+    renderEquationView();
+    showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
+    clearMessage();
+    showMessage("\u{1F501} Regola dei reciproci applicata a entrambi i membri!", "success");
+    if (state.goalReached) {
+      playSuccessChime();
+      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
+    } else if (state.mode === "guided") {
+      showGuidedSuggestion();
+    } else if (state.mode === "multi") {
+      showMultiMode();
     }
-    if (currentPath === targetPath && node.type === "Group" && unwrap(node).type === "Div") {
-      const u = unwrap(node);
-      return Group(Div(u.den, u.num));
-    }
-    if (node.type === "Eq") {
-      return Eq(
-        flipFractionInTree(node.left, targetPath, "left"),
-        flipFractionInTree(node.right, targetPath, "right")
-      );
-    }
-    if (node.type === "Add" || node.type === "Sub" || node.type === "Mul") {
-      return {
-        ...node,
-        args: node.args.map((child, i) => flipFractionInTree(child, targetPath, currentPath + "/" + node.type + i))
-      };
-    }
-    if (node.type === "Div") {
-      return Div(
-        flipFractionInTree(node.num, targetPath, currentPath + "/num"),
-        flipFractionInTree(node.den, targetPath, currentPath + "/den")
-      );
-    }
-    if (node.type === "Group") {
-      return Group(flipFractionInTree(node.arg, targetPath, currentPath + "/g"));
-    }
-    return node;
-  }
-  function verifyFlippedFractions() {
-    const orig = state.currentEq;
-    const flippedCount = state.flippedFracPaths ? state.flippedFracPaths.size : 0;
-    if (flippedCount === 0) {
-      return { ok: false, error: "Nessuna frazione capovolta." };
-    }
-    const totalFracs = countFractionsInTree(orig);
-    const leftIsFrac = unwrap(orig.left).type === "Div";
-    const rightIsFrac = unwrap(orig.right).type === "Div";
-    if (leftIsFrac && rightIsFrac && totalFracs === 2) {
-      if (flippedCount === 2) {
-        return {
-          ok: true,
-          ruleName: "Regola dei reciproci (inversione della proporzione)",
-          rulePrinciple: "Propriet\xE0 dell'inversione: se A/B = C/D allora B/A = D/C (calcolando il reciproco di entrambi i membri)."
-        };
-      }
-      return {
-        ok: false,
-        error: "Hai capovolto solo un membro! Per il secondo principio di equivalenza, se calcoli il reciproco a sinistra devi calcolarlo anche a destra (B/A = D/C, non B/A = C/D).",
-        hint: "Capovolgi entrambe le frazioni prima di confermare."
-      };
-    }
-    if (totalFracs >= 3 || hasSumOfFractions(orig)) {
-      if (flippedCount < totalFracs) {
-        return {
-          ok: false,
-          error: `Hai capovolto solo ${flippedCount} frazioni su ${totalFracs}. L'operazione non \xE8 bilanciata su tutta l'equazione.`,
-          hint: "Non puoi capovolgere solo alcuni termini."
-        };
-      }
-      return {
-        ok: false,
-        error: "Attenzione, errore matematico fondamentale! Il reciproco di una somma NON \xE8 la somma dei reciproci: 1/(A/B + C/D) \u2260 B/A + D/C. Non puoi capovolgere singolarmente ogni frazione sommata: devi prima calcolare il denominatore comune!",
-        hint: "Trova il denominatore comune prima di poter invertire."
-      };
-    }
-    if (totalFracs === 1) {
-      return {
-        ok: false,
-        error: "Hai capovolto solo una frazione isolata! Per la regola dei reciproci dovresti avere 1/v = t/s, non v = t/s.",
-        hint: "Se calcoli il reciproco a destra (t/s), a sinistra devi avere 1/membro."
-      };
-    }
-    return {
-      ok: false,
-      error: "Operazione di inversione non bilanciata o non valida per questa struttura di equazione."
-    };
-  }
-  function countFractionsInTree(node) {
-    if (!node) return 0;
-    let count = 0;
-    function walk2(n) {
-      if (!n) return;
-      const u = unwrap(n);
-      if (u.type === "Div") count++;
-      if (u.type === "Eq") {
-        walk2(u.left);
-        walk2(u.right);
-      } else if (u.type === "Add" || u.type === "Sub" || u.type === "Mul") {
-        u.args.forEach(walk2);
-      } else if (u.type === "Div") {
-        walk2(u.num);
-        walk2(u.den);
-      }
-    }
-    walk2(node);
-    return count;
-  }
-  function hasSumOfFractions(eq2) {
-    function check(node) {
-      if (!node) return false;
-      const u = unwrap(node);
-      if ((u.type === "Add" || u.type === "Sub") && u.args.some((a) => unwrap(a).type === "Div")) {
-        return true;
-      }
-      if (u.type === "Eq") return check(u.left) || check(u.right);
-      return false;
-    }
-    return check(eq2);
   }
   function renderConditions() {
     if (!state.conditions || state.conditions.length === 0) {
@@ -5876,47 +5886,6 @@
   }
   function confirmMove() {
     if (!state.pendingMove) return;
-    if (state.pendingMove.kind === "flip") {
-      const check = verifyFlippedFractions();
-      if (!check.ok) {
-        state.stagedFlippedEq = null;
-        state.flippedFracPaths = /* @__PURE__ */ new Set();
-        clearPreview();
-        renderEquationView();
-        showInvalidMove(check.error, check.hint || "La propriet\xE0 dei reciproci deve essere applicata bilateralmente a entrambi i membri.", { label: "Regola dei reciproci (inversione frazioni)" });
-        return;
-      }
-      state.currentEq = state.stagedFlippedEq;
-      state.stagedFlippedEq = null;
-      state.flippedFracPaths = /* @__PURE__ */ new Set();
-      const rule2 = {
-        name: check.ruleName,
-        principle: check.rulePrinciple,
-        explanation: "inversioneMembri"
-      };
-      pushHistory({
-        equation: clone(state.currentEq),
-        ruleName: check.ruleName,
-        rulePrinciple: check.rulePrinciple,
-        ruleId: "reciprocal",
-        steps: [check.ruleName],
-        conditions: state.conditions.slice(),
-        explanationKey: null,
-        note: null,
-        verified: true
-      }, false);
-      clearPreview();
-      updateObjective();
-      renderEquationView();
-      showRulePanel(rule2, { steps: [check.rulePrinciple], conditions: [] }, state.currentEq);
-      clearMessage();
-      showMessage(`\u2713 ${check.ruleName}: mossa verificata e corretta!`, "success");
-      if (state.goalReached) {
-        playSuccessChime();
-        showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-      }
-      return;
-    }
     if (state.pendingMove.kind === "drag") {
       const res = state.pendingMove.result;
       if (!res.ok) {
@@ -5991,10 +5960,6 @@
     }
   }
   function cancelPreview() {
-    if (state.pendingMove && state.pendingMove.kind === "flip") {
-      state.stagedFlippedEq = null;
-      state.flippedFracPaths = /* @__PURE__ */ new Set();
-    }
     clearPreview();
     renderEquationView();
   }
@@ -6244,6 +6209,7 @@
     dom.btnConfirm.addEventListener("click", confirmMove);
     dom.btnCancel.addEventListener("click", cancelPreview);
     if (dom.btnMirror) dom.btnMirror.addEventListener("click", applyMirrorRule);
+    if (dom.btnReciprocal) dom.btnReciprocal.addEventListener("click", applyReciprocalRule);
     if (dom.btnCopyFormula) dom.btnCopyFormula.addEventListener("click", copyFormulaText);
     if (dom.btnCopyLatex) dom.btnCopyLatex.addEventListener("click", copyLatexFormula);
     if (dom.btnCopyLatexInline) dom.btnCopyLatexInline.addEventListener("click", copyLatexFormula);

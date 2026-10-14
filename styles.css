@@ -322,30 +322,6 @@ body.dark-theme .app-header {
   border-color: var(--primary-dark);
 }
 
-.btn-flip-frac {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  font-size: 0.74rem;
-  background: var(--bg-card);
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  cursor: pointer;
-  color: var(--ink-soft);
-  margin-bottom: 2px;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-.btn-flip-frac:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-  transform: rotate(180deg) scale(1.2);
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
-}
-
 /* Selettore grandezza da isolare nell'Obiettivo */
 .objective-target-picker {
   display: flex;

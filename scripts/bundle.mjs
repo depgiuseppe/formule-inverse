@@ -6,7 +6,23 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 
-console.log('Compilazione bundle standalone...');
+console.log('1/3 Controllo coerenza selettori DOM...');
+try {
+  execSync('node scripts/check-dom-ids.mjs', { cwd: root, stdio: 'inherit' });
+} catch (e) {
+  console.error('Errore nel controllo dei selettori DOM.');
+  process.exit(1);
+}
+
+console.log('2/3 Controllo sintassi dei sorgenti...');
+try {
+  execSync('node scripts/check-syntax.mjs', { cwd: root, stdio: 'inherit' });
+} catch (e) {
+  console.error('Errore nel controllo di sintassi.');
+  process.exit(1);
+}
+
+console.log('3/3 Compilazione bundle standalone...');
 try {
   execSync('npx -y esbuild js/app.js --bundle --outfile=js/bundle.js --format=iife', {
     cwd: root,
