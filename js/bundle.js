@@ -5307,24 +5307,23 @@
   var _arrowContainer = null;
   var _arrowPath = null;
   var _arrowHideTimer = null;
-  function initDragArrow(cardEl) {
-    if (!cardEl) return;
+  function initDragArrow() {
     if (_arrowSvg && _arrowSvg.parentNode) _arrowSvg.parentNode.removeChild(_arrowSvg);
     const NS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(NS, "svg");
     svg.setAttribute("class", "drag-arrow-overlay");
     svg.setAttribute("aria-hidden", "true");
-    svg.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:90";
+    svg.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;overflow:visible;z-index:9998";
     const defs = document.createElementNS(NS, "defs");
     const marker = document.createElementNS(NS, "marker");
     marker.setAttribute("id", "drag-arrowhead");
-    marker.setAttribute("markerWidth", "9");
-    marker.setAttribute("markerHeight", "7");
-    marker.setAttribute("refX", "8");
-    marker.setAttribute("refY", "3.5");
+    marker.setAttribute("markerWidth", "10");
+    marker.setAttribute("markerHeight", "8");
+    marker.setAttribute("refX", "9");
+    marker.setAttribute("refY", "4");
     marker.setAttribute("orient", "auto");
     const tip = document.createElementNS(NS, "polygon");
-    tip.setAttribute("points", "0 0, 9 3.5, 0 7");
+    tip.setAttribute("points", "0 0, 10 4, 0 8");
     tip.setAttribute("fill", "#ef4444");
     marker.appendChild(tip);
     defs.appendChild(marker);
@@ -5332,32 +5331,31 @@
     const path = document.createElementNS(NS, "path");
     path.setAttribute("fill", "none");
     path.setAttribute("stroke", "#ef4444");
-    path.setAttribute("stroke-width", "2.5");
+    path.setAttribute("stroke-width", "2.8");
     path.setAttribute("stroke-linecap", "round");
     path.setAttribute("marker-end", "url(#drag-arrowhead)");
     path.style.visibility = "hidden";
     path.style.opacity = "0";
     svg.appendChild(path);
-    if (getComputedStyle(cardEl).position === "static") cardEl.style.position = "relative";
-    cardEl.appendChild(svg);
-    _arrowContainer = cardEl;
+    document.body.appendChild(svg);
+    _arrowSvg = svg;
     _arrowPath = path;
+    _arrowContainer = null;
   }
   function updateDragArrow(sourceEl, targetEl, crossesMember) {
-    if (!_arrowPath || !_arrowContainer || !sourceEl || !targetEl) return;
+    if (!_arrowPath || !sourceEl || !targetEl) return;
     if (_arrowHideTimer) {
       clearTimeout(_arrowHideTimer);
       _arrowHideTimer = null;
     }
-    const cR = _arrowContainer.getBoundingClientRect();
     const sR = sourceEl.getBoundingClientRect();
     const tR = targetEl.getBoundingClientRect();
-    const x1 = sR.left + sR.width / 2 - cR.left;
-    const y1 = sR.top + sR.height / 2 - cR.top;
-    const x2 = tR.left + tR.width / 2 - cR.left;
-    const y2 = tR.top + tR.height / 2 - cR.top;
+    const x1 = sR.left + sR.width / 2;
+    const y1 = sR.top + sR.height / 2;
+    const x2 = tR.left + tR.width / 2;
+    const y2 = tR.top + tR.height / 2;
     const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
-    const shorten = Math.min(12, len * 0.15);
+    const shorten = Math.min(14, len * 0.12);
     const ex = x2 - (x2 - x1) / len * shorten;
     const ey = y2 - (y2 - y1) / len * shorten;
     let d;
@@ -5367,8 +5365,7 @@
       d = `M ${x1} ${y1} C ${x1 + dx} ${y1 + dy} ${x1 + 2 * dx} ${y1 + 2 * dy} ${ex} ${ey}`;
     } else {
       const midX = (x1 + ex) / 2;
-      const arcH = 64;
-      const topY = Math.min(y1, ey) - arcH;
+      const topY = Math.min(y1, ey) - 72;
       d = `M ${x1} ${y1} C ${midX} ${topY} ${midX} ${topY} ${ex} ${ey}`;
     }
     try {
@@ -5377,7 +5374,7 @@
     }
     _arrowPath.setAttribute("d", d);
     _arrowPath.style.visibility = "visible";
-    _arrowPath.style.opacity = "0.88";
+    _arrowPath.style.opacity = "0.92";
   }
   function hideDragArrow() {
     if (!_arrowPath) return;
@@ -6488,9 +6485,8 @@
     bindLatexEvents();
     bindStorageEvents();
     renderMyFormulas();
-    if (dom.crossLayer) dom.crossLayer.hidden = false;
-    const arrowCard = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") || dom.equationDisplay.parentElement : null;
-    if (arrowCard) initDragArrow(arrowCard);
+    if (dom.crossLayer) dom.crossLayer.hidden = true;
+    initDragArrow();
     loadFormula(getFormulaById("v-st"), "t");
   }
   function populateTopics() {
@@ -6708,6 +6704,16 @@
       btn.addEventListener("click", () => handleKeypadOpClick(op));
       dom.keypadOps.appendChild(btn);
     }
+    const crossKbdBtn = document.createElement("button");
+    crossKbdBtn.type = "button";
+    crossKbdBtn.className = "keypad-op keypad-cross-btn" + (state.crossMode ? " active" : "");
+    crossKbdBtn.textContent = "\u2715/";
+    crossKbdBtn.title = "Semplifica: fattori uguali num./den., termini opposti, o stessa grandezza su entrambi i membri";
+    crossKbdBtn.setAttribute("aria-label", crossKbdBtn.title);
+    crossKbdBtn.setAttribute("aria-pressed", state.crossMode ? "true" : "false");
+    crossKbdBtn.disabled = !state.currentEq;
+    crossKbdBtn.addEventListener("click", () => toggleCrossMode());
+    dom.keypadOps.appendChild(crossKbdBtn);
     dom.keypadOperands.innerHTML = "";
     if (!state.currentEq) {
       dom.keypadOperands.innerHTML = '<p class="placeholder small">Carica una formula per usare il tastierino.</p>';
@@ -6988,8 +6994,7 @@
     if (card) card.classList.toggle("cross-mode", state.crossMode);
     clearCrossMarks();
     if (state.crossMode) {
-      showMessage("\u2717 Croce attiva: trascinala (o tocca) un fattore al numeratore e uno uguale al denominatore.", "info");
-      if (dom.crossHandle) dom.crossHandle.focus();
+      showMessage("\u2715/ Semplificazione attiva \u2014 clicca due elementi da eliminare (fattori num./den., termini opposti o stessa grandezza su entrambi i membri), poi premi Conferma.", "info");
     }
   }
   function clearCrossMarks() {
@@ -7001,63 +7006,73 @@
     if (already >= 0) {
       state.crossPicked.splice(already, 1);
       if (element) element.classList.remove("cross-marked");
+      if (state.crossPicked.length === 0) clearPreview();
       return;
     }
     state.crossPicked.push(id);
     if (element) element.classList.add("cross-marked");
     if (state.crossPicked.length < 2) {
-      showMessage("\u2717 Primo fattore scelto: ora scegli quello uguale al numeratore o al denominatore.", "info");
+      showMessage("Primo elemento selezionato \u2014 ora scegli il secondo da semplificare.", "info");
       return;
     }
     const [idA, idB] = state.crossPicked;
-    state.crossPicked = [];
-    applyCrossCancel(idA, idB);
-  }
-  function applyCrossCancel(idA, idB) {
-    const before = state.currentEq;
-    const res = crossCancel(before, idA, idB);
+    const res = crossCancel(state.currentEq, idA, idB);
     if (!res.ok) {
+      state.crossPicked = [];
       clearCrossMarks();
       flashCrossError();
-      showInvalidMove(res.error, res.hint, { label: "Croce di semplificazione" });
-      toggleCrossMode(false);
+      showInvalidMove(res.error, res.hint, { label: "Semplificazione" });
       return;
     }
-    dissolveElements([idA, idB]);
+    state.pendingMove = { kind: "cross", idA, idB, result: res };
+    dom.previewBox.hidden = false;
+    dom.previewText.innerHTML = `Semplifica <strong>"${escapeHtml3(res.cancelled)}"</strong> \u2192 <span class="preview-eq">${escapeHtml3(toPretty(res.newEq, 0))}</span>`;
+    dom.btnConfirm.focus();
+    showMessage(`"${res.cancelled}" pronto per la semplificazione \u2014 premi Conferma o Invio.`, "info");
+  }
+  function dissolveThenApplyCross(idA, idB, res) {
     clearCrossMarks();
-    state.currentEq = res.newEq;
-    state.conditions = mergeConditions(state.conditions, res.conditions || []);
-    state.selectedId = null;
     clearPreview();
-    pushHistory({
-      equation: clone(res.newEq),
-      ruleName: res.ruleName,
-      rulePrinciple: res.rulePrinciple,
-      ruleId: "cross-cancel",
-      steps: [`Elimino il fattore ${res.cancelled} al numeratore e al denominatore (${res.cancelled} \u2260 0).`],
-      conditions: (res.conditions || []).slice(),
-      explanationKey: null,
-      note: null,
-      verified: true
-    }, false);
-    updateObjective();
-    renderEquationView();
-    showRulePanel(
-      { name: res.ruleName, principle: res.rulePrinciple, explanation: null },
-      { steps: [`Elimino ${res.cancelled} tra numeratore e denominatore.`], conditions: res.conditions || [] },
-      res.newEq
-    );
-    clearMessage();
-    showMessage(`\u2713 ${res.ruleName}.`, "success");
-    if (state.goalReached) {
-      playSuccessChime();
-      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-    } else if (state.mode === "guided") {
-      showGuidedSuggestion();
-    } else if (state.mode === "multi") {
-      showMultiMode();
-    }
-    toggleCrossMode(false);
+    const elA = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idA)}"]`);
+    const elB = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idB)}"]`);
+    [elA, elB].forEach((el) => {
+      if (el) el.classList.add("cross-dissolving");
+    });
+    setTimeout(() => {
+      state.currentEq = res.newEq;
+      state.conditions = mergeConditions(state.conditions, res.conditions || []);
+      state.selectedId = null;
+      state.crossPicked = [];
+      pushHistory({
+        equation: clone(res.newEq),
+        ruleName: res.ruleName,
+        rulePrinciple: res.rulePrinciple,
+        ruleId: "cross-cancel",
+        steps: [`Elimino "${res.cancelled}" (semplificazione).`],
+        conditions: (res.conditions || []).slice(),
+        explanationKey: null,
+        note: null,
+        verified: true
+      }, false);
+      updateObjective();
+      renderEquationView();
+      showRulePanel(
+        { name: res.ruleName, principle: res.rulePrinciple, explanation: null },
+        { steps: [`Elimino ${res.cancelled}.`], conditions: res.conditions || [] },
+        res.newEq
+      );
+      clearMessage();
+      showMessage(`\u2713 ${res.ruleName}.`, "success");
+      toggleCrossMode(false);
+      if (state.goalReached) {
+        playSuccessChime();
+        showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
+      } else if (state.mode === "guided") {
+        showGuidedSuggestion();
+      } else if (state.mode === "multi") {
+        showMultiMode();
+      }
+    }, 460);
   }
   function flashCrossError() {
     const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
@@ -7066,34 +7081,6 @@
     void card.offsetWidth;
     card.classList.add("cross-error");
     setTimeout(() => card.classList.remove("cross-error"), 500);
-  }
-  function dissolveElements(ids) {
-    const layer = dom.crossDissolveLayer;
-    if (!layer || !dom.equationDisplay) return;
-    layer.innerHTML = "";
-    const hostRect = dom.equationDisplay.getBoundingClientRect();
-    let count = 0;
-    for (const id of ids) {
-      const el = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(id)}"]`);
-      if (!el) continue;
-      const rect = el.getBoundingClientRect();
-      const ghost = document.createElement("span");
-      ghost.className = "cross-ghost";
-      ghost.innerHTML = el.innerHTML;
-      ghost.style.left = `${rect.left - hostRect.left}px`;
-      ghost.style.top = `${rect.top - hostRect.top}px`;
-      ghost.style.width = `${rect.width}px`;
-      ghost.style.height = `${rect.height}px`;
-      layer.appendChild(ghost);
-      count++;
-    }
-    if (count === 0) return;
-    requestAnimationFrame(() => {
-      layer.querySelectorAll(".cross-ghost").forEach((g) => g.classList.add("dissolving"));
-    });
-    setTimeout(() => {
-      layer.innerHTML = "";
-    }, 700);
   }
   function bindCrossDrag() {
     const handle = dom.crossHandle;
@@ -7360,6 +7347,12 @@
   }
   function confirmMove() {
     if (!state.pendingMove) return;
+    if (state.pendingMove.kind === "cross") {
+      const { idA, idB, result: result2 } = state.pendingMove;
+      state.pendingMove = null;
+      dissolveThenApplyCross(idA, idB, result2);
+      return;
+    }
     if (state.pendingMove.kind === "drag") {
       const res = state.pendingMove.result;
       if (!res.ok) {
@@ -7435,6 +7428,8 @@
   }
   function cancelPreview() {
     clearPreview();
+    clearCrossMarks();
+    state.crossPicked = [];
     renderEquationView();
   }
   function flashTokenRejected(varName, side) {

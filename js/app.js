@@ -149,11 +149,8 @@ function init() {
   bindLatexEvents();
   bindStorageEvents();
   renderMyFormulas();
-  if (dom.crossLayer) dom.crossLayer.hidden = false;
-  const arrowCard = dom.equationDisplay
-    ? (dom.equationDisplay.closest('.equation-display-card') || dom.equationDisplay.parentElement)
-    : null;
-  if (arrowCard) initDragArrow(arrowCard);
+  if (dom.crossLayer) dom.crossLayer.hidden = true; // mantenuto per compatibilità ma non mostrato
+  initDragArrow();
   loadFormula(getFormulaById('v-st'), 't');
 }
 
@@ -396,6 +393,18 @@ function renderKeypad() {
     btn.addEventListener('click', () => handleKeypadOpClick(op));
     dom.keypadOps.appendChild(btn);
   }
+
+  // Pulsante semplificazione incrociata (nel tastierino, non flottante)
+  const crossKbdBtn = document.createElement('button');
+  crossKbdBtn.type = 'button';
+  crossKbdBtn.className = 'keypad-op keypad-cross-btn' + (state.crossMode ? ' active' : '');
+  crossKbdBtn.textContent = '✕/';
+  crossKbdBtn.title = 'Semplifica: fattori uguali num./den., termini opposti, o stessa grandezza su entrambi i membri';
+  crossKbdBtn.setAttribute('aria-label', crossKbdBtn.title);
+  crossKbdBtn.setAttribute('aria-pressed', state.crossMode ? 'true' : 'false');
+  crossKbdBtn.disabled = !state.currentEq;
+  crossKbdBtn.addEventListener('click', () => toggleCrossMode());
+  dom.keypadOps.appendChild(crossKbdBtn);
 
   dom.keypadOperands.innerHTML = '';
   if (!state.currentEq) {
@@ -702,8 +711,7 @@ function toggleCrossMode(force) {
   if (card) card.classList.toggle('cross-mode', state.crossMode);
   clearCrossMarks();
   if (state.crossMode) {
-    showMessage('✗ Croce attiva: trascinala (o tocca) un fattore al numeratore e uno uguale al denominatore.', 'info');
-    if (dom.crossHandle) dom.crossHandle.focus();
+    showMessage('✕/ Semplificazione attiva — clicca due elementi da eliminare (fattori num./den., termini opposti o stessa grandezza su entrambi i membri), poi premi Conferma.', 'info');
   }
 }
 
@@ -715,75 +723,98 @@ function crossPickToken(id, element) {
   if (!state.currentEq || !id) return;
   const already = state.crossPicked.indexOf(id);
   if (already >= 0) {
-    // Un secondo tocco sullo stesso fattore annulla la scelta.
     state.crossPicked.splice(already, 1);
     if (element) element.classList.remove('cross-marked');
+    if (state.crossPicked.length === 0) clearPreview();
     return;
   }
   state.crossPicked.push(id);
   if (element) element.classList.add('cross-marked');
   if (state.crossPicked.length < 2) {
-    showMessage('✗ Primo fattore scelto: ora scegli quello uguale al numeratore o al denominatore.', 'info');
+    showMessage('Primo elemento selezionato — ora scegli il secondo da semplificare.', 'info');
     return;
   }
+  // Due elementi selezionati: verifica e mostra anteprima
   const [idA, idB] = state.crossPicked;
-  state.crossPicked = [];
-  applyCrossCancel(idA, idB);
+  const res = crossCancel(state.currentEq, idA, idB);
+  if (!res.ok) {
+    state.crossPicked = [];
+    clearCrossMarks();
+    flashCrossError();
+    showInvalidMove(res.error, res.hint, { label: 'Semplificazione' });
+    return;
+  }
+  // Mostra anteprima e attendi conferma (Invio o tasto Conferma)
+  state.pendingMove = { kind: 'cross', idA, idB, result: res };
+  dom.previewBox.hidden = false;
+  dom.previewText.innerHTML =
+    `Semplifica <strong>"${escapeHtml(res.cancelled)}"</strong> → ` +
+    `<span class="preview-eq">${escapeHtml(toPretty(res.newEq, 0))}</span>`;
+  dom.btnConfirm.focus();
+  showMessage(`"${res.cancelled}" pronto per la semplificazione — premi Conferma o Invio.`, 'info');
+}
+
+function dissolveThenApplyCross(idA, idB, res) {
+  clearCrossMarks();
+  clearPreview();
+
+  // Anima in dissolvi gli elementi selezionati
+  const elA = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idA)}"]`);
+  const elB = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idB)}"]`);
+  [elA, elB].forEach((el) => {
+    if (el) el.classList.add('cross-dissolving');
+  });
+
+  setTimeout(() => {
+    state.currentEq = res.newEq;
+    state.conditions = mergeConditions(state.conditions, res.conditions || []);
+    state.selectedId = null;
+    state.crossPicked = [];
+
+    pushHistory({
+      equation: clone(res.newEq),
+      ruleName: res.ruleName,
+      rulePrinciple: res.rulePrinciple,
+      ruleId: 'cross-cancel',
+      steps: [`Elimino "${res.cancelled}" (semplificazione).`],
+      conditions: (res.conditions || []).slice(),
+      explanationKey: null,
+      note: null,
+      verified: true,
+    }, false);
+
+    updateObjective();
+    renderEquationView();
+    showRulePanel(
+      { name: res.ruleName, principle: res.rulePrinciple, explanation: null },
+      { steps: [`Elimino ${res.cancelled}.`], conditions: res.conditions || [] },
+      res.newEq
+    );
+    clearMessage();
+    showMessage(`✓ ${res.ruleName}.`, 'success');
+    toggleCrossMode(false);
+
+    if (state.goalReached) {
+      playSuccessChime();
+      showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
+    } else if (state.mode === 'guided') {
+      showGuidedSuggestion();
+    } else if (state.mode === 'multi') {
+      showMultiMode();
+    }
+  }, 460);
 }
 
 function applyCrossCancel(idA, idB) {
-  const before = state.currentEq;
-  const res = crossCancel(before, idA, idB);
-
+  const res = crossCancel(state.currentEq, idA, idB);
   if (!res.ok) {
     clearCrossMarks();
     flashCrossError();
-    showInvalidMove(res.error, res.hint, { label: 'Croce di semplificazione' });
+    showInvalidMove(res.error, res.hint, { label: 'Semplificazione' });
     toggleCrossMode(false);
     return;
   }
-
-  // Effetto di dissolvenza sui due fattori che scompaiono.
-  dissolveElements([idA, idB]);
-  clearCrossMarks();
-
-  state.currentEq = res.newEq;
-  state.conditions = mergeConditions(state.conditions, res.conditions || []);
-  state.selectedId = null;
-  clearPreview();
-
-  pushHistory({
-    equation: clone(res.newEq),
-    ruleName: res.ruleName,
-    rulePrinciple: res.rulePrinciple,
-    ruleId: 'cross-cancel',
-    steps: [`Elimino il fattore ${res.cancelled} al numeratore e al denominatore (${res.cancelled} ≠ 0).`],
-    conditions: (res.conditions || []).slice(),
-    explanationKey: null,
-    note: null,
-    verified: true,
-  }, false);
-
-  updateObjective();
-  renderEquationView();
-  showRulePanel(
-    { name: res.ruleName, principle: res.rulePrinciple, explanation: null },
-    { steps: [`Elimino ${res.cancelled} tra numeratore e denominatore.`], conditions: res.conditions || [] },
-    res.newEq
-  );
-  clearMessage();
-  showMessage(`✓ ${res.ruleName}.`, 'success');
-
-  if (state.goalReached) {
-    playSuccessChime();
-    showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
-  } else if (state.mode === 'guided') {
-    showGuidedSuggestion();
-  } else if (state.mode === 'multi') {
-    showMultiMode();
-  }
-  // Auto-disattiva la croce dopo ogni semplificazione
-  toggleCrossMode(false);
+  dissolveThenApplyCross(idA, idB, res);
 }
 
 function flashCrossError() {
@@ -1129,6 +1160,14 @@ function clearPreview() {
 function confirmMove() {
   if (!state.pendingMove) return;
 
+  // CASO 0: Conferma semplificazione con croce
+  if (state.pendingMove.kind === 'cross') {
+    const { idA, idB, result } = state.pendingMove;
+    state.pendingMove = null;
+    dissolveThenApplyCross(idA, idB, result);
+    return;
+  }
+
   // CASO 1: Drag and drop
   if (state.pendingMove.kind === 'drag') {
     const res = state.pendingMove.result;
@@ -1211,6 +1250,8 @@ function confirmMove() {
 
 function cancelPreview() {
   clearPreview();
+  clearCrossMarks();
+  state.crossPicked = [];
   renderEquationView();
 }
 

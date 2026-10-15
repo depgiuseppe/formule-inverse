@@ -2132,3 +2132,34 @@ body.dark-theme .dropzone.dropzone-hover {
   transition: d 0.32s cubic-bezier(0.16, 1, 0.3, 1),
               opacity 0.28s ease;
 }
+
+/* ---------------------------------------------------------------------------
+   Animazione dissolvi elementi cross (semplificazione)
+   --------------------------------------------------------------------------- */
+@keyframes crossDissolve {
+  0%   { opacity: 1; transform: scale(1) rotate(0deg);
+         background: #fecaca; box-shadow: 0 0 0 2px #ef4444; border-radius: 4px; }
+  35%  { opacity: 0.75; transform: scale(1.12) rotate(-4deg);
+         background: #fee2e2; color: #ef4444; }
+  100% { opacity: 0; transform: scale(0.15) translateY(-14px) rotate(8deg);
+         background: transparent; box-shadow: none; }
+}
+.cross-dissolving {
+  animation: crossDissolve 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards !important;
+  pointer-events: none !important;
+  position: relative;
+  z-index: 10;
+}
+
+/* Pulsante ✕/ nel tastierino */
+.keypad-cross-btn {
+  border-color: var(--error, #ef4444) !important;
+  color: var(--error, #ef4444) !important;
+  font-weight: 700;
+}
+.keypad-cross-btn:hover,
+.keypad-cross-btn.active {
+  background: #fee2e2 !important;
+  border-color: #ef4444 !important;
+  color: #b91c1c !important;
+}

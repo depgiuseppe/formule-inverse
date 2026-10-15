@@ -313,27 +313,26 @@ let _arrowContainer = null;
 let _arrowPath = null;
 let _arrowHideTimer = null;
 
-export function initDragArrow(cardEl) {
-  if (!cardEl) return;
-  // Rimuovi un eventuale SVG precedente (senza querySelector per id)
+// SVG fixed su document.body: coordinate viewport, nessun problema di stacking o overflow.
+export function initDragArrow() {
   if (_arrowSvg && _arrowSvg.parentNode) _arrowSvg.parentNode.removeChild(_arrowSvg);
 
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('class', 'drag-arrow-overlay');
   svg.setAttribute('aria-hidden', 'true');
-  svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:90';
+  svg.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;overflow:visible;z-index:9998';
 
   const defs = document.createElementNS(NS, 'defs');
   const marker = document.createElementNS(NS, 'marker');
   marker.setAttribute('id', 'drag-arrowhead');
-  marker.setAttribute('markerWidth', '9');
-  marker.setAttribute('markerHeight', '7');
-  marker.setAttribute('refX', '8');
-  marker.setAttribute('refY', '3.5');
+  marker.setAttribute('markerWidth', '10');
+  marker.setAttribute('markerHeight', '8');
+  marker.setAttribute('refX', '9');
+  marker.setAttribute('refY', '4');
   marker.setAttribute('orient', 'auto');
   const tip = document.createElementNS(NS, 'polygon');
-  tip.setAttribute('points', '0 0, 9 3.5, 0 7');
+  tip.setAttribute('points', '0 0, 10 4, 0 8');
   tip.setAttribute('fill', '#ef4444');
   marker.appendChild(tip);
   defs.appendChild(marker);
@@ -342,58 +341,54 @@ export function initDragArrow(cardEl) {
   const path = document.createElementNS(NS, 'path');
   path.setAttribute('fill', 'none');
   path.setAttribute('stroke', '#ef4444');
-  path.setAttribute('stroke-width', '2.5');
+  path.setAttribute('stroke-width', '2.8');
   path.setAttribute('stroke-linecap', 'round');
   path.setAttribute('marker-end', 'url(#drag-arrowhead)');
   path.style.visibility = 'hidden';
   path.style.opacity = '0';
   svg.appendChild(path);
 
-  // posizione relative richiede position:relative sul contenitore
-  if (getComputedStyle(cardEl).position === 'static') cardEl.style.position = 'relative';
-  cardEl.appendChild(svg);
-  _arrowContainer = cardEl;
+  document.body.appendChild(svg);
+  _arrowSvg = svg;
   _arrowPath = path;
+  _arrowContainer = null;
 }
 
 export function updateDragArrow(sourceEl, targetEl, crossesMember) {
-  if (!_arrowPath || !_arrowContainer || !sourceEl || !targetEl) return;
+  if (!_arrowPath || !sourceEl || !targetEl) return;
   if (_arrowHideTimer) { clearTimeout(_arrowHideTimer); _arrowHideTimer = null; }
 
-  const cR = _arrowContainer.getBoundingClientRect();
+  // Coordinate viewport dirette: SVG è position:fixed su body
   const sR = sourceEl.getBoundingClientRect();
   const tR = targetEl.getBoundingClientRect();
 
-  const x1 = sR.left + sR.width / 2 - cR.left;
-  const y1 = sR.top + sR.height / 2 - cR.top;
-  const x2 = tR.left + tR.width / 2 - cR.left;
-  const y2 = tR.top + tR.height / 2 - cR.top;
+  const x1 = sR.left + sR.width / 2;
+  const y1 = sR.top + sR.height / 2;
+  const x2 = tR.left + tR.width / 2;
+  const y2 = tR.top + tR.height / 2;
 
-  // Accorcia leggermente la freccia per non sovrapporre la punta al centro del target
   const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
-  const shorten = Math.min(12, len * 0.15);
+  const shorten = Math.min(14, len * 0.12);
   const ex = x2 - (x2 - x1) / len * shorten;
   const ey = y2 - (y2 - y1) / len * shorten;
 
   let d;
   if (!crossesMember) {
-    // 2° principio — freccia diritta (punti di controllo sulla retta)
+    // 2° principio — freccia diritta
     const dx = (ex - x1) / 3;
     const dy = (ey - y1) / 3;
     d = `M ${x1} ${y1} C ${x1 + dx} ${y1 + dy} ${x1 + 2 * dx} ${y1 + 2 * dy} ${ex} ${ey}`;
   } else {
     // 1° principio — arco sopra il segno =
     const midX = (x1 + ex) / 2;
-    const arcH = 64;
-    const topY = Math.min(y1, ey) - arcH;
+    const topY = Math.min(y1, ey) - 72;
     d = `M ${x1} ${y1} C ${midX} ${topY} ${midX} ${topY} ${ex} ${ey}`;
   }
 
-  // Imposta la proprietà CSS `d` (supporta transition); fallback su setAttribute
   try { _arrowPath.style.d = `path("${d}")`; } catch (_) {}
   _arrowPath.setAttribute('d', d);
   _arrowPath.style.visibility = 'visible';
-  _arrowPath.style.opacity = '0.88';
+  _arrowPath.style.opacity = '0.92';
 }
 
 export function hideDragArrow() {
