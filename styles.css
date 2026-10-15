@@ -1744,6 +1744,17 @@ sup.node-exp {
   border: 1.5px dashed transparent;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  -webkit-user-drag: element;
+}
+
+/* Fix: il puntatore deve atterrare sul .draggable-token, non sui suoi figli */
+.draggable-token > * {
+  pointer-events: none;
+  user-select: none;
+}
+/* I figli che sono essi stessi draggable-token restano interattivi */
+.draggable-token > .draggable-token {
+  pointer-events: auto;
 }
 
 .node-pow.draggable-token {
@@ -1834,6 +1845,44 @@ sup.node-exp {
   border-color: var(--primary) !important;
   transform: scale(1.1);
   z-index: 10;
+}
+
+/* Token rifiutato: torna al posto con animazione */
+@keyframes tokenBounceBack {
+  0%   { transform: translateY(-6px) scale(1.1); opacity: 0.7; filter: none; }
+  40%  { transform: translateY(3px) scale(0.95); filter: drop-shadow(0 0 6px var(--error, #ef4444)); }
+  70%  { transform: translateY(-2px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); opacity: 1; filter: none; }
+}
+.token-rejected {
+  animation: tokenBounceBack 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+  background: #fee2e2 !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px #ef4444 !important;
+}
+/* Click-drag: token selezionato in attesa di destinazione */
+@keyframes tokenPulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--primary); }
+  50% { box-shadow: 0 0 0 5px var(--primary-light, #a5b4fc), 0 4px 20px rgba(99,102,241,0.45); }
+}
+.token-in-flight {
+  background: var(--primary-soft, #eef2ff) !important;
+  border-color: var(--primary, #6366f1) !important;
+  box-shadow: 0 0 0 2px var(--primary, #6366f1) !important;
+  animation: tokenPulse 1.3s ease-in-out infinite;
+  cursor: pointer !important;
+}
+.is-click-drag-mode .dropzone-active-target {
+  cursor: pointer;
+}
+.is-click-drag-mode .dropzone-adjacent {
+  display: inline-flex;
+  cursor: pointer;
+}
+.is-click-drag-mode .dynamic-fraction-wrapper.wrapper-expanded {
+  opacity: 1;
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 /* Zone di rilascio (Dropzones) */

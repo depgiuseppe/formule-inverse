@@ -398,6 +398,35 @@ export function runAllTests() {
     return r.ok ? 'accettata ma doveva essere rifiutata' : true;
   }));
 
+  results.push(test('Croce additiva: a e −a nella stessa somma → si cancellano', () => {
+    // parseEquation('x + a - a = b') produce Sub(Add(x,a), a) = b
+    // l'`a` dentro il sotto-termine Add(x,a) è a path left/Sub0/Add1 (sign +1)
+    // l'`a` sottratto è a path left/Sub1 (sign -1)
+    const e = eq('x + a - a = b');
+    const r = crossCancel(e, 'left/Sub0/Add1', 'left/Sub1');
+    if (!r.ok) return `rifiutata: ${r.error}`;
+    return equivalentEq(r.newEq, eq('x = b')) ? true : `atteso x = b, ottenuto ${toPretty(r.newEq, 0)}`;
+  }));
+
+  results.push(test('Croce additiva: stessa grandezza su ambo i membri → si cancella', () => {
+    // parseEquation('a + F = a + G') → Add(a,F) = Add(a,G)
+    // left/Add0 = a (sign +1), right/Add0 = a (sign +1)
+    const e = eq('a + F = a + G');
+    const r = crossCancel(e, 'left/Add0', 'right/Add0');
+    if (!r.ok) return `rifiutata: ${r.error}`;
+    return equivalentEq(r.newEq, eq('F = G')) ? true : `atteso F = G, ottenuto ${toPretty(r.newEq, 0)}`;
+  }));
+
+  results.push(test('Croce additiva: rifiuta due termini non opposti nella stessa somma', () => {
+    const r = crossCancel(eq('a + b = c'), 'left/Add0', 'left/Add1');
+    return r.ok ? 'accettata ma doveva essere rifiutata (a ≠ -b in generale)' : true;
+  }));
+
+  results.push(test('Croce additiva: rifiuta grandezze diverse su ambo i membri', () => {
+    const r = crossCancel(eq('a + F = b + G'), 'left/Add0', 'right/Add1');
+    return r.ok ? 'accettata ma doveva essere rifiutata (a ≠ G)' : true;
+  }));
+
   // ---- Risoluzione automatica: regressioni su casi reali ----
   const autoResolve = (formula, target) => {
     let curr = eq(formula);

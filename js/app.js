@@ -18,7 +18,7 @@ import {
 import { getExplanation } from './explanations.js';
 import { renderEquation, prettyVar } from './render.js';
 import { RULES } from './rules.js';
-import { setupEquationDragAndDrop } from './dragdrop.js';
+import { setupEquationDragAndDrop, highlightDropzones, clearDropzonesHighlight, applyDragMove } from './dragdrop.js';
 import { runAllTests, formatTestResults } from './tests.js';
 import {
   latexToSyntax, LatexError,
@@ -45,6 +45,7 @@ const state = {
   keypadOp: null,
   crossMode: false,
   crossPicked: [],
+  clickDragToken: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -148,6 +149,7 @@ function init() {
   bindLatexEvents();
   bindStorageEvents();
   renderMyFormulas();
+  if (dom.crossLayer) dom.crossLayer.hidden = false;
   loadFormula(getFormulaById('v-st'), 't');
 }
 
@@ -321,7 +323,6 @@ function loadFormula(formulaEntry, targetVar) {
     dom.btnCross.classList.remove('active');
     dom.btnCross.setAttribute('aria-pressed', 'false');
   }
-  if (dom.crossLayer) dom.crossLayer.hidden = true;
 
   pushHistory({
     equation: clone(eq),
@@ -366,6 +367,7 @@ function renderEquationView() {
     getCurrentEquation: () => state.currentEq,
     onApplyMove: applyDragResult,
   });
+  attachDropzoneClickHandlers();
   renderConditions();
   renderKeypad();
 }
@@ -569,12 +571,80 @@ function animateOperationBadge(label, operandText) {
   setTimeout(cleanup, 1200);
 }
 
+function enterClickDragMode(tokenEl) {
+  const varName = tokenEl.dataset.varName;
+  if (!varName || !state.currentEq) return;
+  state.clickDragToken = {
+    varName,
+    fromSide: tokenEl.dataset.side,
+    fromSlot: tokenEl.dataset.slot || 'num',
+    nodeType: tokenEl.dataset.nodeType || 'Var',
+  };
+  tokenEl.classList.add('token-in-flight');
+  dom.equationDisplay.classList.add('is-dragging-equation', 'is-click-drag-mode');
+  highlightDropzones(dom.equationDisplay, state.clickDragToken);
+  showMessage(`"${prettyVar(varName)}" selezionato — clicca la destinazione (denominatore o membro opposto) per applicare il trasporto. Riclicca per annullare.`, 'info');
+}
+
+function exitClickDragMode() {
+  state.clickDragToken = null;
+  dom.equationDisplay.classList.remove('is-dragging-equation', 'is-click-drag-mode');
+  dom.equationDisplay.querySelectorAll('.token-in-flight').forEach((el) => el.classList.remove('token-in-flight'));
+  clearDropzonesHighlight(dom.equationDisplay);
+}
+
+function applyClickDragToDropzone(dz) {
+  if (!state.clickDragToken) return;
+  const drag = state.clickDragToken;
+  exitClickDragMode();
+  const result = applyDragMove({
+    currentEq: state.currentEq,
+    varName: drag.varName,
+    nodeType: drag.nodeType,
+    fromSide: drag.fromSide,
+    fromSlot: drag.fromSlot,
+    targetSide: dz.dataset.side,
+    targetSlot: dz.dataset.slot,
+  });
+  if (!result.ok) {
+    flashTokenRejected(drag.varName, drag.fromSide);
+  }
+  applyDragResult(result);
+}
+
 function attachEquationHandlers() {
   dom.equationDisplay.querySelectorAll('.math-node').forEach((el) => {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      // In modalità croce il clic su un fattore lo marca per la semplificazione.
       if (state.crossMode) { crossPickToken(el.dataset.id, el); return; }
+
+      // Click-drag: se l'elemento è un token draggable
+      if (el.classList.contains('draggable-token') && el.dataset.varName) {
+        if (state.clickDragToken) {
+          if (el.classList.contains('token-in-flight')) {
+            exitClickDragMode(); return;
+          }
+          if (el.dataset.side === state.clickDragToken.fromSide) {
+            exitClickDragMode(); enterClickDragMode(el); return;
+          }
+          const dz = el.closest('.dropzone');
+          if (dz && dz.dataset.side && dz.dataset.slot) {
+            applyClickDragToDropzone(dz); return;
+          }
+          exitClickDragMode(); return;
+        }
+        enterClickDragMode(el); return;
+      }
+
+      // In click-drag: click su elemento non-draggable cerca il dropzone padre
+      if (state.clickDragToken) {
+        const dz = el.closest('.dropzone');
+        if (dz && dz.dataset.side && dz.dataset.side !== state.clickDragToken.fromSide) {
+          applyClickDragToDropzone(dz); return;
+        }
+        exitClickDragMode(); return;
+      }
+
       selectElement(el.dataset.id);
     });
     el.tabIndex = 0;
@@ -590,6 +660,17 @@ function attachEquationHandlers() {
   });
 }
 
+function attachDropzoneClickHandlers() {
+  dom.equationDisplay.querySelectorAll('.dropzone').forEach((dz) => {
+    dz.addEventListener('click', (e) => {
+      if (!state.clickDragToken) return;
+      if (dz.dataset.side === state.clickDragToken.fromSide) return;
+      e.stopPropagation();
+      applyClickDragToDropzone(dz);
+    });
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Croce di semplificazione (due fattori uguali, numeratore e denominatore)
 // ---------------------------------------------------------------------------
@@ -600,7 +681,6 @@ function toggleCrossMode(force) {
     dom.btnCross.classList.toggle('active', state.crossMode);
     dom.btnCross.setAttribute('aria-pressed', state.crossMode ? 'true' : 'false');
   }
-  if (dom.crossLayer) dom.crossLayer.hidden = !state.crossMode;
   const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
   if (card) card.classList.toggle('cross-mode', state.crossMode);
   clearCrossMarks();
@@ -642,6 +722,7 @@ function applyCrossCancel(idA, idB) {
     clearCrossMarks();
     flashCrossError();
     showInvalidMove(res.error, res.hint, { label: 'Croce di semplificazione' });
+    toggleCrossMode(false);
     return;
   }
 
@@ -684,8 +765,8 @@ function applyCrossCancel(idA, idB) {
   } else if (state.mode === 'multi') {
     showMultiMode();
   }
-  // La croce resta attiva per semplificare altri fattori.
-  if (state.crossMode) clearCrossMarks();
+  // Auto-disattiva la croce dopo ogni semplificazione
+  toggleCrossMode(false);
 }
 
 function flashCrossError() {
@@ -805,6 +886,12 @@ function applyDragResult(result) {
   // Se la mossa non è valida: mostra subito l'errore spiegandone il motivo matematico
   if (!result.ok) {
     clearPreview();
+    // Anima il flash di errore sull'equazione
+    const card = dom.equationDisplay.closest('.equation-display-card') || dom.equationDisplay;
+    card.classList.remove('cross-error');
+    void card.offsetWidth;
+    card.classList.add('cross-error');
+    setTimeout(() => card.classList.remove('cross-error'), 500);
     showInvalidMove(result.error, 'Verifica di aver applicato correttamente il primo o secondo principio di equivalenza.', { label: result.ruleName || 'Trasporto' });
     return;
   }
@@ -1108,6 +1195,16 @@ function confirmMove() {
 function cancelPreview() {
   clearPreview();
   renderEquationView();
+}
+
+function flashTokenRejected(varName, side) {
+  if (!varName || !dom.equationDisplay) return;
+  const el = dom.equationDisplay.querySelector(`[data-var-name="${CSS.escape(varName)}"][data-side="${side}"]`);
+  if (!el) return;
+  el.classList.remove('token-rejected');
+  void el.offsetWidth;
+  el.classList.add('token-rejected');
+  setTimeout(() => el.classList.remove('token-rejected'), 600);
 }
 
 function showInvalidMove(error, hint, action) {
@@ -1448,9 +1545,15 @@ function bindModeEvents() {
       btn.classList.add('active');
       btn.setAttribute('aria-pressed', 'true');
       state.mode = btn.dataset.mode;
+      const modeDesc = {
+        free: '🔓 Modalità Libera: clicca un elemento dell\'equazione per vedere le operazioni disponibili, oppure trascina variabili e fattori.',
+        guided: '💡 Modalità Guidata: il sistema ti suggerisce ogni passaggio. Segui i consigli o esplora tu stesso.',
+        multi: '⚡ Modalità Multi-operazione: vedi il piano completo di risoluzione e scegli se eseguire un passo alla volta o tutto in automatico.',
+      };
+      showMessage(modeDesc[state.mode] || '', 'info');
       if (state.mode === 'guided') showGuidedSuggestion();
       else if (state.mode === 'multi') showMultiMode();
-      else { clearMessage(); renderEquationView(); clearSelection(); }
+      else { renderEquationView(); clearSelection(); }
     });
   });
 }
@@ -1656,6 +1759,7 @@ function bindGlobalEvents() {
       if (!dom.testsBackdrop.hidden) { dom.testsBackdrop.hidden = true; return; }
       if (!dom.modalBackdrop.hidden) { dom.modalBackdrop.hidden = true; return; }
       if (state.pendingMove) cancelPreview();
+      else if (state.clickDragToken) exitClickDragMode();
       else clearSelection();
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }

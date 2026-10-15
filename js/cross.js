@@ -9,9 +9,10 @@
 // esattamente sugli elementi che l'allievo vede.
 
 import {
-  Eq, Num, Mul, Div, Pow, Group,
+  Eq, Num, Add, Neg, Mul, Div, Pow, Group,
   unwrap, canonical, equivalentExpr, toPretty,
 } from './ast.js';
+import { additiveTerms, rebuildSum } from './rules.js';
 
 // ---------------------------------------------------------------------------
 // Navigazione per percorso
@@ -174,6 +175,126 @@ function slotOfId(id) {
 // Semplificazione
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Semplificazione additiva: termini opposti (±a) e stessa grandezza ambo i membri
+// ---------------------------------------------------------------------------
+
+// Analizza un id come percorso additivo (tutti i segmenti devono essere Add/Sub indicizzati).
+// Ritorna { side, segs, sign } o null.  sign = +1 / -1 accumulato lungo il percorso.
+function analyseAdditiveId(id) {
+  const parts = String(id || '').split('/');
+  const side = parts[0];
+  if (side !== 'left' && side !== 'right') return null;
+  const segs = parts.slice(1);
+  if (segs.length === 0) return { side, segs: [], sign: 1 };
+  let sign = 1;
+  for (const seg of segs) {
+    const m = /^(Add|Sub)(\d+)$/.exec(seg);
+    if (!m) return null;
+    if (m[1] === 'Sub' && Number(m[2]) > 0) sign = -sign;
+  }
+  return { side, segs, sign };
+}
+
+// Valore effettivo di un termine { node, sign } proveniente da additiveTerms.
+function termEff(t) {
+  return t.sign === '+' ? canonical(t.node) : canonical(Neg(t.node));
+}
+
+// Cerca e toglie dalla lista il primo termine che corrisponde al valore effettivo dato.
+function removeByEff(terms, eff) {
+  const idx = terms.findIndex((t) => equivalentExpr(termEff(t), eff));
+  if (idx < 0) return null;
+  return terms.filter((_, k) => k !== idx);
+}
+
+// Rimuove l'elemento al percorso `segs` dalla struttura additiva del membro.
+// Ritorna il nuovo nodo canonico, o null se il percorso non è valido.
+function removeAdditiveDeep(member, segs) {
+  if (segs.length === 0) return Num(0);
+  const parentSegs = segs.slice(0, -1);
+  const last = segs[segs.length - 1];
+  const m = /^(Add|Sub)(\d+)$/.exec(last);
+  if (!m) return null;
+  const idx = Number(m[2]);
+  const parent = parentSegs.length === 0 ? unwrap(member) : nodeAtSegments(member, parentSegs);
+  if (!parent || !parent.args || parent.type !== m[1]) return null;
+  const keep = parent.args.filter((_, k) => k !== idx);
+  let newParent;
+  if (keep.length === 0) {
+    newParent = Num(0);
+  } else if (keep.length === 1 && parent.type === 'Add') {
+    newParent = keep[0];
+  } else if (keep.length === 1 && parent.type === 'Sub' && idx === 0) {
+    newParent = Neg(keep[0]);
+  } else if (keep.length === 1) {
+    newParent = keep[0];
+  } else {
+    newParent = { ...parent, args: keep };
+  }
+  if (parentSegs.length === 0) return canonical(newParent);
+  return canonical(rebuildAlongPath(member, parentSegs, newParent));
+}
+
+// Tenta la semplificazione additiva:
+//   stesso membro  → termini opposti (±a) si cancellano nella somma
+//   membri diversi → stessa grandezza su entrambi i lati si elimina
+function crossCancelAdditive(eq, idA, idB) {
+  const a = analyseAdditiveId(idA);
+  const b = analyseAdditiveId(idB);
+  if (!a || !b) return null;
+
+  const memberA = a.side === 'left' ? eq.left : eq.right;
+  const memberB = b.side === 'left' ? eq.left : eq.right;
+  const nodeA = a.segs.length === 0 ? unwrap(memberA) : nodeAtSegments(memberA, a.segs);
+  const nodeB = b.segs.length === 0 ? unwrap(memberB) : nodeAtSegments(memberB, b.segs);
+  if (!nodeA || !nodeB) return null;
+
+  const effA = a.sign > 0 ? canonical(nodeA) : canonical(Neg(nodeA));
+  const effB = b.sign > 0 ? canonical(nodeB) : canonical(Neg(nodeB));
+
+  if (a.side === b.side) {
+    // Stesso membro: i termini devono essere opposti (effA + effB = 0 ↔ effA = −effB)
+    if (!equivalentExpr(effA, canonical(Neg(effB)))) return null;
+
+    // Usa la lista piatta canonicizzata per evitare problemi di shift degli indici
+    const flatTerms = additiveTerms(canonical(memberA));
+    const after1 = removeByEff(flatTerms, effA);
+    if (!after1) return null;
+    const after2 = removeByEff(after1, effB);
+    if (!after2) return null;
+
+    const newMember = after2.length === 0 ? Num(0) : canonical(rebuildSum(after2));
+    const newEq = canonical(a.side === 'left' ? Eq(newMember, eq.right) : Eq(eq.left, newMember));
+    const pos = effA.type === 'Neg' ? canonical(Neg(effA)) : effA;
+    const c = toPretty(pos, 0);
+    return {
+      ok: true, newEq, cancelled: c,
+      ruleName: `Eliminazione dei termini opposti ±${c}`,
+      rulePrinciple: `${c} − ${c} = 0: termini opposti si cancellano (primo principio).`,
+      conditions: [],
+    };
+  }
+
+  // Membri diversi: i termini devono essere uguali (effA = effB)
+  if (!equivalentExpr(effA, effB)) return null;
+
+  const newA = removeAdditiveDeep(memberA, a.segs);
+  const newB = removeAdditiveDeep(memberB, b.segs);
+  if (!newA || !newB) return null;
+
+  const newLeft = a.side === 'left' ? newA : newB;
+  const newRight = a.side === 'left' ? newB : newA;
+  const newEq = canonical(Eq(newLeft, newRight));
+  const c = toPretty(effA, 0);
+  return {
+    ok: true, newEq, cancelled: c,
+    ruleName: `Eliminazione di ${c} da entrambi i membri`,
+    rulePrinciple: `Sottraendo ${c} da entrambi i membri si elimina il termine comune (primo principio).`,
+    conditions: [],
+  };
+}
+
 // Prova a semplificare due elementi individuati dai loro id.
 // Ritorna { ok:true, newEq, cancelled, ruleName, rulePrinciple, conditions }
 // oppure { ok:false, error, hint }.
@@ -186,18 +307,24 @@ export function crossCancel(eq, idA, idB) {
   }
   const a = analyseElementId(idA);
   const b = analyseElementId(idB);
+
+  // Prova prima la semplificazione additiva (termini opposti o stessa grandezza ambo i membri)
   if (!a || !b) {
+    const addResult = crossCancelAdditive(eq, idA, idB);
+    if (addResult) return addResult;
     return {
       ok: false,
-      error: 'Solo un fattore al numeratore e uno al denominatore di una frazione si possono semplificare.',
-      hint: 'Trascina la croce su un fattore del numeratore e su uno uguale del denominatore.',
+      error: 'Seleziona: ①  un fattore al numeratore e uno uguale al denominatore della stessa frazione, oppure ② due termini opposti (es. a e −a) della stessa somma, oppure ③ la stessa grandezza su entrambi i membri.',
+      hint: 'Trascina la croce su fattori uguali (num./den.), su termini opposti, o sulla stessa grandezza a entrambi i lati.',
     };
   }
   if (a.side !== b.side) {
+    const addResult = crossCancelAdditive(eq, idA, idB);
+    if (addResult) return addResult;
     return {
       ok: false,
-      error: 'I due elementi uguali devono stare nello stesso membro: tra membri diversi non c\'è nessuna frazione da semplificare.',
-      hint: 'Semplifica un fattore che compare al numeratore e al denominatore dello stesso membro.',
+      error: 'I due fattori di una frazione devono stare nello stesso membro. Per cancellare la stessa grandezza su entrambi i lati, selezionala come termine additivo.',
+      hint: 'Semplifica un fattore al numeratore e uno al denominatore dello stesso membro.',
     };
   }
 

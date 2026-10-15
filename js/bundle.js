@@ -2675,6 +2675,101 @@
     if (suffix.length > 0 && last !== "base" && !/^Mul\d+$/.test(last)) return null;
     return { side, segments, slot: segments[k] };
   }
+  function analyseAdditiveId(id) {
+    const parts = String(id || "").split("/");
+    const side = parts[0];
+    if (side !== "left" && side !== "right") return null;
+    const segs = parts.slice(1);
+    if (segs.length === 0) return { side, segs: [], sign: 1 };
+    let sign = 1;
+    for (const seg of segs) {
+      const m = /^(Add|Sub)(\d+)$/.exec(seg);
+      if (!m) return null;
+      if (m[1] === "Sub" && Number(m[2]) > 0) sign = -sign;
+    }
+    return { side, segs, sign };
+  }
+  function termEff(t) {
+    return t.sign === "+" ? canonical(t.node) : canonical(Neg(t.node));
+  }
+  function removeByEff(terms, eff) {
+    const idx = terms.findIndex((t) => equivalentExpr(termEff(t), eff));
+    if (idx < 0) return null;
+    return terms.filter((_, k) => k !== idx);
+  }
+  function removeAdditiveDeep(member, segs) {
+    if (segs.length === 0) return Num(0);
+    const parentSegs = segs.slice(0, -1);
+    const last = segs[segs.length - 1];
+    const m = /^(Add|Sub)(\d+)$/.exec(last);
+    if (!m) return null;
+    const idx = Number(m[2]);
+    const parent = parentSegs.length === 0 ? unwrap(member) : nodeAtSegments(member, parentSegs);
+    if (!parent || !parent.args || parent.type !== m[1]) return null;
+    const keep = parent.args.filter((_, k) => k !== idx);
+    let newParent;
+    if (keep.length === 0) {
+      newParent = Num(0);
+    } else if (keep.length === 1 && parent.type === "Add") {
+      newParent = keep[0];
+    } else if (keep.length === 1 && parent.type === "Sub" && idx === 0) {
+      newParent = Neg(keep[0]);
+    } else if (keep.length === 1) {
+      newParent = keep[0];
+    } else {
+      newParent = { ...parent, args: keep };
+    }
+    if (parentSegs.length === 0) return canonical(newParent);
+    return canonical(rebuildAlongPath(member, parentSegs, newParent));
+  }
+  function crossCancelAdditive(eq2, idA, idB) {
+    const a = analyseAdditiveId(idA);
+    const b = analyseAdditiveId(idB);
+    if (!a || !b) return null;
+    const memberA = a.side === "left" ? eq2.left : eq2.right;
+    const memberB = b.side === "left" ? eq2.left : eq2.right;
+    const nodeA = a.segs.length === 0 ? unwrap(memberA) : nodeAtSegments(memberA, a.segs);
+    const nodeB = b.segs.length === 0 ? unwrap(memberB) : nodeAtSegments(memberB, b.segs);
+    if (!nodeA || !nodeB) return null;
+    const effA = a.sign > 0 ? canonical(nodeA) : canonical(Neg(nodeA));
+    const effB = b.sign > 0 ? canonical(nodeB) : canonical(Neg(nodeB));
+    if (a.side === b.side) {
+      if (!equivalentExpr(effA, canonical(Neg(effB)))) return null;
+      const flatTerms = additiveTerms(canonical(memberA));
+      const after1 = removeByEff(flatTerms, effA);
+      if (!after1) return null;
+      const after2 = removeByEff(after1, effB);
+      if (!after2) return null;
+      const newMember = after2.length === 0 ? Num(0) : canonical(rebuildSum(after2));
+      const newEq2 = canonical(a.side === "left" ? Eq(newMember, eq2.right) : Eq(eq2.left, newMember));
+      const pos = effA.type === "Neg" ? canonical(Neg(effA)) : effA;
+      const c2 = toPretty(pos, 0);
+      return {
+        ok: true,
+        newEq: newEq2,
+        cancelled: c2,
+        ruleName: `Eliminazione dei termini opposti \xB1${c2}`,
+        rulePrinciple: `${c2} \u2212 ${c2} = 0: termini opposti si cancellano (primo principio).`,
+        conditions: []
+      };
+    }
+    if (!equivalentExpr(effA, effB)) return null;
+    const newA = removeAdditiveDeep(memberA, a.segs);
+    const newB = removeAdditiveDeep(memberB, b.segs);
+    if (!newA || !newB) return null;
+    const newLeft = a.side === "left" ? newA : newB;
+    const newRight = a.side === "left" ? newB : newA;
+    const newEq = canonical(Eq(newLeft, newRight));
+    const c = toPretty(effA, 0);
+    return {
+      ok: true,
+      newEq,
+      cancelled: c,
+      ruleName: `Eliminazione di ${c} da entrambi i membri`,
+      rulePrinciple: `Sottraendo ${c} da entrambi i membri si elimina il termine comune (primo principio).`,
+      conditions: []
+    };
+  }
   function crossCancel(eq2, idA, idB) {
     if (!eq2 || eq2.type !== "Eq") {
       return { ok: false, error: "Nessuna equazione su cui semplificare." };
@@ -2685,17 +2780,21 @@
     const a = analyseElementId(idA);
     const b = analyseElementId(idB);
     if (!a || !b) {
+      const addResult = crossCancelAdditive(eq2, idA, idB);
+      if (addResult) return addResult;
       return {
         ok: false,
-        error: "Solo un fattore al numeratore e uno al denominatore di una frazione si possono semplificare.",
-        hint: "Trascina la croce su un fattore del numeratore e su uno uguale del denominatore."
+        error: "Seleziona: \u2460  un fattore al numeratore e uno uguale al denominatore della stessa frazione, oppure \u2461 due termini opposti (es. a e \u2212a) della stessa somma, oppure \u2462 la stessa grandezza su entrambi i membri.",
+        hint: "Trascina la croce su fattori uguali (num./den.), su termini opposti, o sulla stessa grandezza a entrambi i lati."
       };
     }
     if (a.side !== b.side) {
+      const addResult = crossCancelAdditive(eq2, idA, idB);
+      if (addResult) return addResult;
       return {
         ok: false,
-        error: "I due elementi uguali devono stare nello stesso membro: tra membri diversi non c'\xE8 nessuna frazione da semplificare.",
-        hint: "Semplifica un fattore che compare al numeratore e al denominatore dello stesso membro."
+        error: "I due fattori di una frazione devono stare nello stesso membro. Per cancellare la stessa grandezza su entrambi i lati, selezionala come termine additivo.",
+        hint: "Semplifica un fattore al numeratore e uno al denominatore dello stesso membro."
       };
     }
     const member = a.side === "left" ? eq2.left : eq2.right;
@@ -5770,6 +5869,26 @@
       const r = crossCancel(eq("x + a = b"), "left/Add0", "left/Add0");
       return r.ok ? "accettata ma doveva essere rifiutata" : true;
     }));
+    results.push(test("Croce additiva: a e \u2212a nella stessa somma \u2192 si cancellano", () => {
+      const e = eq("x + a - a = b");
+      const r = crossCancel(e, "left/Sub0/Add1", "left/Sub1");
+      if (!r.ok) return `rifiutata: ${r.error}`;
+      return equivalentEq(r.newEq, eq("x = b")) ? true : `atteso x = b, ottenuto ${toPretty(r.newEq, 0)}`;
+    }));
+    results.push(test("Croce additiva: stessa grandezza su ambo i membri \u2192 si cancella", () => {
+      const e = eq("a + F = a + G");
+      const r = crossCancel(e, "left/Add0", "right/Add0");
+      if (!r.ok) return `rifiutata: ${r.error}`;
+      return equivalentEq(r.newEq, eq("F = G")) ? true : `atteso F = G, ottenuto ${toPretty(r.newEq, 0)}`;
+    }));
+    results.push(test("Croce additiva: rifiuta due termini non opposti nella stessa somma", () => {
+      const r = crossCancel(eq("a + b = c"), "left/Add0", "left/Add1");
+      return r.ok ? "accettata ma doveva essere rifiutata (a \u2260 -b in generale)" : true;
+    }));
+    results.push(test("Croce additiva: rifiuta grandezze diverse su ambo i membri", () => {
+      const r = crossCancel(eq("a + F = b + G"), "left/Add0", "right/Add1");
+      return r.ok ? "accettata ma doveva essere rifiutata (a \u2260 G)" : true;
+    }));
     const autoResolve = (formula, target) => {
       let curr = eq(formula);
       for (let i = 0; i < 25; i++) {
@@ -6168,7 +6287,8 @@
     showImplicitDen: false,
     keypadOp: null,
     crossMode: false,
-    crossPicked: []
+    crossPicked: [],
+    clickDragToken: null
   };
   var $ = (sel) => document.querySelector(sel);
   var dom = {
@@ -6264,6 +6384,7 @@
     bindLatexEvents();
     bindStorageEvents();
     renderMyFormulas();
+    if (dom.crossLayer) dom.crossLayer.hidden = false;
     loadFormula(getFormulaById("v-st"), "t");
   }
   function populateTopics() {
@@ -6423,7 +6544,6 @@
       dom.btnCross.classList.remove("active");
       dom.btnCross.setAttribute("aria-pressed", "false");
     }
-    if (dom.crossLayer) dom.crossLayer.hidden = true;
     pushHistory({
       equation: clone(eq2),
       ruleName: "Formula di partenza",
@@ -6462,6 +6582,7 @@
       getCurrentEquation: () => state.currentEq,
       onApplyMove: applyDragResult
     });
+    attachDropzoneClickHandlers();
     renderConditions();
     renderKeypad();
   }
@@ -6638,12 +6759,81 @@
     badge.addEventListener("animationend", cleanup);
     setTimeout(cleanup, 1200);
   }
+  function enterClickDragMode(tokenEl) {
+    const varName = tokenEl.dataset.varName;
+    if (!varName || !state.currentEq) return;
+    state.clickDragToken = {
+      varName,
+      fromSide: tokenEl.dataset.side,
+      fromSlot: tokenEl.dataset.slot || "num",
+      nodeType: tokenEl.dataset.nodeType || "Var"
+    };
+    tokenEl.classList.add("token-in-flight");
+    dom.equationDisplay.classList.add("is-dragging-equation", "is-click-drag-mode");
+    highlightDropzones(dom.equationDisplay, state.clickDragToken);
+    showMessage(`"${prettyVar(varName)}" selezionato \u2014 clicca la destinazione (denominatore o membro opposto) per applicare il trasporto. Riclicca per annullare.`, "info");
+  }
+  function exitClickDragMode() {
+    state.clickDragToken = null;
+    dom.equationDisplay.classList.remove("is-dragging-equation", "is-click-drag-mode");
+    dom.equationDisplay.querySelectorAll(".token-in-flight").forEach((el) => el.classList.remove("token-in-flight"));
+    clearDropzonesHighlight(dom.equationDisplay);
+  }
+  function applyClickDragToDropzone(dz) {
+    if (!state.clickDragToken) return;
+    const drag = state.clickDragToken;
+    exitClickDragMode();
+    const result = applyDragMove({
+      currentEq: state.currentEq,
+      varName: drag.varName,
+      nodeType: drag.nodeType,
+      fromSide: drag.fromSide,
+      fromSlot: drag.fromSlot,
+      targetSide: dz.dataset.side,
+      targetSlot: dz.dataset.slot
+    });
+    if (!result.ok) {
+      flashTokenRejected(drag.varName, drag.fromSide);
+    }
+    applyDragResult(result);
+  }
   function attachEquationHandlers() {
     dom.equationDisplay.querySelectorAll(".math-node").forEach((el) => {
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         if (state.crossMode) {
           crossPickToken(el.dataset.id, el);
+          return;
+        }
+        if (el.classList.contains("draggable-token") && el.dataset.varName) {
+          if (state.clickDragToken) {
+            if (el.classList.contains("token-in-flight")) {
+              exitClickDragMode();
+              return;
+            }
+            if (el.dataset.side === state.clickDragToken.fromSide) {
+              exitClickDragMode();
+              enterClickDragMode(el);
+              return;
+            }
+            const dz = el.closest(".dropzone");
+            if (dz && dz.dataset.side && dz.dataset.slot) {
+              applyClickDragToDropzone(dz);
+              return;
+            }
+            exitClickDragMode();
+            return;
+          }
+          enterClickDragMode(el);
+          return;
+        }
+        if (state.clickDragToken) {
+          const dz = el.closest(".dropzone");
+          if (dz && dz.dataset.side && dz.dataset.side !== state.clickDragToken.fromSide) {
+            applyClickDragToDropzone(dz);
+            return;
+          }
+          exitClickDragMode();
           return;
         }
         selectElement(el.dataset.id);
@@ -6660,6 +6850,16 @@
       });
     });
   }
+  function attachDropzoneClickHandlers() {
+    dom.equationDisplay.querySelectorAll(".dropzone").forEach((dz) => {
+      dz.addEventListener("click", (e) => {
+        if (!state.clickDragToken) return;
+        if (dz.dataset.side === state.clickDragToken.fromSide) return;
+        e.stopPropagation();
+        applyClickDragToDropzone(dz);
+      });
+    });
+  }
   function toggleCrossMode(force) {
     state.crossMode = typeof force === "boolean" ? force : !state.crossMode;
     state.crossPicked = [];
@@ -6667,7 +6867,6 @@
       dom.btnCross.classList.toggle("active", state.crossMode);
       dom.btnCross.setAttribute("aria-pressed", state.crossMode ? "true" : "false");
     }
-    if (dom.crossLayer) dom.crossLayer.hidden = !state.crossMode;
     const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
     if (card) card.classList.toggle("cross-mode", state.crossMode);
     clearCrossMarks();
@@ -6704,6 +6903,7 @@
       clearCrossMarks();
       flashCrossError();
       showInvalidMove(res.error, res.hint, { label: "Croce di semplificazione" });
+      toggleCrossMode(false);
       return;
     }
     dissolveElements([idA, idB]);
@@ -6740,7 +6940,7 @@
     } else if (state.mode === "multi") {
       showMultiMode();
     }
-    if (state.crossMode) clearCrossMarks();
+    toggleCrossMode(false);
   }
   function flashCrossError() {
     const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
@@ -6841,6 +7041,11 @@
     if (!result) return;
     if (!result.ok) {
       clearPreview();
+      const card = dom.equationDisplay.closest(".equation-display-card") || dom.equationDisplay;
+      card.classList.remove("cross-error");
+      void card.offsetWidth;
+      card.classList.add("cross-error");
+      setTimeout(() => card.classList.remove("cross-error"), 500);
       showInvalidMove(result.error, "Verifica di aver applicato correttamente il primo o secondo principio di equivalenza.", { label: result.ruleName || "Trasporto" });
       return;
     }
@@ -7114,6 +7319,15 @@
   function cancelPreview() {
     clearPreview();
     renderEquationView();
+  }
+  function flashTokenRejected(varName, side) {
+    if (!varName || !dom.equationDisplay) return;
+    const el = dom.equationDisplay.querySelector(`[data-var-name="${CSS.escape(varName)}"][data-side="${side}"]`);
+    if (!el) return;
+    el.classList.remove("token-rejected");
+    void el.offsetWidth;
+    el.classList.add("token-rejected");
+    setTimeout(() => el.classList.remove("token-rejected"), 600);
   }
   function showInvalidMove(error, hint, action) {
     const parts = [];
@@ -7419,10 +7633,15 @@
         btn.classList.add("active");
         btn.setAttribute("aria-pressed", "true");
         state.mode = btn.dataset.mode;
+        const modeDesc = {
+          free: "\u{1F513} Modalit\xE0 Libera: clicca un elemento dell'equazione per vedere le operazioni disponibili, oppure trascina variabili e fattori.",
+          guided: "\u{1F4A1} Modalit\xE0 Guidata: il sistema ti suggerisce ogni passaggio. Segui i consigli o esplora tu stesso.",
+          multi: "\u26A1 Modalit\xE0 Multi-operazione: vedi il piano completo di risoluzione e scegli se eseguire un passo alla volta o tutto in automatico."
+        };
+        showMessage(modeDesc[state.mode] || "", "info");
         if (state.mode === "guided") showGuidedSuggestion();
         else if (state.mode === "multi") showMultiMode();
         else {
-          clearMessage();
           renderEquationView();
           clearSelection();
         }
@@ -7627,6 +7846,7 @@
           return;
         }
         if (state.pendingMove) cancelPreview();
+        else if (state.clickDragToken) exitClickDragMode();
         else clearSelection();
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {

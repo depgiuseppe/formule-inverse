@@ -407,7 +407,7 @@ export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEqu
   setupTouchDragFallback(container, { onApplyMove, getCurrentEquation });
 }
 
-function highlightDropzones(container, dragData) {
+export function highlightDropzones(container, dragData) {
   const oppositeSide = dragData.fromSide === 'left' ? 'right' : 'left';
   container.querySelectorAll(`.dropzone[data-side="${oppositeSide}"]`).forEach((dz) => {
     dz.classList.add('dropzone-active-target');
@@ -428,7 +428,7 @@ function highlightDropzones(container, dragData) {
   });
 }
 
-function clearDropzonesHighlight(container) {
+export function clearDropzonesHighlight(container) {
   container.querySelectorAll('.dropzone').forEach((dz) => {
     dz.classList.remove('dropzone-active-target', 'dropzone-hover');
   });
