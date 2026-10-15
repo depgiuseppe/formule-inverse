@@ -302,7 +302,112 @@ export function applyDragMove({ currentEq, varName, nodeType, fromSide, fromSlot
 }
 
 // ---------------------------------------------------------------------------
-// 3. Controller Drag & Drop per la vista HTML
+// ---------------------------------------------------------------------------
+// 3. Freccia dinamica durante il drag
+// ---------------------------------------------------------------------------
+// La freccia è un <path> SVG cubico: il formato è sempre identico
+// (M x1 y1 C cx1 cy1 cx2 cy2 x2 y2) così la proprietà CSS `d` può
+// transitare fluidamente tra forma dritta (2° principio) e arco (1° principio).
+
+let _arrowContainer = null;
+let _arrowPath = null;
+let _arrowHideTimer = null;
+
+export function initDragArrow(cardEl) {
+  if (!cardEl) return;
+  // Rimuovi un eventuale SVG precedente (senza querySelector per id)
+  if (_arrowSvg && _arrowSvg.parentNode) _arrowSvg.parentNode.removeChild(_arrowSvg);
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'drag-arrow-overlay');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:90';
+
+  const defs = document.createElementNS(NS, 'defs');
+  const marker = document.createElementNS(NS, 'marker');
+  marker.setAttribute('id', 'drag-arrowhead');
+  marker.setAttribute('markerWidth', '9');
+  marker.setAttribute('markerHeight', '7');
+  marker.setAttribute('refX', '8');
+  marker.setAttribute('refY', '3.5');
+  marker.setAttribute('orient', 'auto');
+  const tip = document.createElementNS(NS, 'polygon');
+  tip.setAttribute('points', '0 0, 9 3.5, 0 7');
+  tip.setAttribute('fill', '#ef4444');
+  marker.appendChild(tip);
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
+  const path = document.createElementNS(NS, 'path');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', '#ef4444');
+  path.setAttribute('stroke-width', '2.5');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('marker-end', 'url(#drag-arrowhead)');
+  path.style.visibility = 'hidden';
+  path.style.opacity = '0';
+  svg.appendChild(path);
+
+  // posizione relative richiede position:relative sul contenitore
+  if (getComputedStyle(cardEl).position === 'static') cardEl.style.position = 'relative';
+  cardEl.appendChild(svg);
+  _arrowContainer = cardEl;
+  _arrowPath = path;
+}
+
+export function updateDragArrow(sourceEl, targetEl, crossesMember) {
+  if (!_arrowPath || !_arrowContainer || !sourceEl || !targetEl) return;
+  if (_arrowHideTimer) { clearTimeout(_arrowHideTimer); _arrowHideTimer = null; }
+
+  const cR = _arrowContainer.getBoundingClientRect();
+  const sR = sourceEl.getBoundingClientRect();
+  const tR = targetEl.getBoundingClientRect();
+
+  const x1 = sR.left + sR.width / 2 - cR.left;
+  const y1 = sR.top + sR.height / 2 - cR.top;
+  const x2 = tR.left + tR.width / 2 - cR.left;
+  const y2 = tR.top + tR.height / 2 - cR.top;
+
+  // Accorcia leggermente la freccia per non sovrapporre la punta al centro del target
+  const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
+  const shorten = Math.min(12, len * 0.15);
+  const ex = x2 - (x2 - x1) / len * shorten;
+  const ey = y2 - (y2 - y1) / len * shorten;
+
+  let d;
+  if (!crossesMember) {
+    // 2° principio — freccia diritta (punti di controllo sulla retta)
+    const dx = (ex - x1) / 3;
+    const dy = (ey - y1) / 3;
+    d = `M ${x1} ${y1} C ${x1 + dx} ${y1 + dy} ${x1 + 2 * dx} ${y1 + 2 * dy} ${ex} ${ey}`;
+  } else {
+    // 1° principio — arco sopra il segno =
+    const midX = (x1 + ex) / 2;
+    const arcH = 64;
+    const topY = Math.min(y1, ey) - arcH;
+    d = `M ${x1} ${y1} C ${midX} ${topY} ${midX} ${topY} ${ex} ${ey}`;
+  }
+
+  // Imposta la proprietà CSS `d` (supporta transition); fallback su setAttribute
+  try { _arrowPath.style.d = `path("${d}")`; } catch (_) {}
+  _arrowPath.setAttribute('d', d);
+  _arrowPath.style.visibility = 'visible';
+  _arrowPath.style.opacity = '0.88';
+}
+
+export function hideDragArrow() {
+  if (!_arrowPath) return;
+  if (_arrowHideTimer) clearTimeout(_arrowHideTimer);
+  _arrowPath.style.opacity = '0';
+  _arrowHideTimer = setTimeout(() => {
+    if (_arrowPath) _arrowPath.style.visibility = 'hidden';
+    _arrowHideTimer = null;
+  }, 320);
+}
+
+// ---------------------------------------------------------------------------
+// 3b. Controller Drag & Drop per la vista HTML
 // ---------------------------------------------------------------------------
 
 let activeDragData = null;
@@ -310,6 +415,8 @@ let touchDragClone = null;
 
 export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEquation }) {
   if (!container) return;
+
+  let activeDragSourceEl = null;
 
   // Gestione HTML5 Drag and Drop nativo
   container.querySelectorAll('.draggable-token').forEach((token) => {
@@ -323,8 +430,7 @@ export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEqu
       const nodeType = token.dataset.nodeType || 'Var';
 
       activeDragData = { varName, fromSide, fromSlot, nodeType };
-      // dataTransfer può mancare se l'evento è sintetico (test automatici):
-      // l'app funziona comunque tramite activeDragData.
+      activeDragSourceEl = token;
       if (e.dataTransfer) {
         e.dataTransfer.setData('text/plain', JSON.stringify(activeDragData));
         e.dataTransfer.effectAllowed = 'move';
@@ -332,8 +438,6 @@ export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEqu
 
       token.classList.add('is-being-dragged');
       container.classList.add('is-dragging-equation');
-
-      // Evidenzia gli slot di destinazione compatibili
       highlightDropzones(container, activeDragData);
     });
 
@@ -341,8 +445,22 @@ export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEqu
       token.classList.remove('is-being-dragged');
       container.classList.remove('is-dragging-equation');
       clearDropzonesHighlight(container);
+      hideDragArrow();
       activeDragData = null;
+      activeDragSourceEl = null;
     });
+  });
+
+  // Aggiorna la freccia mentre il cursore si sposta sopra il container
+  container.addEventListener('dragover', (e) => {
+    if (!activeDragData || !activeDragSourceEl) return;
+    const dz = e.target.closest('.dropzone[data-side][data-slot]');
+    if (dz && !dz.contains(activeDragSourceEl)) {
+      const crossesMember = dz.dataset.side !== activeDragData.fromSide;
+      updateDragArrow(activeDragSourceEl, dz, crossesMember);
+    } else {
+      hideDragArrow();
+    }
   });
 
   // Gestione zone di rilascio (dropzones)
@@ -480,7 +598,6 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
       touchDragClone.style.left = `${e.clientX}px`;
       touchDragClone.style.top = `${e.clientY}px`;
 
-      // Trova l'elemento sotto il dito
       const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
       const dropzone = elemBelow ? elemBelow.closest('.dropzone') : null;
 
@@ -493,6 +610,10 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
         dropzone.classList.add('dropzone-hover');
         const slot = dropzone.querySelector('.drop-slot');
         if (slot) slot.classList.add('drop-slot-hover');
+        const crossesMember = dropzone.dataset.side !== activeDragData?.fromSide;
+        updateDragArrow(token, dropzone, crossesMember);
+      } else {
+        hideDragArrow();
       }
     });
 
@@ -507,6 +628,7 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
       }
       touchDragClone = null;
       container.classList.remove('is-dragging-equation');
+      hideDragArrow();
 
       if (dropzone && activeDragData) {
         const targetSide = dropzone.dataset.side;
@@ -542,6 +664,7 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
       touchDragClone = null;
       container.classList.remove('is-dragging-equation');
       clearDropzonesHighlight(container);
+      hideDragArrow();
       activeDragData = null;
       draggedElem = null;
     });

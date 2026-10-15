@@ -18,7 +18,7 @@ import {
 import { getExplanation } from './explanations.js';
 import { renderEquation, prettyVar } from './render.js';
 import { RULES } from './rules.js';
-import { setupEquationDragAndDrop, highlightDropzones, clearDropzonesHighlight, applyDragMove } from './dragdrop.js';
+import { setupEquationDragAndDrop, highlightDropzones, clearDropzonesHighlight, applyDragMove, initDragArrow, updateDragArrow, hideDragArrow } from './dragdrop.js';
 import { runAllTests, formatTestResults } from './tests.js';
 import {
   latexToSyntax, LatexError,
@@ -150,6 +150,10 @@ function init() {
   bindStorageEvents();
   renderMyFormulas();
   if (dom.crossLayer) dom.crossLayer.hidden = false;
+  const arrowCard = dom.equationDisplay
+    ? (dom.equationDisplay.closest('.equation-display-card') || dom.equationDisplay.parentElement)
+    : null;
+  if (arrowCard) initDragArrow(arrowCard);
   loadFormula(getFormulaById('v-st'), 't');
 }
 
@@ -591,6 +595,7 @@ function exitClickDragMode() {
   dom.equationDisplay.classList.remove('is-dragging-equation', 'is-click-drag-mode');
   dom.equationDisplay.querySelectorAll('.token-in-flight').forEach((el) => el.classList.remove('token-in-flight'));
   clearDropzonesHighlight(dom.equationDisplay);
+  hideDragArrow();
 }
 
 function applyClickDragToDropzone(dz) {
@@ -667,6 +672,18 @@ function attachDropzoneClickHandlers() {
       if (dz.dataset.side === state.clickDragToken.fromSide) return;
       e.stopPropagation();
       applyClickDragToDropzone(dz);
+    });
+
+    // Freccia dinamica durante click-drag: aggiorna a seconda di dove si vola
+    dz.addEventListener('mouseenter', () => {
+      if (!state.clickDragToken) return;
+      const tokenEl = dom.equationDisplay.querySelector('.token-in-flight');
+      if (!tokenEl) return;
+      const crossesMember = dz.dataset.side !== state.clickDragToken.fromSide;
+      updateDragArrow(tokenEl, dz, crossesMember);
+    });
+    dz.addEventListener('mouseleave', () => {
+      if (state.clickDragToken) hideDragArrow();
     });
   });
 }

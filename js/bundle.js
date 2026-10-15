@@ -5304,10 +5304,95 @@
       error: `Mossa non valida per ${prettyName}. Rilascia sul denominatore per dividere o nello slot accanto per trasportare il termine.`
     };
   }
+  var _arrowContainer = null;
+  var _arrowPath = null;
+  var _arrowHideTimer = null;
+  function initDragArrow(cardEl) {
+    if (!cardEl) return;
+    if (_arrowSvg && _arrowSvg.parentNode) _arrowSvg.parentNode.removeChild(_arrowSvg);
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("class", "drag-arrow-overlay");
+    svg.setAttribute("aria-hidden", "true");
+    svg.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:90";
+    const defs = document.createElementNS(NS, "defs");
+    const marker = document.createElementNS(NS, "marker");
+    marker.setAttribute("id", "drag-arrowhead");
+    marker.setAttribute("markerWidth", "9");
+    marker.setAttribute("markerHeight", "7");
+    marker.setAttribute("refX", "8");
+    marker.setAttribute("refY", "3.5");
+    marker.setAttribute("orient", "auto");
+    const tip = document.createElementNS(NS, "polygon");
+    tip.setAttribute("points", "0 0, 9 3.5, 0 7");
+    tip.setAttribute("fill", "#ef4444");
+    marker.appendChild(tip);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+    const path = document.createElementNS(NS, "path");
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "#ef4444");
+    path.setAttribute("stroke-width", "2.5");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("marker-end", "url(#drag-arrowhead)");
+    path.style.visibility = "hidden";
+    path.style.opacity = "0";
+    svg.appendChild(path);
+    if (getComputedStyle(cardEl).position === "static") cardEl.style.position = "relative";
+    cardEl.appendChild(svg);
+    _arrowContainer = cardEl;
+    _arrowPath = path;
+  }
+  function updateDragArrow(sourceEl, targetEl, crossesMember) {
+    if (!_arrowPath || !_arrowContainer || !sourceEl || !targetEl) return;
+    if (_arrowHideTimer) {
+      clearTimeout(_arrowHideTimer);
+      _arrowHideTimer = null;
+    }
+    const cR = _arrowContainer.getBoundingClientRect();
+    const sR = sourceEl.getBoundingClientRect();
+    const tR = targetEl.getBoundingClientRect();
+    const x1 = sR.left + sR.width / 2 - cR.left;
+    const y1 = sR.top + sR.height / 2 - cR.top;
+    const x2 = tR.left + tR.width / 2 - cR.left;
+    const y2 = tR.top + tR.height / 2 - cR.top;
+    const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
+    const shorten = Math.min(12, len * 0.15);
+    const ex = x2 - (x2 - x1) / len * shorten;
+    const ey = y2 - (y2 - y1) / len * shorten;
+    let d;
+    if (!crossesMember) {
+      const dx = (ex - x1) / 3;
+      const dy = (ey - y1) / 3;
+      d = `M ${x1} ${y1} C ${x1 + dx} ${y1 + dy} ${x1 + 2 * dx} ${y1 + 2 * dy} ${ex} ${ey}`;
+    } else {
+      const midX = (x1 + ex) / 2;
+      const arcH = 64;
+      const topY = Math.min(y1, ey) - arcH;
+      d = `M ${x1} ${y1} C ${midX} ${topY} ${midX} ${topY} ${ex} ${ey}`;
+    }
+    try {
+      _arrowPath.style.d = `path("${d}")`;
+    } catch (_) {
+    }
+    _arrowPath.setAttribute("d", d);
+    _arrowPath.style.visibility = "visible";
+    _arrowPath.style.opacity = "0.88";
+  }
+  function hideDragArrow() {
+    if (!_arrowPath) return;
+    if (_arrowHideTimer) clearTimeout(_arrowHideTimer);
+    _arrowPath.style.opacity = "0";
+    _arrowHideTimer = setTimeout(() => {
+      if (_arrowPath) _arrowPath.style.visibility = "hidden";
+      _arrowHideTimer = null;
+    }, 320);
+  }
   var activeDragData = null;
   var touchDragClone = null;
   function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEquation }) {
     if (!container) return;
+    let activeDragSourceEl = null;
     container.querySelectorAll(".draggable-token").forEach((token) => {
       token.setAttribute("draggable", "true");
       token.addEventListener("dragstart", (e) => {
@@ -5317,6 +5402,7 @@
         const fromSlot = token.dataset.slot || "num";
         const nodeType = token.dataset.nodeType || "Var";
         activeDragData = { varName, fromSide, fromSlot, nodeType };
+        activeDragSourceEl = token;
         if (e.dataTransfer) {
           e.dataTransfer.setData("text/plain", JSON.stringify(activeDragData));
           e.dataTransfer.effectAllowed = "move";
@@ -5329,8 +5415,20 @@
         token.classList.remove("is-being-dragged");
         container.classList.remove("is-dragging-equation");
         clearDropzonesHighlight(container);
+        hideDragArrow();
         activeDragData = null;
+        activeDragSourceEl = null;
       });
+    });
+    container.addEventListener("dragover", (e) => {
+      if (!activeDragData || !activeDragSourceEl) return;
+      const dz = e.target.closest(".dropzone[data-side][data-slot]");
+      if (dz && !dz.contains(activeDragSourceEl)) {
+        const crossesMember = dz.dataset.side !== activeDragData.fromSide;
+        updateDragArrow(activeDragSourceEl, dz, crossesMember);
+      } else {
+        hideDragArrow();
+      }
     });
     container.querySelectorAll(".dropzone").forEach((dropzone) => {
       dropzone.addEventListener("dragover", (e) => {
@@ -5448,6 +5546,10 @@
           dropzone.classList.add("dropzone-hover");
           const slot = dropzone.querySelector(".drop-slot");
           if (slot) slot.classList.add("drop-slot-hover");
+          const crossesMember = dropzone.dataset.side !== activeDragData?.fromSide;
+          updateDragArrow(token, dropzone, crossesMember);
+        } else {
+          hideDragArrow();
         }
       });
       token.addEventListener("pointerup", (e) => {
@@ -5459,6 +5561,7 @@
         }
         touchDragClone = null;
         container.classList.remove("is-dragging-equation");
+        hideDragArrow();
         if (dropzone && activeDragData) {
           const targetSide = dropzone.dataset.side;
           const targetSlot = dropzone.dataset.slot;
@@ -5489,6 +5592,7 @@
         touchDragClone = null;
         container.classList.remove("is-dragging-equation");
         clearDropzonesHighlight(container);
+        hideDragArrow();
         activeDragData = null;
         draggedElem = null;
       });
@@ -6385,6 +6489,8 @@
     bindStorageEvents();
     renderMyFormulas();
     if (dom.crossLayer) dom.crossLayer.hidden = false;
+    const arrowCard = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") || dom.equationDisplay.parentElement : null;
+    if (arrowCard) initDragArrow(arrowCard);
     loadFormula(getFormulaById("v-st"), "t");
   }
   function populateTopics() {
@@ -6778,6 +6884,7 @@
     dom.equationDisplay.classList.remove("is-dragging-equation", "is-click-drag-mode");
     dom.equationDisplay.querySelectorAll(".token-in-flight").forEach((el) => el.classList.remove("token-in-flight"));
     clearDropzonesHighlight(dom.equationDisplay);
+    hideDragArrow();
   }
   function applyClickDragToDropzone(dz) {
     if (!state.clickDragToken) return;
@@ -6857,6 +6964,16 @@
         if (dz.dataset.side === state.clickDragToken.fromSide) return;
         e.stopPropagation();
         applyClickDragToDropzone(dz);
+      });
+      dz.addEventListener("mouseenter", () => {
+        if (!state.clickDragToken) return;
+        const tokenEl = dom.equationDisplay.querySelector(".token-in-flight");
+        if (!tokenEl) return;
+        const crossesMember = dz.dataset.side !== state.clickDragToken.fromSide;
+        updateDragArrow(tokenEl, dz, crossesMember);
+      });
+      dz.addEventListener("mouseleave", () => {
+        if (state.clickDragToken) hideDragArrow();
       });
     });
   }
