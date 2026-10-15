@@ -167,9 +167,6 @@ export function availableActions(eq, element, target) {
   // --- Se è un fattore moltiplicativo: trasporto come divisore ---
   if (element.role === 'fattore' || element.role === 'membro' || element.role === 'numeratore') {
     const member = side === 'left' ? eq.left : eq.right;
-    const factList = factorsOf(member);
-    const isFactor = factList.length > 1 || (factList.length === 1 && !equivalentExpr(factList[0], member)) === false;
-    // consideriamo "fattore" se il membro è un prodotto con almeno 2 fattori
     const memberU = unwrap(member);
     if (memberU.type === 'Mul' && memberU.args.length >= 2) {
       const found = memberU.args.some((f) => equivalentExpr(f, node));
@@ -183,7 +180,6 @@ export function availableActions(eq, element, target) {
         });
       }
     }
-    // se il fattore è il denominatore di una frazione su questo membro
   }
 
   // --- Se è un denominatore: moltiplica entrambi i membri per esso ---
@@ -382,12 +378,6 @@ function hasZeroDenominator(node) {
     default:
       return false;
   }
-}
-
-function factorsOf(node) {
-  node = unwrap(node);
-  if (node.type === 'Mul') return node.args;
-  return [node];
 }
 
 // Determina il nodo-funzione trascendente da invertire a partire dall'elemento

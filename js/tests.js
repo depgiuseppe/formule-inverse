@@ -8,7 +8,7 @@
 //  - il raggiungimento dell'obiettivo.
 
 import { parseEquation, parseExpression, ParseError } from './parser.js';
-import { toPretty, toLatex, equivalentEq, unwrap, collectVars, clone, canonical } from './ast.js';
+import { toPretty, toLatex, equivalentEq, unwrap, collectVars, clone, canonical, Sin, Ln, Var } from './ast.js';
 import { renderEquation, prettyVar } from './render.js';
 import { applyDragMove } from './dragdrop.js';
 import { RULES, applyRule } from './rules.js';
@@ -447,6 +447,40 @@ export function runAllTests() {
 
   results.push(test('Risoluzione: ingrandimento G = -q/p isola p', () =>
     autoResolve('G = -q/p', 'p')));
+
+  // ---- Regole non ancora coperte direttamente ----
+  results.push(test('Regola: addBoth x = 5 aggiunge 3 → x + 3 = 5 + 3', () =>
+    checkRule('addBoth', 'x = 5', { value: expr('3'), valueText: '3' }, 'x + 3 = 5 + 3')));
+
+  results.push(test('Regola: subBoth x + a = b sottrae a → x + a - a = b - a', () =>
+    checkRule('subBoth', 'x + a = b', { value: expr('a'), valueText: 'a' }, 'x + a - a = b - a')));
+
+  results.push(test('Regola: invertFunction sin(x) = a → x = asin(a)', () => {
+    const res = applyRule(RULES.invertFunction, eq('sin(x) = a'), { side: 'left', fnNode: Sin(Var('x')) });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    return equivalentEq(res.equation, eq('x = asin(a)')) ? true
+      : 'atteso x = asin(a), ottenuto ' + toPretty(res.equation, 0);
+  }));
+
+  results.push(test('Regola: invertFunction ln(x) = a → x = exp(a)', () => {
+    const res = applyRule(RULES.invertFunction, eq('ln(x) = a'), { side: 'left', fnNode: Ln(Var('x')) });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    return equivalentEq(res.equation, eq('x = exp(a)')) ? true
+      : 'atteso x = exp(a), ottenuto ' + toPretty(res.equation, 0);
+  }));
+
+  results.push(test('Regola: factorCommon m*v - m*v0 = J → m*(v-v0) = J', () => {
+    const res = applyRule(RULES.factorCommon, eq('m*v - m*v0 = J'), { side: 'left', common: Var('m'), commonText: 'm' });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    return equivalentEq(res.equation, eq('m*(v - v0) = J')) ? true
+      : 'atteso m*(v-v0) = J, ottenuto ' + toPretty(res.equation, 0);
+  }));
+
+  results.push(test('Risoluzione: sin(theta) = F/G isola theta', () =>
+    autoResolve('sin(theta) = F/G', 'theta')));
+
+  results.push(test('Risoluzione: ln(x) = a isola x', () =>
+    autoResolve('ln(x) = a', 'x')));
 
   results.push(test('Risoluzione: nessuna equazione va in ciclo infinito', () => {
     // Ogni passo deve cambiare davvero l'equazione: se il motore riproponesse

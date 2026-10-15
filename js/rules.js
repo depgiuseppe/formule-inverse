@@ -845,10 +845,6 @@ export function conditionText(node, relation) {
   return `${toPretty(unwrap(node), 0)} ${relation}`;
 }
 
-function negText(text) {
-  return `(−${text})`;
-}
-
 // ---------------------------------------------------------------------------
 // Registro delle regole esposte all'interfaccia
 // ---------------------------------------------------------------------------

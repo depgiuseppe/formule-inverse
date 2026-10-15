@@ -1899,8 +1899,6 @@
     }
     if (element.role === "fattore" || element.role === "membro" || element.role === "numeratore") {
       const member2 = side === "left" ? eq2.left : eq2.right;
-      const factList = factorsOf2(member2);
-      const isFactor = factList.length > 1 || (factList.length === 1 && !equivalentExpr(factList[0], member2)) === false;
       const memberU = unwrap(member2);
       if (memberU.type === "Mul" && memberU.args.length >= 2) {
         const found = memberU.args.some((f) => equivalentExpr(f, node));
@@ -2084,11 +2082,6 @@
       default:
         return false;
     }
-  }
-  function factorsOf2(node) {
-    node = unwrap(node);
-    if (node.type === "Mul") return node.args;
-    return [node];
   }
   function funcNodeOf(element, side, eq2) {
     const node = unwrap(element.node);
@@ -5802,6 +5795,25 @@
     results.push(test("Risoluzione: F = G*(m1*m2)/r^2 isola r", () => autoResolve("F = G*(m1*m2)/r^2", "r")));
     results.push(test("Risoluzione: p = (1/2)*rho*v^2 + rho*g*z isola rho", () => autoResolve("p = (1/2)*rho*v^2 + rho*g*z", "rho")));
     results.push(test("Risoluzione: ingrandimento G = -q/p isola p", () => autoResolve("G = -q/p", "p")));
+    results.push(test("Regola: addBoth x = 5 aggiunge 3 \u2192 x + 3 = 5 + 3", () => checkRule("addBoth", "x = 5", { value: expr("3"), valueText: "3" }, "x + 3 = 5 + 3")));
+    results.push(test("Regola: subBoth x + a = b sottrae a \u2192 x + a - a = b - a", () => checkRule("subBoth", "x + a = b", { value: expr("a"), valueText: "a" }, "x + a - a = b - a")));
+    results.push(test("Regola: invertFunction sin(x) = a \u2192 x = asin(a)", () => {
+      const res = applyRule(RULES.invertFunction, eq("sin(x) = a"), { side: "left", fnNode: Sin(Var("x")) });
+      if (!res.ok) return "rifiutata: " + res.error;
+      return equivalentEq(res.equation, eq("x = asin(a)")) ? true : "atteso x = asin(a), ottenuto " + toPretty(res.equation, 0);
+    }));
+    results.push(test("Regola: invertFunction ln(x) = a \u2192 x = exp(a)", () => {
+      const res = applyRule(RULES.invertFunction, eq("ln(x) = a"), { side: "left", fnNode: Ln(Var("x")) });
+      if (!res.ok) return "rifiutata: " + res.error;
+      return equivalentEq(res.equation, eq("x = exp(a)")) ? true : "atteso x = exp(a), ottenuto " + toPretty(res.equation, 0);
+    }));
+    results.push(test("Regola: factorCommon m*v - m*v0 = J \u2192 m*(v-v0) = J", () => {
+      const res = applyRule(RULES.factorCommon, eq("m*v - m*v0 = J"), { side: "left", common: Var("m"), commonText: "m" });
+      if (!res.ok) return "rifiutata: " + res.error;
+      return equivalentEq(res.equation, eq("m*(v - v0) = J")) ? true : "atteso m*(v-v0) = J, ottenuto " + toPretty(res.equation, 0);
+    }));
+    results.push(test("Risoluzione: sin(theta) = F/G isola theta", () => autoResolve("sin(theta) = F/G", "theta")));
+    results.push(test("Risoluzione: ln(x) = a isola x", () => autoResolve("ln(x) = a", "x")));
     results.push(test("Risoluzione: nessuna equazione va in ciclo infinito", () => {
       const casi = ["v = s/t", "Req = (R1*R2)/(R1+R2)", "h = v0^2/(2*g)", "U = -G*(M*m)/r"];
       for (const f of casi) {
@@ -6262,6 +6274,13 @@
       dom.libraryTopic.appendChild(opt);
     }
   }
+  var parsedFormulaCache = /* @__PURE__ */ new Map();
+  function parseFormulaCached(formulaStr) {
+    if (!parsedFormulaCache.has(formulaStr)) {
+      parsedFormulaCache.set(formulaStr, parseEquation(formulaStr));
+    }
+    return parsedFormulaCache.get(formulaStr);
+  }
   function renderLibrary() {
     const topic = dom.libraryTopic ? dom.libraryTopic.value : "";
     const search = dom.librarySearch ? dom.librarySearch.value.trim() : "";
@@ -6284,7 +6303,7 @@
       const dif = "\u2605".repeat(f.difficulty) + "\u2606".repeat(5 - f.difficulty);
       let mathHtml = "";
       try {
-        mathHtml = renderEquation(parseEquation(f.formula), {});
+        mathHtml = renderEquation(parseFormulaCached(f.formula), {});
       } catch (e) {
         mathHtml = escapeHtml3(f.formula);
       }
@@ -6336,7 +6355,7 @@
     }
     dom.pickTargetFormulaName.textContent = formulaEntry.name;
     try {
-      dom.pickTargetFormulaPreview.innerHTML = renderEquation(parseEquation(formulaEntry.formula), {});
+      dom.pickTargetFormulaPreview.innerHTML = renderEquation(parseFormulaCached(formulaEntry.formula), {});
     } catch {
       dom.pickTargetFormulaPreview.textContent = formulaEntry.formula;
     }

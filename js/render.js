@@ -239,12 +239,6 @@ function renderNode(node, id, opts) {
   }
 }
 
-function renderArgs(args, id, type, opts, sep) {
-  return args
-    .map((a, i) => renderNode(a, id + '/' + type + i, opts))
-    .join(`<span class="op">${sep.trim()}</span>`);
-}
-
 // Prodotto: usa il punto mediano, oppure giustapposizione per le variabili.
 function renderMulArgs(args, id, opts) {
   return args

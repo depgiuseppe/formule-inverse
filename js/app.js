@@ -163,6 +163,14 @@ function populateTopics() {
 // ---------------------------------------------------------------------------
 // A. Libreria
 // ---------------------------------------------------------------------------
+const parsedFormulaCache = new Map();
+function parseFormulaCached(formulaStr) {
+  if (!parsedFormulaCache.has(formulaStr)) {
+    parsedFormulaCache.set(formulaStr, parseEquation(formulaStr));
+  }
+  return parsedFormulaCache.get(formulaStr);
+}
+
 function renderLibrary() {
   const topic = dom.libraryTopic ? dom.libraryTopic.value : '';
   const search = dom.librarySearch ? dom.librarySearch.value.trim() : '';
@@ -187,7 +195,7 @@ function renderLibrary() {
     const dif = '★'.repeat(f.difficulty) + '☆'.repeat(5 - f.difficulty);
     let mathHtml = '';
     try {
-      mathHtml = renderEquation(parseEquation(f.formula), {});
+      mathHtml = renderEquation(parseFormulaCached(f.formula), {});
     } catch (e) {
       mathHtml = escapeHtml(f.formula);
     }
@@ -240,7 +248,7 @@ function openPickTargetModal(formulaEntry) {
   }
   dom.pickTargetFormulaName.textContent = formulaEntry.name;
   try {
-    dom.pickTargetFormulaPreview.innerHTML = renderEquation(parseEquation(formulaEntry.formula), {});
+    dom.pickTargetFormulaPreview.innerHTML = renderEquation(parseFormulaCached(formulaEntry.formula), {});
   } catch {
     dom.pickTargetFormulaPreview.textContent = formulaEntry.formula;
   }
