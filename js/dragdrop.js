@@ -44,13 +44,33 @@ export function removeFactorFromExpr(expr, targetVarName) {
   if (isMatch(expr, targetVarName)) {
     return Num(1);
   }
+  if (expr.type === 'Neg') {
+    // Forma canonica: Neg(Mul(2,a,s)) quando l'utente trascina '2'
+    const inner = removeFactorFromExpr(expr.arg, targetVarName);
+    if (inner === expr.arg) return expr;
+    return { type: 'Neg', arg: inner };
+  }
   if (expr.type === 'Mul') {
-    const idx = expr.args.findIndex((a) => isMatch(a, targetVarName));
+    // Ricerca diretta del fattore
+    let idx = expr.args.findIndex((a) => isMatch(a, targetVarName));
     if (idx !== -1) {
       const remaining = expr.args.filter((_, i) => i !== idx);
       if (remaining.length === 0) return Num(1);
       if (remaining.length === 1) return remaining[0];
       return Mul(...remaining);
+    }
+    // Caso Num(-x): il costruttore Neg(Num(x)) crea Num(-x) direttamente.
+    // L'utente trascina il '2' visivo da Num(-2) → cerchiamo Num con valore negativo
+    // il cui modulo corrisponde a targetVarName. Es. Num(-2) con varName='2'.
+    // Dividendo per 2 il coefficiente diventa -1: Mul(Num(-1), a, s) → canonical → -a·s
+    idx = expr.args.findIndex((a) => {
+      const u = unwrap(a);
+      return u.type === 'Num' && u.value < 0 && String(-u.value) === String(targetVarName);
+    });
+    if (idx !== -1) {
+      const newArgs = expr.args.map((a, i) => i === idx ? Num(-1) : a);
+      if (newArgs.length === 1) return newArgs[0];
+      return Mul(...newArgs);
     }
   }
   if (expr.type === 'Div') {
@@ -223,13 +243,11 @@ export function applyDragMove({ currentEq, varName, nodeType, fromSide, fromSlot
 
     const newEq = Eq(canonical(leftExpr), canonical(rightExpr));
     return {
-      ok: true,
+      ok: true, principle: 'second',
       newEq,
       ruleName: `Trasporto di ${prettyName} a moltiplicare`,
       rulePrinciple: `Secondo principio di equivalenza: moltiplicando entrambi i membri per ${prettyName}, ${prettyName} si semplifica al denominatore e compare al numeratore dall'altro membro.`,
-      steps: [
-        `Trascino ${prettyName} dal denominatore al numeratore dell'altro membro (moltiplico entrambi i membri per ${prettyName}).`,
-      ],
+      steps: [`Trascino ${prettyName} dal denominatore al numeratore dell'altro membro (moltiplico entrambi i membri per ${prettyName}).`],
       conditions: [`${varName} ≠ 0`],
     };
   }
@@ -256,13 +274,11 @@ export function applyDragMove({ currentEq, varName, nodeType, fromSide, fromSlot
 
     const newEq = Eq(canonical(leftExpr), canonical(rightExpr));
     return {
-      ok: true,
+      ok: true, principle: 'second',
       newEq,
       ruleName: `Trasporto di ${prettyName} al denominatore`,
       rulePrinciple: `Secondo principio di equivalenza: dividendo entrambi i membri per ${prettyName}, compare la linea di frazione e ${prettyName} va al denominatore (${varName} ≠ 0).`,
-      steps: [
-        `Trascino ${prettyName} dal numeratore al denominatore dell'altro membro: compare la linea di frazione e divido entrambi i membri per ${prettyName}.`,
-      ],
+      steps: [`Trascino ${prettyName} dal numeratore al denominatore dell'altro membro: compare la linea di frazione e divido entrambi i membri per ${prettyName}.`],
       conditions: [`${varName} ≠ 0`],
     };
   }
@@ -279,7 +295,7 @@ export function applyDragMove({ currentEq, varName, nodeType, fromSide, fromSlot
       const newEq = Eq(unwrap(newL), unwrap(newR));
       const opText = additiveRes.sign === '-' ? `sommo ${prettyName}` : `sottraggo ${prettyName}`;
       return {
-        ok: true,
+        ok: true, principle: 'first',
         newEq,
         ruleName: `Trasporto del termine ${prettyName} (cambio segno)`,
         rulePrinciple: `Primo principio di equivalenza: spostando un termine additivo all'altro membro, esso cambia di segno (${opText} a entrambi i membri).`,

@@ -520,6 +520,10 @@ function applyKeypadMove(opId, operandNode, operandText) {
     return;
   }
 
+  // Suono in base all'operazione
+  if (opId === 'add' || opId === 'sub') playSoundTransport();
+  else playSoundFraction();
+
   state.currentEq = newEq;
   state.conditions = mergeConditions(state.conditions, res.conditions || []);
   state.selectedId = null;
@@ -755,8 +759,7 @@ function crossPickToken(id, element) {
 }
 
 function dissolveThenApplyCross(idA, idB, res) {
-  clearCrossMarks();
-  clearPreview();
+  clearCrossMarks(); clearPreview(); playSoundExplosion();
 
   // Anima in dissolvi gli elementi selezionati
   const elA = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idA)}"]`);
@@ -944,7 +947,10 @@ function applyDragResult(result) {
     return;
   }
 
-  // Mossa valida: applica immediatamente l'equazione trasformata
+  // Mossa valida: suono + applica
+  if (result.principle === 'first') playSoundTransport();
+  else playSoundFraction();
+
   clearPreview();
   state.currentEq = result.newEq;
   state.conditions = mergeConditions(state.conditions, result.conditions || []);
@@ -996,6 +1002,7 @@ function applyDragResult(result) {
 // La matematica dell'operazione è in reciprocals.js, testabile da Node.
 function applyReciprocalRule() {
   if (!state.currentEq) return;
+  playSoundFraction();
   const eq = state.currentEq;
   const res = reciprocalEquation(eq);
 
@@ -1216,6 +1223,8 @@ function confirmMove() {
   // CASO 2: Azione da barra comandi
   const { action, result } = state.pendingMove;
 
+  playSoundForRule(action.ruleKey);
+
   state.currentEq = result.equation;
   state.conditions = mergeConditions(state.conditions, result.conditions || []);
   state.selectedId = null;
@@ -1266,6 +1275,7 @@ function flashTokenRejected(varName, side) {
 }
 
 function showInvalidMove(error, hint, action) {
+  playSoundInvalid();
   const parts = [];
   parts.push('Mossa non valida: ' + error);
   if (hint) parts.push('Suggerimento: ' + hint);
@@ -1559,6 +1569,7 @@ function bindWorkAreaEvents() {
 
 function applyMirrorRule() {
   if (!state.currentEq) return;
+  playSoundTransport();
   const newEq = Eq(clone(state.currentEq.right), clone(state.currentEq.left));
   state.currentEq = newEq;
   state.selectedId = null;
@@ -1867,6 +1878,121 @@ function playSuccessChime() {
       osc.stop(ctx.currentTime + idx * 0.1 + 0.35);
     });
   } catch (e) {}
+}
+
+// ---------------------------------------------------------------------------
+// Suoni di interazione
+// ---------------------------------------------------------------------------
+function _audioCtx() {
+  try {
+    const C = window.AudioContext || window.webkitAudioContext;
+    return C ? new C() : null;
+  } catch { return null; }
+}
+
+// 1° principio: whoosh ascendente (la variabile scavalca il segno =)
+function playSoundTransport() {
+  try {
+    const ctx = _audioCtx(); if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(260, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(580, ctx.currentTime + 0.12);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.28);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.32);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.35);
+  } catch {}
+}
+
+// 2° principio: snap bitonale (moltiplicazione/divisione/semplificazione)
+function playSoundFraction() {
+  try {
+    const ctx = _audioCtx(); if (!ctx) return;
+    [[440, 0, 0.15], [880, 0.02, 0.12]].forEach(([freq, delay, dur]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.14, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + dur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + dur);
+    });
+  } catch {}
+}
+
+// Mossa non valida: buzz discendente
+function playSoundInvalid() {
+  try {
+    const ctx = _audioCtx(); if (!ctx) return;
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc1.type = 'sawtooth'; osc1.frequency.setValueAtTime(200, ctx.currentTime);
+    osc1.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.35);
+    osc2.type = 'sawtooth'; osc2.frequency.setValueAtTime(213, ctx.currentTime);
+    osc2.frequency.exponentialRampToValueAtTime(64, ctx.currentTime + 0.35);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.38);
+    [osc1, osc2].forEach(o => { o.connect(gain); o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.4); });
+    gain.connect(ctx.destination);
+  } catch {}
+}
+
+// Semplificazione con croce: esplosione (noise burst + boom)
+function playSoundExplosion() {
+  try {
+    const ctx = _audioCtx(); if (!ctx) return;
+    const sr = ctx.sampleRate;
+    const dur = 0.55;
+
+    // Rumore bianco filtrato (esplosione)
+    const buf = ctx.createBuffer(1, sr * dur, sr);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.setValueAtTime(1200, ctx.currentTime);
+    filt.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.45);
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.55, ctx.currentTime);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+    noise.connect(filt); filt.connect(noiseGain); noiseGain.connect(ctx.destination);
+    noise.start(ctx.currentTime);
+
+    // Boom basso
+    const boom = ctx.createOscillator();
+    const boomGain = ctx.createGain();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(140, ctx.currentTime);
+    boom.frequency.exponentialRampToValueAtTime(28, ctx.currentTime + 0.4);
+    boomGain.gain.setValueAtTime(0.55, ctx.currentTime);
+    boomGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.42);
+    boom.connect(boomGain); boomGain.connect(ctx.destination);
+    boom.start(ctx.currentTime); boom.stop(ctx.currentTime + 0.45);
+
+    // Crepitio iniziale (click attack)
+    const click = ctx.createOscillator();
+    const clickGain = ctx.createGain();
+    click.type = 'square'; click.frequency.value = 80;
+    clickGain.gain.setValueAtTime(0.4, ctx.currentTime);
+    clickGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.04);
+    click.connect(clickGain); clickGain.connect(ctx.destination);
+    click.start(ctx.currentTime); click.stop(ctx.currentTime + 0.05);
+  } catch {}
+}
+
+// Quali ruleKey corrispondono al 1° principio
+const _FIRST_PRINCIPLE = new Set(['moveTerm', 'addBoth', 'subBoth', 'swapSides']);
+function playSoundForRule(ruleKey) {
+  if (_FIRST_PRINCIPLE.has(ruleKey)) playSoundTransport();
+  else playSoundFraction();
 }
 
 function copyFormulaText() {

@@ -5097,13 +5097,27 @@
     if (isMatch(expr2, targetVarName)) {
       return Num(1);
     }
+    if (expr2.type === "Neg") {
+      const inner = removeFactorFromExpr(expr2.arg, targetVarName);
+      if (inner === expr2.arg) return expr2;
+      return { type: "Neg", arg: inner };
+    }
     if (expr2.type === "Mul") {
-      const idx = expr2.args.findIndex((a) => isMatch(a, targetVarName));
+      let idx = expr2.args.findIndex((a) => isMatch(a, targetVarName));
       if (idx !== -1) {
         const remaining = expr2.args.filter((_, i) => i !== idx);
         if (remaining.length === 0) return Num(1);
         if (remaining.length === 1) return remaining[0];
         return Mul(...remaining);
+      }
+      idx = expr2.args.findIndex((a) => {
+        const u = unwrap(a);
+        return u.type === "Num" && u.value < 0 && String(-u.value) === String(targetVarName);
+      });
+      if (idx !== -1) {
+        const newArgs = expr2.args.map((a, i) => i === idx ? Num(-1) : a);
+        if (newArgs.length === 1) return newArgs[0];
+        return Mul(...newArgs);
       }
     }
     if (expr2.type === "Div") {
@@ -5239,12 +5253,11 @@
       const newEq = Eq(canonical(leftExpr), canonical(rightExpr));
       return {
         ok: true,
+        principle: "second",
         newEq,
         ruleName: `Trasporto di ${prettyName} a moltiplicare`,
         rulePrinciple: `Secondo principio di equivalenza: moltiplicando entrambi i membri per ${prettyName}, ${prettyName} si semplifica al denominatore e compare al numeratore dall'altro membro.`,
-        steps: [
-          `Trascino ${prettyName} dal denominatore al numeratore dell'altro membro (moltiplico entrambi i membri per ${prettyName}).`
-        ],
+        steps: [`Trascino ${prettyName} dal denominatore al numeratore dell'altro membro (moltiplico entrambi i membri per ${prettyName}).`],
         conditions: [`${varName} \u2260 0`]
       };
     }
@@ -5267,12 +5280,11 @@
       const newEq = Eq(canonical(leftExpr), canonical(rightExpr));
       return {
         ok: true,
+        principle: "second",
         newEq,
         ruleName: `Trasporto di ${prettyName} al denominatore`,
         rulePrinciple: `Secondo principio di equivalenza: dividendo entrambi i membri per ${prettyName}, compare la linea di frazione e ${prettyName} va al denominatore (${varName} \u2260 0).`,
-        steps: [
-          `Trascino ${prettyName} dal numeratore al denominatore dell'altro membro: compare la linea di frazione e divido entrambi i membri per ${prettyName}.`
-        ],
+        steps: [`Trascino ${prettyName} dal numeratore al denominatore dell'altro membro: compare la linea di frazione e divido entrambi i membri per ${prettyName}.`],
         conditions: [`${varName} \u2260 0`]
       };
     }
@@ -5287,6 +5299,7 @@
         const opText = additiveRes.sign === "-" ? `sommo ${prettyName}` : `sottraggo ${prettyName}`;
         return {
           ok: true,
+          principle: "first",
           newEq,
           ruleName: `Trasporto del termine ${prettyName} (cambio segno)`,
           rulePrinciple: `Primo principio di equivalenza: spostando un termine additivo all'altro membro, esso cambia di segno (${opText} a entrambi i membri).`,
@@ -5914,6 +5927,23 @@
     results.push(test("Notazione: la differenza si scrive v \u2212 v0, non v + -1\xB7v0", () => {
       const s = toPretty(canonical(eq("a = (v - v0)/t")), 0);
       return s.includes("+ -") || s.includes("\u2212 -") ? `ottenuto ${s}` : true;
+    }));
+    results.push(test("Drag: trasporto fattore 2 da coefficiente negativo Num(-2) al denominatore", () => {
+      const e = eq("-2*a*s = b");
+      const r = applyDragMove({
+        currentEq: e,
+        varName: "2",
+        nodeType: "Num",
+        fromSide: "left",
+        fromSlot: "num",
+        targetSide: "right",
+        targetSlot: "den"
+      });
+      if (!r.ok) return `rifiutata: ${r.error}`;
+      const leftText = toPretty(r.newEq.left, 0);
+      if (leftText.includes("2")) return `Num(-2) non rimosso: ${leftText}`;
+      const rightText = toPretty(r.newEq.right, 0);
+      return rightText.includes("2") ? true : `2 non al denominatore destro: ${rightText}`;
     }));
     results.push(test("Notazione: nessuna parentesi ridondante sul membro isolato", () => {
       const r = applyDragMove({
@@ -6816,6 +6846,8 @@
       showMessage("Questa operazione non cambia l'equazione: prova un'altra trasformazione.", "info");
       return;
     }
+    if (opId === "add" || opId === "sub") playSoundTransport();
+    else playSoundFraction();
     state.currentEq = newEq;
     state.conditions = mergeConditions(state.conditions, res.conditions || []);
     state.selectedId = null;
@@ -7033,6 +7065,7 @@
   function dissolveThenApplyCross(idA, idB, res) {
     clearCrossMarks();
     clearPreview();
+    playSoundExplosion();
     const elA = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idA)}"]`);
     const elB = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idB)}"]`);
     [elA, elB].forEach((el) => {
@@ -7153,6 +7186,8 @@
       showInvalidMove(result.error, "Verifica di aver applicato correttamente il primo o secondo principio di equivalenza.", { label: result.ruleName || "Trasporto" });
       return;
     }
+    if (result.principle === "first") playSoundTransport();
+    else playSoundFraction();
     clearPreview();
     state.currentEq = result.newEq;
     state.conditions = mergeConditions(state.conditions, result.conditions || []);
@@ -7195,6 +7230,7 @@
   }
   function applyReciprocalRule() {
     if (!state.currentEq) return;
+    playSoundFraction();
     const eq2 = state.currentEq;
     const res = reciprocalEquation(eq2);
     if (!res.ok) {
@@ -7397,6 +7433,7 @@
       return;
     }
     const { action, result } = state.pendingMove;
+    playSoundForRule(action.ruleKey);
     state.currentEq = result.equation;
     state.conditions = mergeConditions(state.conditions, result.conditions || []);
     state.selectedId = null;
@@ -7442,6 +7479,7 @@
     setTimeout(() => el.classList.remove("token-rejected"), 600);
   }
   function showInvalidMove(error, hint, action) {
+    playSoundInvalid();
     const parts = [];
     parts.push("Mossa non valida: " + error);
     if (hint) parts.push("Suggerimento: " + hint);
@@ -7705,6 +7743,7 @@
   }
   function applyMirrorRule() {
     if (!state.currentEq) return;
+    playSoundTransport();
     const newEq = Eq(clone(state.currentEq.right), clone(state.currentEq.left));
     state.currentEq = newEq;
     state.selectedId = null;
@@ -8015,6 +8054,128 @@
       });
     } catch (e) {
     }
+  }
+  function _audioCtx() {
+    try {
+      const C = window.AudioContext || window.webkitAudioContext;
+      return C ? new C() : null;
+    } catch {
+      return null;
+    }
+  }
+  function playSoundTransport() {
+    try {
+      const ctx = _audioCtx();
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(260, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(580, ctx.currentTime + 0.12);
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.28);
+      gain.gain.setValueAtTime(1e-4, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.06);
+      gain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + 0.32);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.35);
+    } catch {
+    }
+  }
+  function playSoundFraction() {
+    try {
+      const ctx = _audioCtx();
+      if (!ctx) return;
+      [[440, 0, 0.15], [880, 0.02, 0.12]].forEach(([freq, delay, dur]) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.14, ctx.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + delay + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + delay);
+        osc.stop(ctx.currentTime + delay + dur);
+      });
+    } catch {
+    }
+  }
+  function playSoundInvalid() {
+    try {
+      const ctx = _audioCtx();
+      if (!ctx) return;
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc1.type = "sawtooth";
+      osc1.frequency.setValueAtTime(200, ctx.currentTime);
+      osc1.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.35);
+      osc2.type = "sawtooth";
+      osc2.frequency.setValueAtTime(213, ctx.currentTime);
+      osc2.frequency.exponentialRampToValueAtTime(64, ctx.currentTime + 0.35);
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + 0.38);
+      [osc1, osc2].forEach((o) => {
+        o.connect(gain);
+        o.start(ctx.currentTime);
+        o.stop(ctx.currentTime + 0.4);
+      });
+      gain.connect(ctx.destination);
+    } catch {
+    }
+  }
+  function playSoundExplosion() {
+    try {
+      const ctx = _audioCtx();
+      if (!ctx) return;
+      const sr = ctx.sampleRate;
+      const dur = 0.55;
+      const buf = ctx.createBuffer(1, sr * dur, sr);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      const noise = ctx.createBufferSource();
+      noise.buffer = buf;
+      const filt = ctx.createBiquadFilter();
+      filt.type = "lowpass";
+      filt.frequency.setValueAtTime(1200, ctx.currentTime);
+      filt.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.45);
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.55, ctx.currentTime);
+      noiseGain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + 0.5);
+      noise.connect(filt);
+      filt.connect(noiseGain);
+      noiseGain.connect(ctx.destination);
+      noise.start(ctx.currentTime);
+      const boom = ctx.createOscillator();
+      const boomGain = ctx.createGain();
+      boom.type = "sine";
+      boom.frequency.setValueAtTime(140, ctx.currentTime);
+      boom.frequency.exponentialRampToValueAtTime(28, ctx.currentTime + 0.4);
+      boomGain.gain.setValueAtTime(0.55, ctx.currentTime);
+      boomGain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + 0.42);
+      boom.connect(boomGain);
+      boomGain.connect(ctx.destination);
+      boom.start(ctx.currentTime);
+      boom.stop(ctx.currentTime + 0.45);
+      const click = ctx.createOscillator();
+      const clickGain = ctx.createGain();
+      click.type = "square";
+      click.frequency.value = 80;
+      clickGain.gain.setValueAtTime(0.4, ctx.currentTime);
+      clickGain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + 0.04);
+      click.connect(clickGain);
+      clickGain.connect(ctx.destination);
+      click.start(ctx.currentTime);
+      click.stop(ctx.currentTime + 0.05);
+    } catch {
+    }
+  }
+  var _FIRST_PRINCIPLE = /* @__PURE__ */ new Set(["moveTerm", "addBoth", "subBoth", "swapSides"]);
+  function playSoundForRule(ruleKey) {
+    if (_FIRST_PRINCIPLE.has(ruleKey)) playSoundTransport();
+    else playSoundFraction();
   }
   function copyFormulaText() {
     if (!state.currentEq) return;

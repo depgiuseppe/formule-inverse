@@ -332,6 +332,22 @@ export function runAllTests() {
     return s.includes('+ -') || s.includes('− -') ? `ottenuto ${s}` : true;
   }));
 
+  results.push(test('Drag: trasporto fattore 2 da coefficiente negativo Num(-2) al denominatore', () => {
+    // -2*a*s = b: Neg(Num(2)) → Num(-2) per il costruttore Neg.
+    // L'utente trascina il '2' visivo: varName='2', ma il fattore nel Mul è Num(-2).
+    // Dopo il fix: left diventa -a·s, right diventa b/2.
+    const e = eq('-2*a*s = b');
+    const r = applyDragMove({
+      currentEq: e, varName: '2', nodeType: 'Num',
+      fromSide: 'left', fromSlot: 'num', targetSide: 'right', targetSlot: 'den',
+    });
+    if (!r.ok) return `rifiutata: ${r.error}`;
+    const leftText = toPretty(r.newEq.left, 0);
+    if (leftText.includes('2')) return `Num(-2) non rimosso: ${leftText}`;
+    const rightText = toPretty(r.newEq.right, 0);
+    return rightText.includes('2') ? true : `2 non al denominatore destro: ${rightText}`;
+  }));
+
   results.push(test('Notazione: nessuna parentesi ridondante sul membro isolato', () => {
     const r = applyDragMove({
       currentEq: eq('P = p0 + d*g*h'),
