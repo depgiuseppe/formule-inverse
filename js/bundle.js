@@ -1318,12 +1318,353 @@
       return {
         ok: false,
         error: "il reciproco di una somma di frazioni NON \xE8 la somma dei reciproci: 1/(A/B + C/D) \u2260 B/A + D/C.",
-        hint: "Riduci prima la somma a denominatore comune: solo allora potrai invertire i due membri."
+        hint: `Usa il tasto "\u{1F9EE} Denominatore comune (m.c.m.)" per sommare le frazioni in un'unica frazione: solo allora potrai invertire i due membri.`
       };
     }
     return {
       ok: true,
       newEq: Eq(reciprocalOfMember(eq2.left), reciprocalOfMember(eq2.right))
+    };
+  }
+
+  // js/common-denom.js
+  function gcd2(a, b) {
+    a = Math.abs(a);
+    b = Math.abs(b);
+    while (b) {
+      const t = a % b;
+      a = b;
+      b = t;
+    }
+    return a || 1;
+  }
+  function lcm(a, b) {
+    if (a === 0 || b === 0) return 0;
+    return Math.abs(a * b) / gcd2(a, b);
+  }
+  var isOne2 = (node) => {
+    const u = unwrap(node);
+    return u.type === "Num" && u.value === 1;
+  };
+  function termAsFraction(node) {
+    let sign = 1;
+    let curr = unwrap(node);
+    while (curr.type === "Neg") {
+      sign = -sign;
+      curr = unwrap(curr.arg);
+    }
+    if (curr.type === "Num" && curr.value < 0) {
+      sign = -sign;
+      curr = Num(-curr.value);
+    }
+    const frac = memberAsFraction(curr);
+    return {
+      sign,
+      num: frac.num,
+      den: frac.den,
+      hasDen: !isOne2(frac.den)
+    };
+  }
+  function decomposeDenominator(node) {
+    let curr = unwrap(node);
+    while (curr.type === "Group") curr = unwrap(curr.arg);
+    let coeff = 1;
+    const factors = /* @__PURE__ */ new Map();
+    function addFactor(factorNode, power = 1) {
+      const u = unwrap(factorNode);
+      if (u.type === "Num") {
+        if (Number.isInteger(u.value) && u.value > 0) {
+          coeff *= u.value;
+        }
+        return;
+      }
+      if (u.type === "Pow" && u.exp.type === "Num" && Number.isInteger(u.exp.value) && u.exp.value > 0) {
+        addFactor(u.base, power * u.exp.value);
+        return;
+      }
+      const key = toPretty(u, 0);
+      const existing = factors.get(key);
+      if (existing) {
+        existing.power += power;
+      } else {
+        factors.set(key, { node: clone(u), power });
+      }
+    }
+    if (curr.type === "Num") {
+      if (Number.isInteger(curr.value) && curr.value > 0) coeff = curr.value;
+    } else if (curr.type === "Mul") {
+      for (const arg of curr.args) {
+        addFactor(arg);
+      }
+    } else {
+      addFactor(curr);
+    }
+    return { coeff, factors };
+  }
+  function computeLcmDenominator(decomposedList) {
+    let totalCoeff = 1;
+    const maxPowers = /* @__PURE__ */ new Map();
+    for (const dec of decomposedList) {
+      totalCoeff = lcm(totalCoeff, dec.coeff);
+      for (const [key, item] of dec.factors.entries()) {
+        const existing = maxPowers.get(key);
+        if (!existing || existing.power < item.power) {
+          maxPowers.set(key, { node: clone(item.node), power: item.power });
+        }
+      }
+    }
+    const factors = [];
+    if (totalCoeff > 1) {
+      factors.push(Num(totalCoeff));
+    }
+    for (const item of maxPowers.values()) {
+      if (item.power === 1) {
+        factors.push(item.node);
+      } else {
+        factors.push(Pow(item.node, Num(item.power)));
+      }
+    }
+    const lcmNode = factors.length === 0 ? Num(1) : factors.length === 1 ? factors[0] : Mul(...factors);
+    return { totalCoeff, maxPowers, lcmNode };
+  }
+  function computeQuotient(totalCoeff, maxPowers, dec) {
+    const mult = [];
+    const numQuotient = totalCoeff / dec.coeff;
+    if (numQuotient > 1) {
+      mult.push(Num(numQuotient));
+    }
+    for (const [key, item] of maxPowers.entries()) {
+      const present = dec.factors.get(key);
+      const presentPower = present ? present.power : 0;
+      const diff = item.power - presentPower;
+      if (diff > 0) {
+        if (diff === 1) {
+          mult.push(clone(item.node));
+        } else {
+          mult.push(Pow(clone(item.node), Num(diff)));
+        }
+      }
+    }
+    if (mult.length === 0) return Num(1);
+    if (mult.length === 1) return mult[0];
+    return Mul(...mult);
+  }
+  function multiplyNumerator(num, quotient) {
+    if (isOne2(quotient)) return clone(num);
+    if (isOne2(num)) return clone(quotient);
+    const uNum = unwrap(num);
+    const uQ = unwrap(quotient);
+    if (uNum.type === "Mul" && uQ.type === "Mul") {
+      return Mul(...uNum.args, ...uQ.args);
+    }
+    if (uNum.type === "Mul") {
+      return Mul(...uNum.args, quotient);
+    }
+    if (uQ.type === "Mul") {
+      return Mul(num, ...uQ.args);
+    }
+    return Mul(num, quotient);
+  }
+  function getAdditiveTerms(node) {
+    const u = unwrap(node);
+    if (u.type === "Add") {
+      const res = [];
+      for (const a of u.args) {
+        res.push(...getAdditiveTerms(a));
+      }
+      return res;
+    }
+    if (u.type === "Sub") {
+      const res = [];
+      const firstTerms = getAdditiveTerms(u.args[0]);
+      res.push(...firstTerms);
+      for (let i = 1; i < u.args.length; i++) {
+        const subTerms = getAdditiveTerms(u.args[i]);
+        for (const t of subTerms) {
+          res.push({ sign: -t.sign, node: t.node });
+        }
+      }
+      return res;
+    }
+    if (u.type === "Neg") {
+      const inner = getAdditiveTerms(u.arg);
+      return inner.map((t) => ({ sign: -t.sign, node: t.node }));
+    }
+    return [{ sign: 1, node: u }];
+  }
+  function reduceAdditiveTermsToCommonDenominator(node) {
+    const rawTerms = getAdditiveTerms(node);
+    if (rawTerms.length === 0) return node;
+    const terms = rawTerms.map((t) => {
+      const reducedNode = reduceToSingleFraction(t.node);
+      const frac = termAsFraction(reducedNode);
+      return {
+        sign: t.sign * frac.sign,
+        num: frac.num,
+        den: frac.den,
+        hasDen: frac.hasDen
+      };
+    });
+    const anyFraction = terms.some((t) => t.hasDen);
+    if (!anyFraction) {
+      if (terms.length === 1) {
+        const single = terms[0];
+        return single.sign < 0 ? canonical(Neg(single.num)) : canonical(single.num);
+      }
+      const pos = terms.filter((t) => t.sign > 0).map((t) => t.num);
+      const neg = terms.filter((t) => t.sign < 0).map((t) => t.num);
+      if (neg.length === 0) return canonical(Add(...pos));
+      if (pos.length === 0) return canonical(Neg(neg.length === 1 ? neg[0] : Add(...neg)));
+      const pNode = pos.length === 1 ? pos[0] : Add(...pos);
+      const nNode = neg.length === 1 ? neg[0] : Add(...neg);
+      return canonical(Sub(pNode, nNode));
+    }
+    const decList = terms.map((t) => decomposeDenominator(t.den));
+    const { totalCoeff, maxPowers, lcmNode } = computeLcmDenominator(decList);
+    const posTerms = [];
+    const negTerms = [];
+    for (let i = 0; i < terms.length; i++) {
+      const t = terms[i];
+      const dec = decList[i];
+      const q = computeQuotient(totalCoeff, maxPowers, dec);
+      const newNum = canonical(multiplyNumerator(t.num, q));
+      if (t.sign > 0) {
+        posTerms.push(newNum);
+      } else {
+        negTerms.push(newNum);
+      }
+    }
+    let totalNumNode;
+    if (negTerms.length === 0) {
+      totalNumNode = posTerms.length === 1 ? posTerms[0] : Add(...posTerms);
+    } else if (posTerms.length === 0) {
+      const negInner = negTerms.length === 1 ? negTerms[0] : Add(...negTerms);
+      totalNumNode = Neg(negInner);
+    } else {
+      const pNode = posTerms.length === 1 ? posTerms[0] : Add(...posTerms);
+      const nNode = negTerms.length === 1 ? negTerms[0] : Add(...negTerms);
+      totalNumNode = Sub(pNode, nNode);
+    }
+    const resFrac = Div(totalNumNode, lcmNode);
+    return canonical(resFrac);
+  }
+  function reduceToSingleFraction(node) {
+    if (!node) return node;
+    const u = unwrap(node);
+    if (u.type === "Add" || u.type === "Sub") {
+      return reduceAdditiveTermsToCommonDenominator(u);
+    }
+    if (u.type === "Neg") {
+      const red = reduceToSingleFraction(u.arg);
+      return canonical(Neg(red));
+    }
+    if (u.type === "Group") {
+      const red = reduceToSingleFraction(u.arg);
+      return Group(red);
+    }
+    if (u.type === "Div") {
+      const numRed = reduceToSingleFraction(u.num);
+      const denRed = reduceToSingleFraction(u.den);
+      const fNum = termAsFraction(numRed);
+      const fDen = termAsFraction(denRed);
+      const totalSign = fNum.sign * fDen.sign;
+      const finalNum = canonical(multiplyNumerator(fNum.num, fDen.den));
+      const finalDen = canonical(multiplyNumerator(fNum.den, fDen.num));
+      if (isOne2(finalDen)) {
+        return totalSign < 0 ? canonical(Neg(finalNum)) : finalNum;
+      }
+      const frac = Div(finalNum, finalDen);
+      return totalSign < 0 ? canonical(Neg(frac)) : canonical(frac);
+    }
+    if (u.type === "Mul") {
+      const redArgs = u.args.map(reduceToSingleFraction);
+      const nums = [];
+      const dens = [];
+      let sign = 1;
+      for (const a of redArgs) {
+        const f = termAsFraction(a);
+        sign *= f.sign;
+        if (!isOne2(f.num)) nums.push(f.num);
+        if (!isOne2(f.den)) dens.push(f.den);
+      }
+      const numNode = nums.length === 0 ? Num(1) : nums.length === 1 ? nums[0] : Mul(...nums);
+      const denNode = dens.length === 0 ? Num(1) : dens.length === 1 ? dens[0] : Mul(...dens);
+      if (isOne2(denNode)) {
+        return sign < 0 ? canonical(Neg(numNode)) : canonical(numNode);
+      }
+      const frac = Div(numNode, denNode);
+      return sign < 0 ? canonical(Neg(frac)) : canonical(frac);
+    }
+    if (u.type === "Pow") {
+      return canonical(Pow(reduceToSingleFraction(u.base), reduceToSingleFraction(u.exp)));
+    }
+    if (u.type === "Sqrt") {
+      return canonical(Sqrt(reduceToSingleFraction(u.arg)));
+    }
+    return node;
+  }
+  function canReduceToSingleFraction(node) {
+    if (!node) return false;
+    const u = unwrap(node);
+    if (u.type === "Add" || u.type === "Sub") {
+      const terms = getAdditiveTerms(u);
+      if (terms.some((t) => termAsFraction(t.node).hasDen)) return true;
+      return terms.some((t) => canReduceToSingleFraction(t.node));
+    }
+    if (u.type === "Div") {
+      const fNum = termAsFraction(u.num);
+      const fDen = termAsFraction(u.den);
+      if (fNum.hasDen || fDen.hasDen) return true;
+      if (canReduceToSingleFraction(u.num) || canReduceToSingleFraction(u.den)) return true;
+    }
+    if (u.type === "Mul") {
+      return u.args.some(canReduceToSingleFraction);
+    }
+    if (u.type === "Neg" || u.type === "Group" || u.type === "Sqrt") {
+      return canReduceToSingleFraction(u.arg);
+    }
+    if (u.type === "Pow") {
+      return canReduceToSingleFraction(u.base) || canReduceToSingleFraction(u.exp);
+    }
+    return false;
+  }
+  function reduceEquationToCommonDenominator(eq2, chosenSide = null) {
+    if (!eq2 || eq2.type !== "Eq") {
+      return { ok: false, error: "Nessuna equazione valida fornita." };
+    }
+    const leftCan = canReduceToSingleFraction(eq2.left);
+    const rightCan = canReduceToSingleFraction(eq2.right);
+    if (!leftCan && !rightCan) {
+      return {
+        ok: false,
+        error: "Non ci sono somme di frazioni o frazioni composte da ridurre a denominatore comune.",
+        hint: "La formula \xE8 gi\xE0 espressa in frazioni semplici o termini interi."
+      };
+    }
+    let newLeft = eq2.left;
+    let newRight = eq2.right;
+    const steps = [];
+    if (chosenSide === "left" && leftCan) {
+      newLeft = reduceToSingleFraction(eq2.left);
+      steps.push(`Riduco a denominatore comune (m.c.m.) al primo membro: ${toPretty(eq2.left, 0)} \u2192 ${toPretty(newLeft, 0)}.`);
+    } else if (chosenSide === "right" && rightCan) {
+      newRight = reduceToSingleFraction(eq2.right);
+      steps.push(`Riduco a denominatore comune (m.c.m.) al secondo membro: ${toPretty(eq2.right, 0)} \u2192 ${toPretty(newRight, 0)}.`);
+    } else {
+      if (leftCan) {
+        newLeft = reduceToSingleFraction(eq2.left);
+        steps.push(`Riduco a denominatore comune (m.c.m.) al primo membro: ${toPretty(eq2.left, 0)} \u2192 ${toPretty(newLeft, 0)}.`);
+      }
+      if (rightCan) {
+        newRight = reduceToSingleFraction(eq2.right);
+        steps.push(`Riduco a denominatore comune (m.c.m.) al secondo membro: ${toPretty(eq2.right, 0)} \u2192 ${toPretty(newRight, 0)}.`);
+      }
+    }
+    const newEq = Eq(newLeft, newRight);
+    return {
+      ok: true,
+      newEq,
+      steps
     };
   }
 
@@ -1841,6 +2182,24 @@
       };
     }
   };
+  var ruleCommonDenominator = {
+    id: "common-denom",
+    name: "Minimo comune multiplo (m.c.m.) e denominatore comune",
+    principle: "Somma di frazioni mediante il minimo comune multiplo (m.c.m.) dei denominatori: A/B + C/D = (A\xB7D + B\xB7C)/(B\xB7D), e semplificazione delle frazioni composte in un'unica frazione.",
+    explanation: null,
+    apply(eq2, ctx = {}) {
+      const side = ctx.side || null;
+      const res = reduceEquationToCommonDenominator(eq2, side);
+      if (!res.ok) {
+        throw new RuleError(res.error, res.hint);
+      }
+      return {
+        equation: res.newEq,
+        conditions: [],
+        steps: res.steps
+      };
+    }
+  };
   function Pm() {
     return Var("\xB1");
   }
@@ -2132,7 +2491,8 @@
     distribute: ruleDistribute,
     factorCommon: ruleFactorCommon,
     cancelFactor: ruleCancelFactor,
-    invertFunction: ruleInvertFunction
+    invertFunction: ruleInvertFunction,
+    commonDenom: ruleCommonDenominator
   };
   function applyRule(rule, eq2, ctx = {}) {
     try {
@@ -8205,6 +8565,64 @@
       }
       return true;
     }));
+    results.push(test("m.c.m.: somma di frazioni 1/R1 + 1/R2 diventa (R1 + R2)/(R1\xB7R2)", () => {
+      const expr2 = Add(Div(Num(1), Var("R_1")), Div(Num(1), Var("R_2")));
+      const res = reduceToSingleFraction(expr2);
+      const pretty = toPretty(res, 0);
+      return pretty === "(R_1 + R_2)/(R_1\xB7R_2)" ? true : `atteso (R_1 + R_2)/(R_1\xB7R_2), ottenuto: ${pretty}`;
+    }));
+    results.push(test("m.c.m.: somma frazione e termine intero A/B + C diventa (A + B\xB7C)/B", () => {
+      const expr2 = Add(Div(Var("A"), Var("B")), Var("C"));
+      const res = reduceToSingleFraction(expr2);
+      const pretty = toPretty(res, 0);
+      return pretty === "(A + B\xB7C)/B" ? true : `atteso (A + B\xB7C)/B, ottenuto: ${pretty}`;
+    }));
+    results.push(test("m.c.m.: differenza termine e frazione A - B/C diventa (A\xB7C \u2212 B)/C", () => {
+      const expr2 = Sub(Var("A"), Div(Var("B"), Var("C")));
+      const res = reduceToSingleFraction(expr2);
+      const pretty = toPretty(res, 0);
+      return pretty === "(A\xB7C \u2212 B)/C" ? true : `atteso (A\xB7C \u2212 B)/C, ottenuto: ${pretty}`;
+    }));
+    results.push(test("m.c.m.: frazione con denominatori numerici x/2 + y/4 diventa (y + 2\xB7x)/4", () => {
+      const expr2 = Add(Div(Var("x"), Num(2)), Div(Var("y"), Num(4)));
+      const res = reduceToSingleFraction(expr2);
+      const pretty = toPretty(res, 0);
+      return pretty === "(y + 2\xB7x)/4" ? true : `atteso (y + 2\xB7x)/4, ottenuto: ${pretty}`;
+    }));
+    results.push(test("m.c.m.: doppia frazione con somma al denominatore 1 / (1/R1 + 1/R2) diventa R1\xB7R2/(R1 + R2)", () => {
+      const expr2 = Div(Num(1), Add(Div(Num(1), Var("R_1")), Div(Num(1), Var("R_2"))));
+      const res = reduceToSingleFraction(expr2);
+      const pretty = toPretty(res, 0);
+      return pretty === "R_1\xB7R_2/(R_1 + R_2)" ? true : `atteso R_1\xB7R_2/(R_1 + R_2), ottenuto: ${pretty}`;
+    }));
+    results.push(test("m.c.m.: frazione di frazione semplice v / (s/t) diventa t\xB7v/s", () => {
+      const expr2 = Div(Var("v"), Div(Var("s"), Var("t")));
+      const res = reduceToSingleFraction(expr2);
+      const pretty = toPretty(res, 0);
+      return pretty === "t\xB7v/s" ? true : `atteso t\xB7v/s, ottenuto: ${pretty}`;
+    }));
+    results.push(test("Regola: commonDenom applicata a 1/Req = 1/R1 + 1/R2 produce 1/Req = (R1 + R2)/(R1\xB7R2)", () => {
+      const e = eq("1/Req = 1/R1 + 1/R2");
+      const res = applyRule(RULES.commonDenom, e, { side: "right" });
+      if (!res.ok) return "regola commonDenom rifiutata: " + res.error;
+      const pretty = toPretty(res.equation, 0);
+      return pretty === "1/Req = (R1 + R2)/(R1\xB7R2)" ? true : `atteso 1/Req = (R1 + R2)/(R1\xB7R2), ottenuto: ${pretty}`;
+    }));
+    results.push(test("Risoluzione completa: 1/Req = 1/R1 + 1/R2 con commonDenom + reciproco isola Req", () => {
+      const e = eq("1/Req = 1/R1 + 1/R2");
+      const step1 = applyRule(RULES.commonDenom, e, { side: "right" });
+      if (!step1.ok) return "passo 1 fallito: " + step1.error;
+      const step2 = reciprocalEquation(step1.equation);
+      if (!step2.ok) return "passo 2 fallito: " + step2.error;
+      const finalPretty = toPretty(step2.newEq, 0);
+      const goal = isGoalReached(step2.newEq, "Req");
+      return goal && finalPretty === "Req = R1\xB7R2/(R1 + R2)" ? true : `atteso Req = R1\xB7R2/(R1 + R2), ottenuto: ${finalPretty}`;
+    }));
+    results.push(test("Regola: commonDenom rifiutata se l'equazione \xE8 gi\xE0 a frazione semplice", () => {
+      const e = eq("v = s/t");
+      const res = applyRule(RULES.commonDenom, e);
+      return !res.ok && res.error.includes("denominatore comune") ? true : "doveva rifiutare v = s/t";
+    }));
     return results;
   }
   function formatTestResults(results) {
@@ -8604,6 +9022,7 @@
     btnReciprocal: $("#btn-reciprocal"),
     btnDistribute: $("#btn-distribute"),
     btnFactorCommon: $("#btn-factor-common"),
+    btnCommonDenom: $("#btn-common-denom"),
     btnChangeSign: $("#btn-change-sign"),
     btnCross: $("#btn-cross"),
     compoundFractionBanner: $("#compound-fraction-banner"),
@@ -9979,6 +10398,70 @@
       showAutoMode();
     }
   }
+  function applyCommonDenominatorRule() {
+    if (!state.currentEq) return;
+    const eq2 = state.currentEq;
+    let chosenSide = null;
+    if (state.selectedId) {
+      const selInfo = analyseElementId(state.selectedId);
+      if (selInfo && selInfo.side) chosenSide = selInfo.side;
+    }
+    const res = reduceEquationToCommonDenominator(eq2, chosenSide);
+    if (!res.ok) {
+      showInvalidMove(res.error, res.hint, { label: "Minimo comune multiplo (m.c.m.)" });
+      return;
+    }
+    const newEq = res.newEq;
+    if (equivalentEq(newEq, eq2)) {
+      showMessage("L'equazione \xE8 gi\xE0 espressa a denominatore comune.", "info");
+      return;
+    }
+    playSoundFraction();
+    if (dom.equationDisplay) {
+      dom.equationDisplay.classList.add("sign-flip-pulse");
+      setTimeout(() => {
+        if (dom.equationDisplay) dom.equationDisplay.classList.remove("sign-flip-pulse");
+      }, 450);
+    }
+    state.currentEq = newEq;
+    state.selectedId = null;
+    clearPreview();
+    const rule = RULES.commonDenom;
+    pushHistory({
+      equation: clone(newEq),
+      ruleName: rule.name,
+      rulePrinciple: rule.principle,
+      ruleId: "common-denom",
+      steps: res.steps,
+      conditions: state.conditions.slice(),
+      explanationKey: null,
+      note: null,
+      verified: true
+    }, false);
+    updateObjective();
+    renderEquationView();
+    showRulePanel(rule, { steps: res.steps, conditions: [] }, newEq);
+    clearMessage();
+    showMessage("\u{1F9EE} Frazioni ridotte a denominatore comune (m.c.m.) in un'unica frazione!", "success");
+    if (state.targetVar && isolatedSide(newEq.right, state.targetVar) && !collectVars(newEq.left).has(state.targetVar)) {
+      const swapped = Eq(newEq.right, newEq.left);
+      setTimeout(() => {
+        animateMirrorSwap(newEq, swapped, () => {
+          state.currentEq = swapped;
+          renderEquationView();
+          updateObjective();
+        });
+      }, 200);
+    }
+    if (state.goalReached) {
+      if (checkAndAnimateCompoundFraction()) return;
+      playSuccessChime();
+      spawnVictoryConfetti();
+      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
+    } else if (state.mode === "auto") {
+      showAutoMode();
+    }
+  }
   function applyChangeSignRule() {
     if (!state.currentEq) return;
     playSoundTransport();
@@ -10912,6 +11395,7 @@
     if (dom.btnReciprocal) dom.btnReciprocal.addEventListener("click", applyReciprocalRule);
     if (dom.btnDistribute) dom.btnDistribute.addEventListener("click", applyDistributeRule);
     if (dom.btnFactorCommon) dom.btnFactorCommon.addEventListener("click", applyFactorCommonRule);
+    if (dom.btnCommonDenom) dom.btnCommonDenom.addEventListener("click", applyCommonDenominatorRule);
     if (dom.btnChangeSign) dom.btnChangeSign.addEventListener("click", applyChangeSignRule);
     if (dom.btnCross) dom.btnCross.addEventListener("click", () => toggleCrossMode());
     bindCrossDrag();

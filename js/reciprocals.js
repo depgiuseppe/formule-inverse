@@ -83,7 +83,7 @@ export function reciprocalEquation(eq) {
     return {
       ok: false,
       error: 'il reciproco di una somma di frazioni NON è la somma dei reciproci: 1/(A/B + C/D) ≠ B/A + D/C.',
-      hint: 'Riduci prima la somma a denominatore comune: solo allora potrai invertire i due membri.',
+      hint: 'Usa il tasto "🧮 Denominatore comune (m.c.m.)" per sommare le frazioni in un\'unica frazione: solo allora potrai invertire i due membri.',
     };
   }
   return {

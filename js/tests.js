@@ -19,7 +19,8 @@ import { applyKeypadOperation } from './operations.js';
 import { filterFormulas, FORMULAS } from './formulas.js';
 import { getQuantityInfo, formatResultNumber } from './physics-units.js';
 import { hasCompoundFraction, transformToReciprocalMul, getCompoundFractionSteps } from './compound-fraction.js';
-import { Div, Sub, Mul, Neg, Eq } from './ast.js';
+import { reduceToSingleFraction, canReduceToSingleFraction, reduceEquationToCommonDenominator } from './common-denom.js';
+import { Div, Sub, Mul, Neg, Eq, Add } from './ast.js';
 
 let counter = 0;
 function test(name, fn) {
@@ -1223,6 +1224,76 @@ export function runAllTests() {
       return 'ritorno errato: ' + toPretty(r3.newEq, 0);
     }
     return true;
+  }));
+
+  // ---- Denominatore comune (m.c.m.) e frazioni composte ----
+  results.push(test('m.c.m.: somma di frazioni 1/R1 + 1/R2 diventa (R1 + R2)/(R1·R2)', () => {
+    const expr = Add(Div(Num(1), Var('R_1')), Div(Num(1), Var('R_2')));
+    const res = reduceToSingleFraction(expr);
+    const pretty = toPretty(res, 0);
+    return pretty === '(R_1 + R_2)/(R_1·R_2)' ? true : `atteso (R_1 + R_2)/(R_1·R_2), ottenuto: ${pretty}`;
+  }));
+
+  results.push(test('m.c.m.: somma frazione e termine intero A/B + C diventa (A + B·C)/B', () => {
+    const expr = Add(Div(Var('A'), Var('B')), Var('C'));
+    const res = reduceToSingleFraction(expr);
+    const pretty = toPretty(res, 0);
+    return pretty === '(A + B·C)/B' ? true : `atteso (A + B·C)/B, ottenuto: ${pretty}`;
+  }));
+
+  results.push(test('m.c.m.: differenza termine e frazione A - B/C diventa (A·C − B)/C', () => {
+    const expr = Sub(Var('A'), Div(Var('B'), Var('C')));
+    const res = reduceToSingleFraction(expr);
+    const pretty = toPretty(res, 0);
+    return pretty === '(A·C − B)/C' ? true : `atteso (A·C − B)/C, ottenuto: ${pretty}`;
+  }));
+
+  results.push(test('m.c.m.: frazione con denominatori numerici x/2 + y/4 diventa (y + 2·x)/4', () => {
+    const expr = Add(Div(Var('x'), Num(2)), Div(Var('y'), Num(4)));
+    const res = reduceToSingleFraction(expr);
+    const pretty = toPretty(res, 0);
+    return pretty === '(y + 2·x)/4' ? true : `atteso (y + 2·x)/4, ottenuto: ${pretty}`;
+  }));
+
+  results.push(test('m.c.m.: doppia frazione con somma al denominatore 1 / (1/R1 + 1/R2) diventa R1·R2/(R1 + R2)', () => {
+    const expr = Div(Num(1), Add(Div(Num(1), Var('R_1')), Div(Num(1), Var('R_2'))));
+    const res = reduceToSingleFraction(expr);
+    const pretty = toPretty(res, 0);
+    return pretty === 'R_1·R_2/(R_1 + R_2)' ? true : `atteso R_1·R_2/(R_1 + R_2), ottenuto: ${pretty}`;
+  }));
+
+  results.push(test('m.c.m.: frazione di frazione semplice v / (s/t) diventa t·v/s', () => {
+    const expr = Div(Var('v'), Div(Var('s'), Var('t')));
+    const res = reduceToSingleFraction(expr);
+    const pretty = toPretty(res, 0);
+    return pretty === 't·v/s' ? true : `atteso t·v/s, ottenuto: ${pretty}`;
+  }));
+
+  results.push(test('Regola: commonDenom applicata a 1/Req = 1/R1 + 1/R2 produce 1/Req = (R1 + R2)/(R1·R2)', () => {
+    const e = eq('1/Req = 1/R1 + 1/R2');
+    const res = applyRule(RULES.commonDenom, e, { side: 'right' });
+    if (!res.ok) return 'regola commonDenom rifiutata: ' + res.error;
+    const pretty = toPretty(res.equation, 0);
+    return pretty === '1/Req = (R1 + R2)/(R1·R2)' ? true : `atteso 1/Req = (R1 + R2)/(R1·R2), ottenuto: ${pretty}`;
+  }));
+
+  results.push(test('Risoluzione completa: 1/Req = 1/R1 + 1/R2 con commonDenom + reciproco isola Req', () => {
+    const e = eq('1/Req = 1/R1 + 1/R2');
+    // 1. Applica commonDenom al secondo membro
+    const step1 = applyRule(RULES.commonDenom, e, { side: 'right' });
+    if (!step1.ok) return 'passo 1 fallito: ' + step1.error;
+    // 2. Applica la regola dei reciproci
+    const step2 = reciprocalEquation(step1.equation);
+    if (!step2.ok) return 'passo 2 fallito: ' + step2.error;
+    const finalPretty = toPretty(step2.newEq, 0);
+    const goal = isGoalReached(step2.newEq, 'Req');
+    return goal && finalPretty === 'Req = R1·R2/(R1 + R2)' ? true : `atteso Req = R1·R2/(R1 + R2), ottenuto: ${finalPretty}`;
+  }));
+
+  results.push(test('Regola: commonDenom rifiutata se l\'equazione è già a frazione semplice', () => {
+    const e = eq('v = s/t');
+    const res = applyRule(RULES.commonDenom, e);
+    return !res.ok && res.error.includes('denominatore comune') ? true : 'doveva rifiutare v = s/t';
   }));
 
   return results;

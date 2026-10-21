@@ -15,6 +15,7 @@ import {
   isolatedSide, ensureTargetOnFirstMember,
 } from './algebra.js';
 import { hasCompoundFraction, getCompoundFractionSteps } from './compound-fraction.js';
+import { reduceEquationToCommonDenominator, canReduceToSingleFraction } from './common-denom.js';
 import {
   filterFormulas, getFormulaById, randomExercise, TOPICS,
 } from './formulas.js';
@@ -79,6 +80,7 @@ const dom = {
   btnReciprocal: $('#btn-reciprocal'),
   btnDistribute: $('#btn-distribute'),
   btnFactorCommon: $('#btn-factor-common'),
+  btnCommonDenom: $('#btn-common-denom'),
   btnChangeSign: $('#btn-change-sign'),
   btnCross: $('#btn-cross'),
   compoundFractionBanner: $('#compound-fraction-banner'),
@@ -1694,6 +1696,87 @@ function applyFactorCommonRule() {
 }
 
 // ---------------------------------------------------------------------------
+// Regola del minimo comune multiplo (m.c.m.) e denominatore comune
+// ---------------------------------------------------------------------------
+function applyCommonDenominatorRule() {
+  if (!state.currentEq) return;
+  const eq = state.currentEq;
+
+  let chosenSide = null;
+  if (state.selectedId) {
+    const selInfo = analyseElementId(state.selectedId);
+    if (selInfo && selInfo.side) chosenSide = selInfo.side;
+  }
+
+  const res = reduceEquationToCommonDenominator(eq, chosenSide);
+  if (!res.ok) {
+    showInvalidMove(res.error, res.hint, { label: 'Minimo comune multiplo (m.c.m.)' });
+    return;
+  }
+
+  const newEq = res.newEq;
+  if (equivalentEq(newEq, eq)) {
+    showMessage('L\'equazione è già espressa a denominatore comune.', 'info');
+    return;
+  }
+
+  playSoundFraction();
+
+  // Visual pulse animato sulla math-eq
+  if (dom.equationDisplay) {
+    dom.equationDisplay.classList.add('sign-flip-pulse');
+    setTimeout(() => {
+      if (dom.equationDisplay) dom.equationDisplay.classList.remove('sign-flip-pulse');
+    }, 450);
+  }
+
+  state.currentEq = newEq;
+  state.selectedId = null;
+  clearPreview();
+
+  const rule = RULES.commonDenom;
+  pushHistory({
+    equation: clone(newEq),
+    ruleName: rule.name,
+    rulePrinciple: rule.principle,
+    ruleId: 'common-denom',
+    steps: res.steps,
+    conditions: state.conditions.slice(),
+    explanationKey: null,
+    note: null,
+    verified: true,
+  }, false);
+
+  updateObjective();
+  renderEquationView();
+  showRulePanel(rule, { steps: res.steps, conditions: [] }, newEq);
+  clearMessage();
+  showMessage('🧮 Frazioni ridotte a denominatore comune (m.c.m.) in un\'unica frazione!', 'success');
+
+  // Se la variabile cercata è isolata al secondo membro, animiamo il viaggio speculare
+  if (state.targetVar && isolatedSide(newEq.right, state.targetVar) && !collectVars(newEq.left).has(state.targetVar)) {
+    const swapped = Eq(newEq.right, newEq.left);
+    setTimeout(() => {
+      animateMirrorSwap(newEq, swapped, () => {
+        state.currentEq = swapped;
+        renderEquationView();
+        updateObjective();
+      });
+    }, 200);
+  }
+
+  if (state.goalReached) {
+    if (checkAndAnimateCompoundFraction()) return;
+    playSuccessChime();
+    spawnVictoryConfetti();
+    showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
+  } else if (state.mode === 'auto') {
+    showAutoMode();
+  }
+}
+
+
+// ---------------------------------------------------------------------------
 // Regola del cambio di segno (moltiplicazione per -1 di entrambi i membri)
 // ---------------------------------------------------------------------------
 function applyChangeSignRule() {
@@ -2757,6 +2840,7 @@ function bindWorkAreaEvents() {
   if (dom.btnReciprocal) dom.btnReciprocal.addEventListener('click', applyReciprocalRule);
   if (dom.btnDistribute) dom.btnDistribute.addEventListener('click', applyDistributeRule);
   if (dom.btnFactorCommon) dom.btnFactorCommon.addEventListener('click', applyFactorCommonRule);
+  if (dom.btnCommonDenom) dom.btnCommonDenom.addEventListener('click', applyCommonDenominatorRule);
   if (dom.btnChangeSign) dom.btnChangeSign.addEventListener('click', applyChangeSignRule);
   if (dom.btnCross) dom.btnCross.addEventListener('click', () => toggleCrossMode());
   bindCrossDrag();

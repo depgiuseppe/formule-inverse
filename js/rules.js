@@ -17,6 +17,7 @@ import {
   unwrap, unwrapNeutrals, canonical, isNum, isVar, equivalentExpr, evalConst, isIdenticallyZero,
   collectVars, FUNC_INFO,
 } from './ast.js';
+import { reduceEquationToCommonDenominator, canReduceToSingleFraction } from './common-denom.js';
 
 export class RuleError extends Error {
   constructor(message, hint) {
@@ -671,6 +672,27 @@ export const ruleInvertFunction = {
   },
 };
 
+// 19) MINIMO COMUNE MULTIPLO (m.c.m.) E DENOMINATORE COMUNE PER SOMME DI FRAZIONI
+export const ruleCommonDenominator = {
+  id: 'common-denom',
+  name: 'Minimo comune multiplo (m.c.m.) e denominatore comune',
+  principle: 'Somma di frazioni mediante il minimo comune multiplo (m.c.m.) dei denominatori: A/B + C/D = (A·D + B·C)/(B·D), e semplificazione delle frazioni composte in un\'unica frazione.',
+  explanation: null,
+  apply(eq, ctx = {}) {
+    const side = ctx.side || null;
+    const res = reduceEquationToCommonDenominator(eq, side);
+    if (!res.ok) {
+      throw new RuleError(res.error, res.hint);
+    }
+    return {
+      equation: res.newEq,
+      conditions: [],
+      steps: res.steps,
+    };
+  },
+};
+
+
 // ---------------------------------------------------------------------------
 // Helper per potenze / quadrati / ±
 // ---------------------------------------------------------------------------
@@ -1032,6 +1054,7 @@ export const RULES = {
   factorCommon: ruleFactorCommon,
   cancelFactor: ruleCancelFactor,
   invertFunction: ruleInvertFunction,
+  commonDenom: ruleCommonDenominator,
 };
 
 // ---------------------------------------------------------------------------
