@@ -840,6 +840,10 @@ export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEqu
       const targetSide = dropzone.dataset.side;
       const targetSlot = dropzone.dataset.slot;
 
+      const sourceRect = activeDragSourceEl ? activeDragSourceEl.getBoundingClientRect() : null;
+      const targetRect = dropzone.getBoundingClientRect();
+      const tokenText = dragData ? (dragData.varName || '') : '';
+
       const currentEq = getCurrentEquation();
       const result = applyDragMove({
         currentEq,
@@ -855,7 +859,7 @@ export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEqu
       activeDragData = null;
 
       if (onApplyMove) {
-        onApplyMove(result);
+        onApplyMove(result, { sourceRect, targetRect, tokenText, targetSide, targetSlot, varName: dragData?.varName });
       }
     });
   });
@@ -972,6 +976,10 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
       if (dropzone && activeDragData) {
         const targetSide = dropzone.dataset.side;
         const targetSlot = dropzone.dataset.slot;
+        const sourceRect = draggedElem ? draggedElem.getBoundingClientRect() : (touchStartPos ? { left: touchStartPos.x - 20, top: touchStartPos.y - 15, width: 40, height: 30 } : null);
+        const targetRect = dropzone.getBoundingClientRect();
+        const tokenText = activeDragData ? (activeDragData.varName || '') : '';
+
         const currentEq = getCurrentEquation();
 
         const result = applyDragMove({
@@ -985,10 +993,11 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
         });
 
         clearDropzonesHighlight(container);
+        const varName = activeDragData.varName;
         activeDragData = null;
         draggedElem = null;
 
-        if (onApplyMove) onApplyMove(result);
+        if (onApplyMove) onApplyMove(result, { sourceRect, targetRect, tokenText, targetSide, targetSlot, varName });
       } else {
         clearDropzonesHighlight(container);
         activeDragData = null;

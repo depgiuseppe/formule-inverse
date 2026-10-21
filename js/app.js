@@ -398,6 +398,7 @@ function bindLibraryEvents() {
 // ---------------------------------------------------------------------------
 function loadFormula(formulaEntry, targetVar) {
   cancelCompoundFractionAnimation();
+  cancelActiveSwapAnimations();
   let eq;
   try {
     eq = parseEquation(formulaEntry.formula);
@@ -724,6 +725,149 @@ function animateOperationBadge(label, operandText) {
   setTimeout(cleanup, 1200);
 }
 
+let _isMirrorSwapping = false;
+let _currentMirrorAnims = [];
+
+function cancelActiveSwapAnimations() {
+  _isMirrorSwapping = false;
+  if (_currentMirrorAnims.length > 0) {
+    _currentMirrorAnims.forEach((a) => { try { a.cancel(); } catch (_) {} });
+    _currentMirrorAnims = [];
+  }
+}
+
+/**
+ * Anima lo scambio dei membri (Regola dello specchio) facendo viaggiare
+ * fluidamente il membro sinistro verso destra e il membro destro verso sinistra.
+ */
+function animateMirrorSwap(fromEq, toEq, onComplete) {
+  if (_isMirrorSwapping) {
+    if (onComplete) onComplete();
+    return;
+  }
+  const memberL = dom.equationDisplay ? dom.equationDisplay.querySelector('.math-member-left') : null;
+  const memberR = dom.equationDisplay ? dom.equationDisplay.querySelector('.math-member-right') : null;
+  const eqSign = dom.equationDisplay ? dom.equationDisplay.querySelector('.eq-sign') : null;
+
+  if (!memberL || !memberR) {
+    if (onComplete) onComplete();
+    return;
+  }
+
+  _isMirrorSwapping = true;
+  playSoundTransport();
+
+  const rectL = memberL.getBoundingClientRect();
+  const rectR = memberR.getBoundingClientRect();
+  const deltaX = rectR.left - rectL.left;
+
+  if (eqSign) {
+    eqSign.classList.remove('eq-sign-mirror-active');
+    void eqSign.offsetWidth;
+    eqSign.classList.add('eq-sign-mirror-active');
+  }
+
+  // Il membro sinistro viaggia verso destra descrivendo un arco superiore
+  const animL = memberL.animate([
+    { transform: 'translate(0px, 0px) scale(1)', opacity: 1 },
+    { transform: `translate(${deltaX * 0.5}px, -20px) scale(1.04)`, opacity: 0.94, offset: 0.5 },
+    { transform: `translate(${deltaX}px, 0px) scale(1)`, opacity: 1 }
+  ], {
+    duration: 260,
+    easing: 'cubic-bezier(0.25, 1, 0.4, 1)',
+    fill: 'forwards'
+  });
+
+  // Il membro destro viaggia verso sinistra descrivendo un arco inferiore
+  const animR = memberR.animate([
+    { transform: 'translate(0px, 0px) scale(1)', opacity: 1 },
+    { transform: `translate(${-deltaX * 0.5}px, 20px) scale(1.04)`, opacity: 0.94, offset: 0.5 },
+    { transform: `translate(${-deltaX}px, 0px) scale(1)`, opacity: 1 }
+  ], {
+    duration: 260,
+    easing: 'cubic-bezier(0.25, 1, 0.4, 1)',
+    fill: 'forwards'
+  });
+
+  _currentMirrorAnims = [animL, animR];
+
+  animL.onfinish = () => {
+    _isMirrorSwapping = false;
+    _currentMirrorAnims = [];
+    if (eqSign) eqSign.classList.remove('eq-sign-mirror-active');
+    if (onComplete) onComplete();
+  };
+}
+
+/**
+ * Anima il volo di una lettera / termine da sourceRect a targetRect lungo un arco sopra l'uguale.
+ */
+function animateTokenTravel(sourceRect, targetRect, tokenText, onComplete) {
+  if (!sourceRect || !targetRect) {
+    if (onComplete) onComplete();
+    return;
+  }
+
+  const flyer = document.createElement('div');
+  flyer.className = 'flying-math-token';
+  flyer.textContent = tokenText || '';
+  flyer.style.left = `${sourceRect.left}px`;
+  flyer.style.top = `${sourceRect.top}px`;
+  flyer.style.width = `${Math.max(30, sourceRect.width)}px`;
+  flyer.style.height = `${Math.max(28, sourceRect.height)}px`;
+  document.body.appendChild(flyer);
+
+  const dx = (targetRect.left + targetRect.width / 2) - (sourceRect.left + sourceRect.width / 2);
+  const dy = (targetRect.top + targetRect.height / 2) - (sourceRect.top + sourceRect.height / 2);
+  const midX = dx * 0.5;
+  const arcY = dy * 0.5 - Math.max(38, Math.min(85, Math.abs(dx) * 0.28));
+
+  const anim = flyer.animate([
+    { transform: 'translate(0px, 0px) scale(1)', opacity: 0.95 },
+    { transform: `translate(${midX}px, ${arcY}px) scale(1.25)`, opacity: 1, offset: 0.5 },
+    { transform: `translate(${dx}px, ${dy}px) scale(1)`, opacity: 0.95 }
+  ], {
+    duration: 440,
+    easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+    fill: 'forwards'
+  });
+
+  anim.onfinish = () => {
+    flyer.remove();
+    if (onComplete) onComplete();
+  };
+}
+
+/**
+ * Fa pulsare i termini evidenziando che i segni sono stati invertiti (+ <-> -).
+ */
+function flashSignChanged() {
+  if (!dom.equationDisplay) return;
+  dom.equationDisplay.querySelectorAll('.draggable-token, .node-target, .op').forEach((el) => {
+    el.classList.add('sign-flip-pulse');
+  });
+  setTimeout(() => {
+    if (dom.equationDisplay) {
+      dom.equationDisplay.querySelectorAll('.sign-flip-pulse').forEach((el) => el.classList.remove('sign-flip-pulse'));
+    }
+  }, 700);
+}
+
+/**
+ * Aggiunge un rimbalzo morbido al token appena atterrato nella nuova equazione.
+ */
+function highlightLandedToken(varName, side) {
+  if (!dom.equationDisplay || !varName) return;
+  const tokens = dom.equationDisplay.querySelectorAll(`.draggable-token[data-side="${side}"]`);
+  for (const t of tokens) {
+    if (t.dataset.varName === varName || t.textContent.trim() === varName) {
+      t.classList.add('token-landing-glow');
+      setTimeout(() => t.classList.remove('token-landing-glow'), 600);
+      break;
+    }
+  }
+}
+
 function enterClickDragMode(tokenEl) {
   const varName = tokenEl.dataset.varName;
   if (!varName || !state.currentEq) return;
@@ -756,6 +900,11 @@ function exitClickDragMode() {
 function applyClickDragToDropzone(dz) {
   if (!state.clickDragToken) return;
   const drag = state.clickDragToken;
+  const tokenEl = dom.equationDisplay.querySelector('.token-in-flight');
+  const sourceRect = tokenEl ? tokenEl.getBoundingClientRect() : null;
+  const targetRect = dz.getBoundingClientRect();
+  const tokenText = drag.varName;
+
   exitClickDragMode();
   const result = applyDragMove({
     currentEq: state.currentEq,
@@ -768,8 +917,10 @@ function applyClickDragToDropzone(dz) {
   });
   if (!result.ok) {
     flashTokenRejected(drag.varName, drag.fromSide);
+    applyDragResult(result);
+    return;
   }
-  applyDragResult(result);
+  applyDragResult(result, { sourceRect, targetRect, tokenText, targetSide: dz.dataset.side, varName: drag.varName });
 }
 
 function attachEquationHandlers() {
@@ -1203,8 +1354,8 @@ function bindCrossDrag() {
   });
 }
 
-// Callback per il drag and drop: valuta e applica immediatamente al rilascio (senza tasto di conferma)
-function applyDragResult(result) {
+// Callback per il drag and drop: valuta e applica con animazione di viaggio della lettera
+function applyDragResult(result, meta = {}) {
   if (!result || state.isAnimatingCompoundFraction) return;
 
   // Se la mossa non è valida: mostra subito l'errore spiegandone il motivo matematico
@@ -1220,17 +1371,24 @@ function applyDragResult(result) {
     return;
   }
 
+  // Se sono disponibili coordinate per l'animazione di volo, fai viaggiare la lettera!
+  if (meta.sourceRect && meta.targetRect && meta.tokenText) {
+    animateTokenTravel(meta.sourceRect, meta.targetRect, meta.tokenText, () => {
+      finalizeDragResult(result, meta);
+    });
+  } else {
+    finalizeDragResult(result, meta);
+  }
+}
+
+function finalizeDragResult(result, meta = {}) {
   // Mossa valida: suono + applica
   if (result.principle === 'first') playSoundTransport();
   else playSoundFraction();
   dismissDidacticBubble();
 
   clearPreview();
-  let nextEq = result.newEq;
-  if (isGoalReached(nextEq, state.targetVar)) {
-    nextEq = ensureTargetOnFirstMember(nextEq, state.targetVar);
-  }
-  state.currentEq = nextEq;
+  const nextEq = result.newEq;
   state.conditions = mergeConditions(state.conditions, result.conditions || []);
   state.selectedId = null;
 
@@ -1246,6 +1404,49 @@ function applyDragResult(result) {
     conditions: result.conditions || [],
   };
 
+  // Controlla se la mossa ha isolato il target sul secondo membro (membro destro)
+  const isTargetIsolatedOnRight = isolatedSide(nextEq.right, state.targetVar);
+
+  if (isTargetIsolatedOnRight) {
+    // 1. Mostra la lettera appena atterrata a destra
+    state.currentEq = nextEq;
+    renderEquationView();
+    highlightLandedToken(meta.varName, meta.targetSide);
+    showRulePanel(pseudoRule, pseudoResult, nextEq);
+    showMessage(`✓ ${result.ruleName}!`, 'success');
+
+    // 2. Dopo 420ms avvia l'animazione specchio fluida per portarla al primo membro
+    setTimeout(() => {
+      const flipped = ensureTargetOnFirstMember(state.currentEq, state.targetVar);
+      if (flipped !== state.currentEq) {
+        animateMirrorSwap(state.currentEq, flipped, () => {
+          state.currentEq = flipped;
+          state.goalReached = true;
+          pushHistory({
+            equation: clone(flipped),
+            ruleName: 'Regola dello specchio (scambio membri)',
+            rulePrinciple: 'Proprietà simmetrica dell\'uguaglianza: se A = B allora B = A.',
+            ruleId: 'swapSides',
+            steps: ['Scambio i due membri per la proprietà simmetrica: la grandezza cercata è al primo membro.'],
+            conditions: state.conditions.slice(),
+            explanationKey: 'scambioMembri',
+            note: null,
+            verified: true,
+          }, false);
+          updateObjective();
+          renderEquationView();
+          if (checkAndAnimateCompoundFraction()) return;
+          playSuccessChime();
+          spawnVictoryConfetti();
+          showMessage(`🎉 Ottimo lavoro! La grandezza ${prettyVar(state.targetVar)} è isolata con successo!`, 'success');
+        });
+      }
+    }, 450);
+    return;
+  }
+
+  // Flusso normale (target non isolato sul secondo membro)
+  state.currentEq = nextEq;
   pushHistory({
     equation: clone(nextEq),
     ruleName: result.ruleName,
@@ -1260,6 +1461,7 @@ function applyDragResult(result) {
 
   updateObjective();
   renderEquationView();
+  highlightLandedToken(meta.varName, meta.targetSide);
   showRulePanel(pseudoRule, pseudoResult, result.newEq);
   clearMessage();
   showMessage(`✓ ${result.ruleName}!`, 'success');
@@ -1522,8 +1724,58 @@ function applyChangeSignRule() {
     verified: true,
   }, false);
 
+  // Verifichiamo se la grandezza obiettivo è ora isolata sul secondo membro
+  const isTargetIsolatedOnRight = isolatedSide(newEq.right, state.targetVar);
+
+  if (isTargetIsolatedOnRight) {
+    // 1. Mostra subito l'equazione con i segni invertiti (-v0 è diventato +v0) e fai pulsare i segni
+    renderEquationView();
+    flashSignChanged();
+    showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
+    clearMessage();
+    showMessage(`± Cambio segno applicato: ${prettyVar(state.targetVar)} è ora positivo!`, 'info');
+
+    // 2. Dopo 420ms avvia l'animazione fluida di scambio membri (specchio)
+    setTimeout(() => {
+      const flipped = ensureTargetOnFirstMember(state.currentEq, state.targetVar);
+      if (flipped !== state.currentEq) {
+        animateMirrorSwap(state.currentEq, flipped, () => {
+          state.currentEq = flipped;
+          state.goalReached = true;
+          pushHistory({
+            equation: clone(flipped),
+            ruleName: 'Regola dello specchio (scambio membri)',
+            rulePrinciple: 'Proprietà simmetrica dell\'uguaglianza: se A = B allora B = A.',
+            ruleId: 'swapSides',
+            steps: ['Scambio i due membri per la proprietà simmetrica: la grandezza cercata è al primo membro.'],
+            conditions: state.conditions.slice(),
+            explanationKey: 'scambioMembri',
+            note: null,
+            verified: true,
+          }, false);
+          updateObjective();
+          renderEquationView();
+          showRulePanel({
+            id: 'swapSides',
+            name: 'Regola dello specchio (scambio membri)',
+            principle: 'Proprietà simmetrica dell\'uguaglianza: se A = B allora B = A.',
+          }, { steps: ['Scambio i due membri dell\'equazione per la proprietà simmetrica.'], conditions: [] }, flipped);
+          if (checkAndAnimateCompoundFraction()) return;
+          playSuccessChime();
+          spawnVictoryConfetti();
+          showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
+        });
+      } else {
+        updateObjective();
+        renderEquationView();
+      }
+    }, 450);
+    return;
+  }
+
   updateObjective();
   renderEquationView();
+  flashSignChanged();
   showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
   clearMessage();
   showMessage('± Regola del cambio di segno applicata: tutti i segni invertiti!', 'success');
@@ -2031,7 +2283,7 @@ function updateObjective() {
   dom.objectiveText.textContent = f ? `ricavare ${t} — ${f.name} (${f.formula})` : `ricavare ${t}`;
   state.goalReached = isGoalReached(state.currentEq, state.targetVar);
 
-  if (state.goalReached && state.currentEq && state.currentEq.type === 'Eq') {
+  if (!_isMirrorSwapping && state.goalReached && state.currentEq && state.currentEq.type === 'Eq') {
     const flipped = ensureTargetOnFirstMember(state.currentEq, state.targetVar);
     if (flipped !== state.currentEq) {
       state.currentEq = flipped;
@@ -2554,37 +2806,38 @@ function bindWorkAreaEvents() {
 
 function applyMirrorRule() {
   if (!state.currentEq) return;
-  playSoundTransport();
   const newEq = Eq(clone(state.currentEq.right), clone(state.currentEq.left));
-  state.currentEq = newEq;
-  state.selectedId = null;
-  clearPreview();
-  const rule = {
-    id: 'swapSides',
-    name: 'Regola dello specchio (scambio membri)',
-    principle: 'Proprietà simmetrica dell\'uguaglianza: se A = B allora B = A.',
-    explanation: 'scambioMembri',
-  };
-  pushHistory({
-    equation: clone(newEq),
-    ruleName: rule.name,
-    rulePrinciple: rule.principle,
-    ruleId: 'swapSides',
-    steps: ['Scambio i due membri dell\'equazione (proprietà simmetrica: A = B ↔ B = A).'],
-    conditions: state.conditions.slice(),
-    explanationKey: 'scambioMembri',
-    note: null,
-    verified: true,
-  }, false);
-  updateObjective();
-  renderEquationView();
-  showRulePanel(rule, { steps: ['Scambio i due membri per la proprietà simmetrica.'], conditions: [] }, newEq);
-  showMessage('🪞 Regola dello specchio applicata: se A = B allora B = A!', 'success');
-  if (state.goalReached) {
-    playSuccessChime();
-    spawnVictoryConfetti();
-    showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
-  }
+  animateMirrorSwap(state.currentEq, newEq, () => {
+    state.currentEq = newEq;
+    state.selectedId = null;
+    clearPreview();
+    const rule = {
+      id: 'swapSides',
+      name: 'Regola dello specchio (scambio membri)',
+      principle: 'Proprietà simmetrica dell\'uguaglianza: se A = B allora B = A.',
+      explanation: 'scambioMembri',
+    };
+    pushHistory({
+      equation: clone(newEq),
+      ruleName: rule.name,
+      rulePrinciple: rule.principle,
+      ruleId: 'swapSides',
+      steps: ['Scambio i due membri dell\'equazione (proprietà simmetrica: A = B ↔ B = A).'],
+      conditions: state.conditions.slice(),
+      explanationKey: 'scambioMembri',
+      note: null,
+      verified: true,
+    }, false);
+    updateObjective();
+    renderEquationView();
+    showRulePanel(rule, { steps: ['Scambio i due membri per la proprietà simmetrica.'], conditions: [] }, newEq);
+    showMessage('🪞 Regola dello specchio applicata: se A = B allora B = A!', 'success');
+    if (state.goalReached) {
+      playSuccessChime();
+      spawnVictoryConfetti();
+      showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -2672,16 +2925,10 @@ function executeNextAutoStep() {
 function applyAutoStepState(sug, res) {
   playSoundForRule(sug.action.ruleKey);
 
-  let nextEq = res.equation;
-  if (isGoalReached(nextEq, state.targetVar)) {
-    nextEq = ensureTargetOnFirstMember(nextEq, state.targetVar);
-  }
-  state.currentEq = nextEq;
+  const nextEq = res.equation;
   state.conditions = mergeConditions(state.conditions, res.conditions || []);
   state.selectedId = null;
   clearPreview();
-
-  state.goalReached = isGoalReached(state.currentEq, state.targetVar);
 
   const rule = res.rule || {
     id: sug.action.ruleKey || sug.action.id,
@@ -2702,6 +2949,66 @@ function applyAutoStepState(sug, res) {
     verified: true,
   }, false);
 
+  const isTargetOnRight = isolatedSide(nextEq.right, state.targetVar);
+  if (isTargetOnRight) {
+    state.currentEq = nextEq;
+    renderEquationView();
+    showRulePanel(rule, res, state.currentEq);
+    animateOperationBadge(sug.action.label, sug.action.operandText);
+    clearMessage();
+
+    setTimeout(() => {
+      const flipped = ensureTargetOnFirstMember(state.currentEq, state.targetVar);
+      animateMirrorSwap(state.currentEq, flipped, () => {
+        state.currentEq = flipped;
+        state.goalReached = true;
+        pushHistory({
+          equation: clone(flipped),
+          ruleName: 'Regola dello specchio (scambio membri)',
+          rulePrinciple: 'Proprietà simmetrica dell\'uguaglianza: se A = B allora B = A.',
+          ruleId: 'swapSides',
+          steps: ['Scambio i due membri per la proprietà simmetrica.'],
+          conditions: state.conditions.slice(),
+          explanationKey: 'scambioMembri',
+          note: null,
+          verified: true,
+        }, false);
+        updateObjective();
+        renderEquationView();
+        if (checkAndAnimateCompoundFraction()) return;
+        playSuccessChime();
+        spawnVictoryConfetti();
+        showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata con successo!`, 'success');
+        showAutoMode();
+      });
+    }, 450);
+    return;
+  }
+
+  if (sug.action.ruleKey === 'swapSides') {
+    animateMirrorSwap(state.currentEq, nextEq, () => {
+      state.currentEq = nextEq;
+      state.goalReached = isGoalReached(state.currentEq, state.targetVar);
+      updateObjective();
+      renderEquationView();
+      showRulePanel(rule, res, state.currentEq);
+      animateOperationBadge(sug.action.label, sug.action.operandText);
+      clearMessage();
+      if (state.goalReached) {
+        if (checkAndAnimateCompoundFraction()) return;
+        playSuccessChime();
+        spawnVictoryConfetti();
+        showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata con successo! Regola: ${rule.name}`, 'success');
+      } else {
+        showMessage(`✓ ${sug.action.label}: ${sug.reason || rule.principle}`, 'success');
+      }
+      showAutoMode();
+    });
+    return;
+  }
+
+  state.currentEq = nextEq;
+  state.goalReached = isGoalReached(state.currentEq, state.targetVar);
   updateObjective();
   renderEquationView();
   showRulePanel(rule, res, state.currentEq);
