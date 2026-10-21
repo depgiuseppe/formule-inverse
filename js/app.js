@@ -23,7 +23,6 @@ import { getExplanation } from './explanations.js';
 import { renderEquation, renderNode, prettyVar } from './render.js';
 import { RULES, applyRule, negateExpr, findCommonFactor, hasTrigConflict, canDistribute } from './rules.js';
 import { setupEquationDragAndDrop, highlightDropzones, clearDropzonesHighlight, applyDragMove, initDragArrow, updateDragArrow, hideDragArrow } from './dragdrop.js';
-import { runAllTests, formatTestResults } from './tests.js';
 import { getQuantityInfo, formatResultNumber } from './physics-units.js';
 import {
   latexToSyntax, LatexError, GREEK_MAP,
@@ -127,10 +126,6 @@ const dom = {
   modalTitle: $('#modal-title'),
   modalBody: $('#modal-body'),
   modalActions: $('#modal-actions'),
-  testsBackdrop: $('#tests-backdrop'),
-  testsSummary: $('#tests-summary'),
-  testsBody: $('#tests-body'),
-  btnRunTests: $('#btn-run-tests'),
   btnHelp: $('#btn-help'),
   btnContrast: $('#btn-contrast'),
   btnTheme: $('#btn-theme'),
@@ -3344,7 +3339,6 @@ function bindGlobalEvents() {
   dom.btnHelp.addEventListener('click', showHelp);
   dom.btnContrast.addEventListener('click', toggleContrast);
   if (dom.btnTheme) dom.btnTheme.addEventListener('click', toggleTheme);
-  dom.btnRunTests.addEventListener('click', runTests);
 
   document.querySelectorAll('[data-close]').forEach((btn) => {
     btn.addEventListener('click', () => { document.getElementById(btn.dataset.close).hidden = true; });
@@ -3352,7 +3346,6 @@ function bindGlobalEvents() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (!dom.testsBackdrop.hidden) { dom.testsBackdrop.hidden = true; return; }
       if (!dom.modalBackdrop.hidden) { dom.modalBackdrop.hidden = true; return; }
       if (state.pendingMove) cancelPreview();
       else if (state.clickDragToken) exitClickDragMode();
@@ -3634,15 +3627,6 @@ function showHelp() {
   dom.modalActions.innerHTML = '<button class="btn btn-secondary" type="button" data-close-help>Chiudi</button>';
   dom.modalActions.querySelector('[data-close-help]').addEventListener('click', () => { dom.modalBackdrop.hidden = true; });
   dom.modalBackdrop.hidden = false;
-}
-
-function runTests() {
-  const results = runAllTests();
-  const { passed, failed, total, html } = formatTestResults(results);
-  dom.testsSummary.innerHTML = `<span class="test-pass">${passed}</span> / <span class="test-total">${total}</span> superati` +
-    (failed ? ` — <span class="test-fail">${failed} falliti</span>` : ' — <span class="test-pass">tutti superati</span>');
-  dom.testsBody.innerHTML = html;
-  dom.testsBackdrop.hidden = false;
 }
 
 // ---------------------------------------------------------------------------

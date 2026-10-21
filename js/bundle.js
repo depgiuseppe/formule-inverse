@@ -1199,9 +1199,9 @@
     }
     const tokens = tokenize(input);
     const parser = new Parser(tokens);
-    const eq2 = parser.parseEquation();
-    assertNoZeroDenominator(eq2);
-    return eq2;
+    const eq = parser.parseEquation();
+    assertNoZeroDenominator(eq);
+    return eq;
   }
   function parseExpression(input) {
     if (typeof input !== "string" || input.trim() === "") {
@@ -1209,11 +1209,11 @@
     }
     const tokens = tokenize(input);
     const parser = new Parser(tokens);
-    const expr2 = parser.parseExpr();
+    const expr = parser.parseExpr();
     if (!parser.atEnd()) {
       throw new ParseError(`Elemento inatteso: "${parser.peek().v}"`);
     }
-    return expr2;
+    return expr;
   }
   function assertNoZeroDenominator(node) {
     switch (node.type) {
@@ -1309,18 +1309,18 @@
     const { num, den } = memberAsFraction(node);
     return canonical(Div(den, num));
   }
-  function reciprocalEquation(eq2) {
-    if (!eq2 || eq2.type !== "Eq") {
+  function reciprocalEquation(eq) {
+    if (!eq || eq.type !== "Eq") {
       return { ok: false, error: "Nessuna equazione valida da invertire." };
     }
-    if (isIdenticallyZero(eq2.left) || isIdenticallyZero(eq2.right)) {
+    if (isIdenticallyZero(eq.left) || isIdenticallyZero(eq.right)) {
       return {
         ok: false,
         error: "Non si pu\xF2 calcolare il reciproco di un membro identicamente nullo: la divisione per zero non \xE8 definita.",
         hint: "Assicurati che entrambi i membri siano diversi da zero prima di applicare la regola dei reciproci."
       };
     }
-    if (memberIsFractionSum(eq2.left) || memberIsFractionSum(eq2.right)) {
+    if (memberIsFractionSum(eq.left) || memberIsFractionSum(eq.right)) {
       return {
         ok: false,
         error: "il reciproco di una somma di frazioni NON \xE8 la somma dei reciproci: 1/(A/B + C/D) \u2260 B/A + D/C.",
@@ -1329,7 +1329,7 @@
     }
     return {
       ok: true,
-      newEq: Eq(reciprocalOfMember(eq2.left), reciprocalOfMember(eq2.right))
+      newEq: Eq(reciprocalOfMember(eq.left), reciprocalOfMember(eq.right))
     };
   }
 
@@ -1634,12 +1634,12 @@
     }
     return false;
   }
-  function reduceEquationToCommonDenominator(eq2, chosenSide = null) {
-    if (!eq2 || eq2.type !== "Eq") {
+  function reduceEquationToCommonDenominator(eq, chosenSide = null) {
+    if (!eq || eq.type !== "Eq") {
       return { ok: false, error: "Nessuna equazione valida fornita." };
     }
-    const leftCan = canReduceToSingleFraction(eq2.left);
-    const rightCan = canReduceToSingleFraction(eq2.right);
+    const leftCan = canReduceToSingleFraction(eq.left);
+    const rightCan = canReduceToSingleFraction(eq.right);
     if (!leftCan && !rightCan) {
       return {
         ok: false,
@@ -1647,23 +1647,23 @@
         hint: "La formula \xE8 gi\xE0 espressa in frazioni semplici o termini interi."
       };
     }
-    let newLeft = eq2.left;
-    let newRight = eq2.right;
+    let newLeft = eq.left;
+    let newRight = eq.right;
     const steps = [];
     if (chosenSide === "left" && leftCan) {
-      newLeft = reduceToSingleFraction(eq2.left);
-      steps.push(`Riduco a denominatore comune (m.c.m.) al primo membro: ${toPretty(eq2.left, 0)} \u2192 ${toPretty(newLeft, 0)}.`);
+      newLeft = reduceToSingleFraction(eq.left);
+      steps.push(`Riduco a denominatore comune (m.c.m.) al primo membro: ${toPretty(eq.left, 0)} \u2192 ${toPretty(newLeft, 0)}.`);
     } else if (chosenSide === "right" && rightCan) {
-      newRight = reduceToSingleFraction(eq2.right);
-      steps.push(`Riduco a denominatore comune (m.c.m.) al secondo membro: ${toPretty(eq2.right, 0)} \u2192 ${toPretty(newRight, 0)}.`);
+      newRight = reduceToSingleFraction(eq.right);
+      steps.push(`Riduco a denominatore comune (m.c.m.) al secondo membro: ${toPretty(eq.right, 0)} \u2192 ${toPretty(newRight, 0)}.`);
     } else {
       if (leftCan) {
-        newLeft = reduceToSingleFraction(eq2.left);
-        steps.push(`Riduco a denominatore comune (m.c.m.) al primo membro: ${toPretty(eq2.left, 0)} \u2192 ${toPretty(newLeft, 0)}.`);
+        newLeft = reduceToSingleFraction(eq.left);
+        steps.push(`Riduco a denominatore comune (m.c.m.) al primo membro: ${toPretty(eq.left, 0)} \u2192 ${toPretty(newLeft, 0)}.`);
       }
       if (rightCan) {
-        newRight = reduceToSingleFraction(eq2.right);
-        steps.push(`Riduco a denominatore comune (m.c.m.) al secondo membro: ${toPretty(eq2.right, 0)} \u2192 ${toPretty(newRight, 0)}.`);
+        newRight = reduceToSingleFraction(eq.right);
+        steps.push(`Riduco a denominatore comune (m.c.m.) al secondo membro: ${toPretty(eq.right, 0)} \u2192 ${toPretty(newRight, 0)}.`);
       }
     }
     const newEq = Eq(newLeft, newRight);
@@ -1682,8 +1682,8 @@
       this.hint = hint || null;
     }
   };
-  function bothSides(eq2, fn) {
-    return Eq(fn(eq2.left), fn(eq2.right));
+  function bothSides(eq, fn) {
+    return Eq(fn(eq.left), fn(eq.right));
   }
   function simplify(node) {
     return canonical(node);
@@ -1708,10 +1708,10 @@
     name: "Aggiunta della stessa quantit\xE0 a entrambi i membri (primo principio di equivalenza)",
     principle: "Se A = B allora A + C = B + C.",
     explanation: "add-both",
-    canAdd: (expr2) => true,
-    apply(eq2, ctx) {
+    canAdd: (expr) => true,
+    apply(eq, ctx) {
       const c = ctx.value;
-      const newEq = bothSides(eq2, (side) => simplify(Add(side, c)));
+      const newEq = bothSides(eq, (side) => simplify(Add(side, c)));
       return { equation: newEq, conditions: [], steps: [`Aggiungo ${ctx.valueText} a entrambi i membri.`] };
     }
   };
@@ -1720,9 +1720,9 @@
     name: "Sottrazione della stessa quantit\xE0 da entrambi i membri (primo principio di equivalenza)",
     principle: "Se A = B allora A \u2212 C = B \u2212 C.",
     explanation: "sub-both",
-    apply(eq2, ctx) {
+    apply(eq, ctx) {
       const c = ctx.value;
-      const newEq = bothSides(eq2, (side) => simplify(Sub(side, c)));
+      const newEq = bothSides(eq, (side) => simplify(Sub(side, c)));
       return { equation: newEq, conditions: [], steps: [`Sottraggo ${ctx.valueText} da entrambi i membri.`] };
     }
   };
@@ -1731,7 +1731,7 @@
     name: "Moltiplicazione di entrambi i membri per la stessa quantit\xE0 (secondo principio di equivalenza)",
     principle: "Se A = B allora A\xB7C = B\xB7C.",
     explanation: "mul-both",
-    apply(eq2, ctx) {
+    apply(eq, ctx) {
       const c = ctx.value;
       if (unwrap(c).type === "Num" && unwrap(c).value === 0) {
         throw new RuleError(
@@ -1739,7 +1739,7 @@
           "Scegli una quantit\xE0 non nulla."
         );
       }
-      const newEq = bothSides(eq2, (side) => simplify(Mul(side, c)));
+      const newEq = bothSides(eq, (side) => simplify(Mul(side, c)));
       return { equation: newEq, conditions: [], steps: [`Moltiplico entrambi i membri per ${ctx.valueText}.`] };
     }
   };
@@ -1748,7 +1748,7 @@
     name: "Divisione di entrambi i membri per la stessa quantit\xE0 non nulla (secondo principio di equivalenza)",
     principle: "Se A = B e C \u2260 0 allora A/C = B/C.",
     explanation: "div-both",
-    precondition(eq2, ctx) {
+    precondition(eq, ctx) {
       const c = ctx.value;
       if (isIdenticallyZero(c)) {
         throw new RuleError(
@@ -1759,9 +1759,9 @@
       const cond = conditionText(c, "\u2260 0");
       return { conditions: [cond] };
     },
-    apply(eq2, ctx) {
+    apply(eq, ctx) {
       const c = ctx.value;
-      const newEq = bothSides(eq2, (side) => simplify(Div(side, c)));
+      const newEq = bothSides(eq, (side) => simplify(Div(side, c)));
       return {
         equation: newEq,
         conditions: [conditionText(c, "\u2260 0")],
@@ -1774,10 +1774,10 @@
     name: "Trasporto di un termine additivo con cambiamento di segno",
     principle: "Somma membro a membro lo stesso additivo opposto (primo principio di equivalenza).",
     explanation: "move-term",
-    apply(eq2, ctx) {
+    apply(eq, ctx) {
       const { term, side } = ctx;
-      const from = side === "left" ? eq2.left : eq2.right;
-      const to = side === "left" ? eq2.right : eq2.left;
+      const from = side === "left" ? eq.left : eq.right;
+      const to = side === "left" ? eq.right : eq.left;
       const fromTerms = additiveTerms(from);
       const idx = fromTerms.findIndex((t) => equivalentExpr(t.node, unwrap(term)));
       if (idx < 0) {
@@ -1804,9 +1804,9 @@
     name: "Trasporto di un fattore (divisione di entrambi i membri per il fattore)",
     principle: "Se A = B allora A/C = B/C, purch\xE9 C \u2260 0.",
     explanation: "move-factor",
-    apply(eq2, ctx) {
+    apply(eq, ctx) {
       const { factor, side } = ctx;
-      const from = side === "left" ? eq2.left : eq2.right;
+      const from = side === "left" ? eq.left : eq.right;
       const fact = unwrap(factor);
       const factList = factorsOf(from);
       let idx = factList.findIndex((f) => equivalentExpr(f, fact));
@@ -1824,7 +1824,7 @@
         );
       }
       const cond = conditionText(fact, "\u2260 0");
-      const newEq = bothSides(eq2, (s) => simplify(Div(s, fact)));
+      const newEq = bothSides(eq, (s) => simplify(Div(s, fact)));
       return {
         equation: newEq,
         conditions: [cond],
@@ -1837,9 +1837,9 @@
     name: "Moltiplicazione incrociata in una proporzione",
     principle: "Da a/b = c/d, moltiplicando entrambi i membri per b\xB7d (b,d \u2260 0) si ottiene a\xB7d = b\xB7c.",
     explanation: "cross-multiply",
-    precondition(eq2) {
-      const L = asFraction(eq2.left);
-      const R = asFraction(eq2.right);
+    precondition(eq) {
+      const L = asFraction(eq.left);
+      const R = asFraction(eq.right);
       if (!L || !R) {
         throw new RuleError(
           "La moltiplicazione incrociata si applica solo quando ENTRAMBI i membri sono rapporti (frazioni).",
@@ -1848,9 +1848,9 @@
       }
       return { ok: true };
     },
-    apply(eq2) {
-      const L = asFraction(eq2.left);
-      const R = asFraction(eq2.right);
+    apply(eq) {
+      const L = asFraction(eq.left);
+      const R = asFraction(eq.right);
       if (!L || !R) {
         throw new RuleError("Entrambi i membri devono essere rapporti per la moltiplicazione incrociata.");
       }
@@ -1872,8 +1872,8 @@
     name: "Scambio dei membri (propriet\xE0 simmetrica dell'uguaglianza)",
     principle: "Se A = B allora B = A.",
     explanation: "swap-sides",
-    apply(eq2) {
-      return { equation: Eq(eq2.right, eq2.left), conditions: [], steps: ["Scambio i due membri dell'uguaglianza."] };
+    apply(eq) {
+      return { equation: Eq(eq.right, eq.left), conditions: [], steps: ["Scambio i due membri dell'uguaglianza."] };
     }
   };
   var ruleReciprocalBothSides = {
@@ -1881,21 +1881,21 @@
     name: "Reciproco di entrambi i membri",
     principle: "Se A = B con A \u2260 0 e B \u2260 0, allora 1/A = 1/B.",
     explanation: "reciprocal-both",
-    precondition(eq2) {
-      if (isIdenticallyZero(eq2.left) || isIdenticallyZero(eq2.right)) {
+    precondition(eq) {
+      if (isIdenticallyZero(eq.left) || isIdenticallyZero(eq.right)) {
         throw new RuleError("Non si pu\xF2 calcolare il reciproco di un membro identicamente nullo.");
       }
       return { ok: true };
     },
-    apply(eq2) {
+    apply(eq) {
       const recip = (node) => {
         const f = asFraction(node);
         if (f) return simplify(Div(f.den, f.num));
         return simplify(Div(Num(1), node));
       };
       return {
-        equation: Eq(recip(eq2.left), recip(eq2.right)),
-        conditions: [conditionText(eq2.left, "\u2260 0"), conditionText(eq2.right, "\u2260 0")],
+        equation: Eq(recip(eq.left), recip(eq.right)),
+        conditions: [conditionText(eq.left, "\u2260 0"), conditionText(eq.right, "\u2260 0")],
         steps: ["Prendo il reciproco di entrambi i membri (entrambi devono essere non nulli)."]
       };
     }
@@ -1936,9 +1936,9 @@
     name: "Regola del cambio di segno (moltiplicazione per \u22121)",
     principle: "Secondo principio di equivalenza: moltiplicando entrambi i membri per \u22121, tutti i segni si invertono (+ \u2194 \u2212).",
     explanation: "change-sign",
-    apply(eq2) {
-      const newLeft = negateExpr(eq2.left);
-      const newRight = negateExpr(eq2.right);
+    apply(eq) {
+      const newLeft = negateExpr(eq.left);
+      const newRight = negateExpr(eq.right);
       return {
         equation: Eq(newLeft, newRight),
         conditions: [],
@@ -1951,9 +1951,9 @@
     name: "Inversione di una proporzione (reciproco di entrambi i membri frazionari)",
     principle: "Se a/b = c/d con a,b,c,d \u2260 0 allora b/a = d/c.",
     explanation: "invert-proportion",
-    precondition(eq2) {
-      const L = asFraction(eq2.left);
-      const R = asFraction(eq2.right);
+    precondition(eq) {
+      const L = asFraction(eq.left);
+      const R = asFraction(eq.right);
       if (!L || !R) {
         throw new RuleError(
           "L'inversione si applica solo quando entrambi i membri sono rapporti frazionari; non si inverte mai un solo membro.",
@@ -1968,9 +1968,9 @@
       }
       return { ok: true };
     },
-    apply(eq2) {
-      const L = asFraction(eq2.left);
-      const R = asFraction(eq2.right);
+    apply(eq) {
+      const L = asFraction(eq.left);
+      const R = asFraction(eq.right);
       if (!L || !R) throw new RuleError("Entrambi i membri devono essere rapporti.");
       return {
         equation: Eq(simplify(Div(L.den, L.num)), simplify(Div(R.den, R.num))),
@@ -1989,10 +1989,10 @@
     name: "Estrazione della radice quadrata (indice pari) di entrambi i membri",
     principle: "Se x\xB2 = A con A \u2265 0 allora x = \xB1\u221AA. Una radice di indice pari richiede radicando \u2265 0 e introduce il segno \xB1.",
     explanation: "sqrt-both",
-    apply(eq2, ctx) {
+    apply(eq, ctx) {
       const { side } = ctx;
-      const withPow = side === "left" ? eq2.left : eq2.right;
-      const other = side === "left" ? eq2.right : eq2.left;
+      const withPow = side === "left" ? eq.left : eq.right;
+      const other = side === "left" ? eq.right : eq.left;
       const found = extractEvenPower(withPow, ctx.insideVar);
       if (!found) {
         throw new RuleError(
@@ -2025,10 +2025,10 @@
     name: "Estrazione di una radice di indice dispari (es. cubica) di entrambi i membri",
     principle: "Se x\u207F = A con n dispari allora x = \u207F\u221AA, ed \xE8 unica: nessuna condizione di segno e nessun \xB1.",
     explanation: "root-odd",
-    apply(eq2, ctx) {
+    apply(eq, ctx) {
       const { side } = ctx;
-      const withPow = side === "left" ? eq2.left : eq2.right;
-      const other = side === "left" ? eq2.right : eq2.left;
+      const withPow = side === "left" ? eq.left : eq.right;
+      const other = side === "left" ? eq.right : eq.left;
       const found = extractOddPower(withPow, ctx.insideVar);
       if (!found) {
         throw new RuleError(
@@ -2054,7 +2054,7 @@
     name: "Elevazione di entrambi i membri alla stessa potenza",
     principle: "Se A = B allora A^n = B^n.",
     explanation: "pow-both",
-    apply(eq2, ctx) {
+    apply(eq, ctx) {
       const n = ctx.value;
       if (isIdenticallyZero(n)) {
         throw new RuleError(
@@ -2062,7 +2062,7 @@
           "Scegli un esponente diverso da zero."
         );
       }
-      const newEq = Eq(simplify(Pow(eq2.left, n)), simplify(Pow(eq2.right, n)));
+      const newEq = Eq(simplify(Pow(eq.left, n)), simplify(Pow(eq.right, n)));
       return {
         equation: newEq,
         conditions: [],
@@ -2076,11 +2076,11 @@
     name: "Propriet\xE0 distributiva del prodotto rispetto alla somma",
     principle: "a(x + b) = ax + ab.",
     explanation: "distribute",
-    apply(eq2, ctx) {
+    apply(eq, ctx) {
       const { side } = ctx;
-      const side_expr = side === "left" ? eq2.left : eq2.right;
+      const side_expr = side === "left" ? eq.left : eq.right;
       const distributed = distribute(side_expr);
-      const newEq = side === "left" ? Eq(distributed, eq2.right) : Eq(eq2.left, distributed);
+      const newEq = side === "left" ? Eq(distributed, eq.right) : Eq(eq.left, distributed);
       return {
         equation: simplify(newEq),
         conditions: [],
@@ -2093,14 +2093,14 @@
     name: "Raccoglimento a fattor comune",
     principle: "ax + ab = a(x + b).",
     explanation: "factor-common",
-    apply(eq2, ctx) {
+    apply(eq, ctx) {
       const { side, common } = ctx;
-      const expr2 = side === "left" ? eq2.left : eq2.right;
-      const factored = factorOut(expr2, common);
+      const expr = side === "left" ? eq.left : eq.right;
+      const factored = factorOut(expr, common);
       if (!factored) {
         throw new RuleError("Il fattore indicato non \xE8 comune a tutti i termini del membro.");
       }
-      const newEq = side === "left" ? Eq(factored, eq2.right) : Eq(eq2.left, factored);
+      const newEq = side === "left" ? Eq(factored, eq.right) : Eq(eq.left, factored);
       return {
         equation: newEq,
         conditions: [],
@@ -2113,9 +2113,9 @@
     name: "Cancellazione di un fattore comune tra frazione e prodotto",
     principle: "(a/b)\xB7b = a, purch\xE9 b \u2260 0 (semplificazione di un fattore comune)",
     explanation: "cancel-factor",
-    apply(eq2, ctx) {
+    apply(eq, ctx) {
       const { den, side } = ctx;
-      const member = side === "left" ? eq2.left : eq2.right;
+      const member = side === "left" ? eq.left : eq.right;
       const denNode = unwrap(den);
       const reduced = cancelFractionFactor(member, denNode);
       if (!reduced) {
@@ -2124,7 +2124,7 @@
           "Seleziona il denominatore della frazione che fa parte di un prodotto con lo stesso fattore."
         );
       }
-      const newEq = side === "left" ? Eq(reduced, eq2.right) : Eq(eq2.left, reduced);
+      const newEq = side === "left" ? Eq(reduced, eq.right) : Eq(eq.left, reduced);
       return {
         equation: simplify(newEq),
         conditions: [conditionText(denNode, "\u2260 0")],
@@ -2139,10 +2139,10 @@
     name: "Applicazione della funzione inversa a entrambi i membri",
     principle: "Se A = B e f \xE8 iniettiva sul ramo considerato, allora f\u207B\xB9(A) = f\u207B\xB9(B).",
     explanation: "invert-function",
-    apply(eq2, ctx) {
+    apply(eq, ctx) {
       const { side } = ctx;
-      const withFn = unwrapNeutrals(side === "left" ? eq2.left : eq2.right);
-      const other = unwrapNeutrals(side === "left" ? eq2.right : eq2.left);
+      const withFn = unwrapNeutrals(side === "left" ? eq.left : eq.right);
+      const other = unwrapNeutrals(side === "left" ? eq.right : eq.left);
       const fnNode = ctx.fnNode ? unwrapNeutrals(ctx.fnNode) : extractFunc(withFn);
       if (!fnNode) {
         throw new RuleError(
@@ -2193,9 +2193,9 @@
     name: "Minimo comune multiplo (m.c.m.) e denominatore comune",
     principle: "Somma di frazioni mediante il minimo comune multiplo (m.c.m.) dei denominatori: A/B + C/D = (A\xB7D + B\xB7C)/(B\xB7D), e semplificazione delle frazioni composte in un'unica frazione.",
     explanation: null,
-    apply(eq2, ctx = {}) {
+    apply(eq, ctx = {}) {
       const side = ctx.side || null;
-      const res = reduceEquationToCommonDenominator(eq2, side);
+      const res = reduceEquationToCommonDenominator(eq, side);
       if (!res.ok) {
         throw new RuleError(res.error, res.hint);
       }
@@ -2404,18 +2404,18 @@
     const inner = rebuildSum(others);
     return Mul(common, Group(inner));
   }
-  function findCommonFactor(expr2, preferredVar = null) {
-    expr2 = unwrap(expr2);
-    if (!expr2 || expr2.type !== "Add" && expr2.type !== "Sub") return null;
-    const terms = additiveTerms(expr2);
+  function findCommonFactor(expr, preferredVar = null) {
+    expr = unwrap(expr);
+    if (!expr || expr.type !== "Add" && expr.type !== "Sub") return null;
+    const terms = additiveTerms(expr);
     if (terms.length < 2) return null;
     if (preferredVar) {
       const prefNode = Var(preferredVar);
-      if (factorOut(expr2, prefNode)) return prefNode;
+      if (factorOut(expr, prefNode)) return prefNode;
     }
     const firstFactors = getFactorsOfTerm(terms[0].node);
     for (const f of firstFactors) {
-      if (factorOut(expr2, f)) return f;
+      if (factorOut(expr, f)) return f;
     }
     return null;
   }
@@ -2454,23 +2454,23 @@
     walk2(member);
     return hasSin && hasCos;
   }
-  function removeCommonFactor(expr2, common) {
-    expr2 = unwrap(expr2);
+  function removeCommonFactor(expr, common) {
+    expr = unwrap(expr);
     common = unwrap(common);
-    if (equivalentExpr(expr2, common)) return Num(1);
-    if (expr2.type === "Neg") {
-      const inner = removeCommonFactor(expr2.arg, common);
+    if (equivalentExpr(expr, common)) return Num(1);
+    if (expr.type === "Neg") {
+      const inner = removeCommonFactor(expr.arg, common);
       return inner ? Neg(inner) : null;
     }
-    if (expr2.type === "Div") {
-      const innerNum = removeCommonFactor(expr2.num, common);
+    if (expr.type === "Div") {
+      const innerNum = removeCommonFactor(expr.num, common);
       if (!innerNum) return null;
-      return Div(innerNum, expr2.den);
+      return Div(innerNum, expr.den);
     }
-    if (expr2.type === "Mul") {
-      const idx = expr2.args.findIndex((a) => equivalentExpr(a, common));
+    if (expr.type === "Mul") {
+      const idx = expr.args.findIndex((a) => equivalentExpr(a, common));
       if (idx >= 0) {
-        const rest = expr2.args.filter((_, i) => i !== idx);
+        const rest = expr.args.filter((_, i) => i !== idx);
         return rest.length === 0 ? Num(1) : productOf(rest);
       }
     }
@@ -2500,15 +2500,15 @@
     invertFunction: ruleInvertFunction,
     commonDenom: ruleCommonDenominator
   };
-  function applyRule(rule, eq2, ctx = {}) {
+  function applyRule(rule, eq, ctx = {}) {
     try {
       if (rule.precondition) {
-        const pre = rule.precondition(eq2, ctx);
+        const pre = rule.precondition(eq, ctx);
         if (pre && pre.ok === false) {
           return { ok: false, error: pre.reason, hint: pre.hint };
         }
       }
-      const res = rule.apply(eq2, ctx);
+      const res = rule.apply(eq, ctx);
       return {
         ok: true,
         equation: res.equation,
@@ -2525,24 +2525,24 @@
   }
 
   // js/algebra.js
-  function isGoalReached(eq2, target) {
-    if (!eq2 || eq2.type !== "Eq" || !target) return false;
-    const inL = collectVars(eq2.left).has(target);
-    const inR = collectVars(eq2.right).has(target);
+  function isGoalReached(eq, target) {
+    if (!eq || eq.type !== "Eq" || !target) return false;
+    const inL = collectVars(eq.left).has(target);
+    const inR = collectVars(eq.right).has(target);
     if (inL && inR) return false;
-    const leftIso = isolatedSide(eq2.left, target);
-    const rightIso = isolatedSide(eq2.right, target);
+    const leftIso = isolatedSide(eq.left, target);
+    const rightIso = isolatedSide(eq.right, target);
     return leftIso && !inR || rightIso && !inL;
   }
-  function ensureTargetOnFirstMember(eq2, target) {
-    if (!eq2 || eq2.type !== "Eq" || !target) return eq2;
-    const inL = collectVars(eq2.left).has(target);
-    const inR = collectVars(eq2.right).has(target);
-    if (inL && inR) return eq2;
-    if (isolatedSide(eq2.right, target) && !inL) {
-      return Eq(eq2.right, eq2.left);
+  function ensureTargetOnFirstMember(eq, target) {
+    if (!eq || eq.type !== "Eq" || !target) return eq;
+    const inL = collectVars(eq.left).has(target);
+    const inR = collectVars(eq.right).has(target);
+    if (inL && inR) return eq;
+    if (isolatedSide(eq.right, target) && !inL) {
+      return Eq(eq.right, eq.left);
     }
-    return eq2;
+    return eq;
   }
   function isolatedSide(node, target) {
     node = unwrapNeutrals(node);
@@ -2556,18 +2556,18 @@
     }
     return false;
   }
-  function whichSideHas(eq2, target) {
-    const inL = collectVars(eq2.left).has(target);
-    const inR = collectVars(eq2.right).has(target);
+  function whichSideHas(eq, target) {
+    const inL = collectVars(eq.left).has(target);
+    const inR = collectVars(eq.right).has(target);
     if (inL && inR) return "both";
     if (inL) return "left";
     if (inR) return "right";
     return null;
   }
-  function enumerateElements(eq2) {
+  function enumerateElements(eq) {
     const out = [];
-    walk(eq2.left, "left", out, "left", { role: "membro" });
-    walk(eq2.right, "right", out, "right", { role: "membro" });
+    walk(eq.left, "left", out, "left", { role: "membro" });
+    walk(eq.right, "right", out, "right", { role: "membro" });
     return out;
   }
   function walk(node, side, out, id, ctx) {
@@ -2628,14 +2628,14 @@
       }
     }
   }
-  function findElement(eq2, id) {
+  function findElement(eq, id) {
     if (id === "left" || id === "right") {
-      const node = unwrap(id === "left" ? eq2.left : eq2.right);
+      const node = unwrap(id === "left" ? eq.left : eq.right);
       return { id, side: id, node, role: "membro", pretty: toPretty(node, 0) };
     }
-    return enumerateElements(eq2).find((e) => e.id === id) || null;
+    return enumerateElements(eq).find((e) => e.id === id) || null;
   }
-  function availableActions(eq2, element, target) {
+  function availableActions(eq, element, target) {
     if (!element) return [];
     const actions = [];
     const node = unwrap(element.node);
@@ -2643,7 +2643,7 @@
     const otherSide = side === "left" ? "right" : "left";
     const nodeText = toPretty(node, 0);
     if (element.role === "termine" || element.role === "membro") {
-      const terms = additiveTerms(side === "left" ? eq2.left : eq2.right);
+      const terms = additiveTerms(side === "left" ? eq.left : eq.right);
       const isAdditive = terms.length > 1;
       if (isAdditive) {
         actions.push({
@@ -2656,7 +2656,7 @@
       }
     }
     if (element.role === "fattore" || element.role === "membro" || element.role === "numeratore") {
-      const member2 = side === "left" ? eq2.left : eq2.right;
+      const member2 = side === "left" ? eq.left : eq.right;
       const memberU = unwrap(member2);
       if (memberU.type === "Mul" && memberU.args.length >= 2) {
         const isSubFactor = memberU.args.some((f) => {
@@ -2725,7 +2725,7 @@
         build: () => ({ value: Num(1 / exp), valueText: "1/" + exp })
       });
     }
-    const fnNode = funcNodeOf(element, side, eq2);
+    const fnNode = funcNodeOf(element, side, eq);
     if (fnNode) {
       const key = fnNode.type.toLowerCase();
       const info = FUNC_INFO[key];
@@ -2740,7 +2740,7 @@
         });
       }
     }
-    const member = side === "left" ? eq2.left : eq2.right;
+    const member = side === "left" ? eq.left : eq.right;
     const denCandidate = node.type === "Div" ? node.den : element.role === "denominatore" ? node : null;
     if (denCandidate && hasCancellableFactor(member, denCandidate)) {
       const denText = toPretty(denCandidate, 0);
@@ -2786,7 +2786,7 @@
     }
     return actions;
   }
-  function globalActions(eq2, target) {
+  function globalActions(eq, target) {
     const actions = [];
     actions.push({
       id: "swap",
@@ -2795,8 +2795,8 @@
       ruleKey: "swapSides",
       build: () => ({})
     });
-    const L = unwrap(eq2.left).type === "Div";
-    const R = unwrap(eq2.right).type === "Div";
+    const L = unwrap(eq.left).type === "Div";
+    const R = unwrap(eq.right).type === "Div";
     if (L && R) {
       actions.push({
         id: "cross",
@@ -2820,7 +2820,7 @@
       ruleKey: "reciprocalBoth",
       build: () => ({})
     });
-    const distSide = canDistribute(eq2.right) ? "right" : canDistribute(eq2.left) ? "left" : null;
+    const distSide = canDistribute(eq.right) ? "right" : canDistribute(eq.left) ? "left" : null;
     if (distSide) {
       actions.push({
         id: "distribute",
@@ -2830,8 +2830,8 @@
         build: () => ({ side: distSide })
       });
     }
-    const commonFactorLeft = findCommonFactor(eq2.left, target) || findCommonFactor(eq2.left, null);
-    const commonFactorRight = findCommonFactor(eq2.right, target) || findCommonFactor(eq2.right, null);
+    const commonFactorLeft = findCommonFactor(eq.left, target) || findCommonFactor(eq.left, null);
+    const commonFactorRight = findCommonFactor(eq.right, target) || findCommonFactor(eq.right, null);
     const factorSide = commonFactorLeft ? "left" : commonFactorRight ? "right" : null;
     const commonNode = commonFactorLeft || commonFactorRight;
     if (factorSide && commonNode) {
@@ -2846,11 +2846,11 @@
     }
     return actions;
   }
-  function performAction(eq2, action, extraCtx = {}) {
+  function performAction(eq, action, extraCtx = {}) {
     const rule = RULES[action.ruleKey];
     if (!rule) return { ok: false, error: `Regola sconosciuta: ${action.ruleKey}` };
     const ctx = { ...action.build(extraCtx), ...extraCtx };
-    const res = applyRule(rule, eq2, ctx);
+    const res = applyRule(rule, eq, ctx);
     if (!res.ok) return res;
     if (hasZeroDenominator(res.equation)) {
       return {
@@ -2890,16 +2890,16 @@
         return false;
     }
   }
-  function funcNodeOf(element, side, eq2) {
+  function funcNodeOf(element, side, eq) {
     const node = unwrap(element.node);
     const isInvertible = (n) => ["Sin", "Cos", "Tan", "Ln"].includes(n.type);
     if (isInvertible(node)) return node;
     if (typeof element.id === "string" && element.id.endsWith("/arg")) {
       const parentId = element.id.slice(0, -4);
-      const parent = findElement(eq2, parentId);
+      const parent = findElement(eq, parentId);
       if (parent && isInvertible(unwrap(parent.node))) return unwrap(parent.node);
     }
-    const member = side === "left" ? eq2.left : eq2.right;
+    const member = side === "left" ? eq.left : eq.right;
     if (isInvertible(unwrap(member))) return unwrap(member);
     return null;
   }
@@ -2945,9 +2945,9 @@
     }
     return false;
   }
-  function suggestNextStep(eq2, target) {
-    if (isGoalReached(eq2, target)) {
-      if (isolatedSide(eq2.right, target) && !isolatedSide(eq2.left, target)) {
+  function suggestNextStep(eq, target) {
+    if (isGoalReached(eq, target)) {
+      if (isolatedSide(eq.right, target) && !isolatedSide(eq.left, target)) {
         return {
           found: true,
           action: {
@@ -2962,7 +2962,7 @@
       }
       return { found: false, message: "Obiettivo gi\xE0 raggiunto!" };
     }
-    const canL = findCancellableFactor(eq2.left);
+    const canL = findCancellableFactor(eq.left);
     if (canL) {
       const denText = toPretty(canL, 0);
       return {
@@ -2977,7 +2977,7 @@
         reason: `Al primo membro c'\xE8 un fattore comune ${denText} tra numeratore e denominatore: semplificalo prima di procedere.`
       };
     }
-    const canR = findCancellableFactor(eq2.right);
+    const canR = findCancellableFactor(eq.right);
     if (canR) {
       const denText = toPretty(canR, 0);
       return {
@@ -2992,9 +2992,9 @@
         reason: `Al secondo membro c'\xE8 un fattore comune ${denText} tra numeratore e denominatore: semplificalo prima di procedere.`
       };
     }
-    const side = whichSideHas(eq2, target);
+    const side = whichSideHas(eq, target);
     if (side === "both") {
-      const rightTerms = additiveTerms(eq2.right);
+      const rightTerms = additiveTerms(eq.right);
       const targetTermOnRight = rightTerms.find((t) => collectVars(t.node).has(target));
       if (targetTermOnRight && rightTerms.length > 1) {
         const tText = toPretty(targetTermOnRight.node, 0);
@@ -3010,7 +3010,7 @@
           reason: `La grandezza ${target} compare in entrambi i membri: porta ${tText} a sinistra per raggrupparla.`
         };
       }
-      const leftTerms = additiveTerms(eq2.left);
+      const leftTerms = additiveTerms(eq.left);
       const strangeOnLeft = leftTerms.find((t) => !collectVars(t.node).has(target));
       if (strangeOnLeft && leftTerms.length > 1) {
         const sText = toPretty(strangeOnLeft.node, 0);
@@ -3034,7 +3034,7 @@
           return (w.type === "Add" || w.type === "Sub") && collectVars(w).has(target);
         });
       };
-      const distSide = isDistributable(eq2.right) ? "right" : isDistributable(eq2.left) ? "left" : null;
+      const distSide = isDistributable(eq.right) ? "right" : isDistributable(eq.left) ? "left" : null;
       if (distSide) {
         return {
           found: true,
@@ -3063,8 +3063,8 @@
     if (!side) {
       return { found: false, message: `La grandezza ${target} non compare nell'equazione.` };
     }
-    const member = side === "left" ? eq2.left : eq2.right;
-    const other = side === "left" ? eq2.right : eq2.left;
+    const member = side === "left" ? eq.left : eq.right;
+    const other = side === "left" ? eq.right : eq.left;
     const mU = unwrap(member);
     if (hasTrigConflict(member, target)) {
       return {
@@ -3307,8 +3307,8 @@
     div: "divBoth",
     pow: "powBoth"
   };
-  function equationKeypadTokens(eq2) {
-    const letters = [...collectVars(eq2)].sort();
+  function equationKeypadTokens(eq) {
+    const letters = [...collectVars(eq)].sort();
     const numbers = /* @__PURE__ */ new Set();
     const walk2 = (node) => {
       if (!node) return;
@@ -3336,7 +3336,7 @@
           if (u.arg) walk2(u.arg);
       }
     };
-    walk2(eq2);
+    walk2(eq);
     return {
       letters,
       numbers: [...numbers].sort((a, b) => a - b)
@@ -3358,10 +3358,10 @@
     }
     return null;
   }
-  function applySqrtBothSides(eq2, targetVar) {
-    const side = targetVar ? whichSideHas(eq2, targetVar) : null;
+  function applySqrtBothSides(eq, targetVar) {
+    const side = targetVar ? whichSideHas(eq, targetVar) : null;
     if (side === "left" || side === "right") {
-      const res = applyRule(RULES.sqrtBoth, eq2, { side, insideVar: targetVar });
+      const res = applyRule(RULES.sqrtBoth, eq, { side, insideVar: targetVar });
       if (res.ok) {
         return {
           ok: true,
@@ -3372,7 +3372,7 @@
         };
       }
     }
-    for (const member of [eq2.left, eq2.right]) {
+    for (const member of [eq.left, eq.right]) {
       const constM = evalConst(member);
       if (constM.ok && constM.value < 0) {
         return {
@@ -3382,7 +3382,7 @@
         };
       }
     }
-    for (const member of [eq2.left, eq2.right]) {
+    for (const member of [eq.left, eq.right]) {
       if (evenPowerOf(member) !== null) {
         return {
           ok: false,
@@ -3391,11 +3391,11 @@
         };
       }
     }
-    const newEq = canonical(Eq(Sqrt(eq2.left), Sqrt(eq2.right)));
+    const newEq = canonical(Eq(Sqrt(eq.left), Sqrt(eq.right)));
     return {
       ok: true,
       equation: newEq,
-      conditions: [conditionText(eq2.left, "\u2265 0"), conditionText(eq2.right, "\u2265 0")],
+      conditions: [conditionText(eq.left, "\u2265 0"), conditionText(eq.right, "\u2265 0")],
       steps: ["Estraggo la radice quadrata di entrambi i membri."],
       note: "La radice di un quadrato \xE8 un valore assoluto: \u221A(x\xB2) = |x|. Perch\xE9 la radice di entrambi i membri abbia senso, entrambi devono essere \u2265 0."
     };
@@ -3439,17 +3439,17 @@
       notation: "tan(...)"
     }
   };
-  function applyInverseTrigBothSides(eq2, opId, targetVar) {
+  function applyInverseTrigBothSides(eq, opId, targetVar) {
     const info = TRIG_OPS[opId];
     if (!info) return { ok: false, error: `Operazione trigonometrica sconosciuta: ${opId}.` };
-    const leftU = unwrapNeutrals(eq2.left);
-    const rightU = unwrapNeutrals(eq2.right);
+    const leftU = unwrapNeutrals(eq.left);
+    const rightU = unwrapNeutrals(eq.right);
     const leftIsTrig = leftU.type === info.trigType;
     const rightIsTrig = rightU.type === info.trigType;
     let side = null;
     let fnNode = null;
     if (leftIsTrig && rightIsTrig) {
-      const sideHas = targetVar ? whichSideHas(eq2, targetVar) : null;
+      const sideHas = targetVar ? whichSideHas(eq, targetVar) : null;
       side = sideHas === "right" ? "right" : "left";
       fnNode = side === "left" ? leftU : rightU;
     } else if (leftIsTrig) {
@@ -3460,7 +3460,7 @@
       fnNode = rightU;
     }
     if (side && fnNode) {
-      const res = applyRule(RULES.invertFunction, eq2, { side, fnNode });
+      const res = applyRule(RULES.invertFunction, eq, { side, fnNode });
       if (!res.ok) {
         return { ok: false, error: res.error, hint: res.hint };
       }
@@ -3476,7 +3476,7 @@
         note: res.note || null
       };
     }
-    const containsInEq = nodeContainsType(eq2.left, info.trigType) || nodeContainsType(eq2.right, info.trigType);
+    const containsInEq = nodeContainsType(eq.left, info.trigType) || nodeContainsType(eq.right, info.trigType);
     if (containsInEq) {
       return {
         ok: false,
@@ -3490,18 +3490,18 @@
       hint: `L'operazione ${info.invName} si applica per liberare l'argomento quando un membro \xE8 costituito da ${info.notation}.`
     };
   }
-  function applyKeypadOperation(eq2, opId, operandNode, operandText, targetVar) {
-    if (!eq2 || eq2.type !== "Eq") {
+  function applyKeypadOperation(eq, opId, operandNode, operandText, targetVar) {
+    if (!eq || eq.type !== "Eq") {
       return { ok: false, error: "Nessuna equazione su cui operare." };
     }
-    if (opId === "sqrt") return applySqrtBothSides(eq2, targetVar);
+    if (opId === "sqrt") return applySqrtBothSides(eq, targetVar);
     if (opId === "asin" || opId === "acos" || opId === "atan") {
-      return applyInverseTrigBothSides(eq2, opId, targetVar);
+      return applyInverseTrigBothSides(eq, opId, targetVar);
     }
     const ruleKey = RULE_BY_OP[opId];
     if (!ruleKey) return { ok: false, error: `Operazione sconosciuta: ${opId}.` };
     if (!operandNode) return { ok: false, error: "Scegli prima una grandezza o un numero." };
-    const res = applyRule(RULES[ruleKey], eq2, { value: operandNode, valueText: operandText });
+    const res = applyRule(RULES[ruleKey], eq, { value: operandNode, valueText: operandText });
     if (!res.ok) return { ok: false, error: res.error, hint: res.hint };
     return {
       ok: true,
@@ -3692,12 +3692,12 @@
     if (parentSegs.length === 0) return canonical(newParent);
     return canonical(rebuildAlongPath(member, parentSegs, newParent));
   }
-  function crossCancelAdditive(eq2, idA, idB) {
+  function crossCancelAdditive(eq, idA, idB) {
     const a = analyseAdditiveId(idA);
     const b = analyseAdditiveId(idB);
     if (!a || !b) return null;
-    const memberA = a.side === "left" ? eq2.left : eq2.right;
-    const memberB = b.side === "left" ? eq2.left : eq2.right;
+    const memberA = a.side === "left" ? eq.left : eq.right;
+    const memberB = b.side === "left" ? eq.left : eq.right;
     const nodeA = a.segs.length === 0 ? unwrap(memberA) : nodeAtSegments(memberA, a.segs);
     const nodeB = b.segs.length === 0 ? unwrap(memberB) : nodeAtSegments(memberB, b.segs);
     if (!nodeA || !nodeB) return null;
@@ -3711,7 +3711,7 @@
       const after2 = removeByEff(after1, effB);
       if (!after2) return null;
       const newMember = after2.length === 0 ? Num(0) : canonical(rebuildSum(after2));
-      const newEq2 = canonical(a.side === "left" ? Eq(newMember, eq2.right) : Eq(eq2.left, newMember));
+      const newEq2 = canonical(a.side === "left" ? Eq(newMember, eq.right) : Eq(eq.left, newMember));
       const pos = effA.type === "Neg" ? canonical(Neg(effA)) : effA;
       const c2 = toPretty(pos, 0);
       return {
@@ -3740,8 +3740,8 @@
       conditions: []
     };
   }
-  function crossCancel(eq2, idA, idB) {
-    if (!eq2 || eq2.type !== "Eq") {
+  function crossCancel(eq, idA, idB) {
+    if (!eq || eq.type !== "Eq") {
       return { ok: false, error: "Nessuna equazione su cui semplificare." };
     }
     if (idA === idB) {
@@ -3750,7 +3750,7 @@
     const a = analyseElementId(idA);
     const b = analyseElementId(idB);
     if (!a || !b) {
-      const addResult = crossCancelAdditive(eq2, idA, idB);
+      const addResult = crossCancelAdditive(eq, idA, idB);
       if (addResult) return addResult;
       return {
         ok: false,
@@ -3759,7 +3759,7 @@
       };
     }
     if (a.side !== b.side) {
-      const addResult = crossCancelAdditive(eq2, idA, idB);
+      const addResult = crossCancelAdditive(eq, idA, idB);
       if (addResult) return addResult;
       return {
         ok: false,
@@ -3767,7 +3767,7 @@
         hint: "Semplifica un fattore al numeratore e uno al denominatore dello stesso membro."
       };
     }
-    const member = a.side === "left" ? eq2.left : eq2.right;
+    const member = a.side === "left" ? eq.left : eq.right;
     const nodeA = nodeAtSegments(member, a.segments);
     const nodeB = nodeAtSegments(member, b.segments);
     if (!nodeA || !nodeB) {
@@ -3812,7 +3812,7 @@
       return { ok: false, error: "Impossibile completare la semplificazione di questi elementi." };
     }
     const simplified = canonical(simplifiedNode);
-    const newEq = canonical(a.side === "left" ? Eq(simplified, eq2.right) : Eq(eq2.left, simplified));
+    const newEq = canonical(a.side === "left" ? Eq(simplified, eq.right) : Eq(eq.left, simplified));
     const cancelled = toPretty(nodeA, 0);
     return {
       ok: true,
@@ -3907,32 +3907,32 @@
     }
     return node;
   }
-  function getCompoundFractionSteps(eq2, targetVar) {
-    if (!eq2 || eq2.type !== "Eq" || !targetVar) return null;
+  function getCompoundFractionSteps(eq, targetVar) {
+    if (!eq || eq.type !== "Eq" || !targetVar) return null;
     let targetSide = null;
     let resultSide = null;
-    const inL = collectVars(eq2.left).has(targetVar);
-    const inR = collectVars(eq2.right).has(targetVar);
+    const inL = collectVars(eq.left).has(targetVar);
+    const inR = collectVars(eq.right).has(targetVar);
     if (inL && inR) return null;
-    if (isolatedSide(eq2.left, targetVar) && !inR) {
+    if (isolatedSide(eq.left, targetVar) && !inR) {
       targetSide = "left";
       resultSide = "right";
-    } else if (isolatedSide(eq2.right, targetVar) && !inL) {
+    } else if (isolatedSide(eq.right, targetVar) && !inL) {
       targetSide = "right";
       resultSide = "left";
     } else {
       return null;
     }
-    const resNode = eq2[resultSide];
+    const resNode = eq[resultSide];
     if (!hasCompoundFraction(resNode)) return null;
-    const step1Eq = clone(eq2);
+    const step1Eq = clone(eq);
     const step2ResNode = transformToReciprocalMul(clone(resNode));
-    const step2Eq = targetSide === "left" ? Eq(eq2.left, step2ResNode) : Eq(step2ResNode, eq2.right);
+    const step2Eq = targetSide === "left" ? Eq(eq.left, step2ResNode) : Eq(step2ResNode, eq.right);
     let step3ResNode = canonical(clone(step2ResNode));
     while (hasCompoundFraction(step3ResNode)) {
       step3ResNode = canonical(transformToReciprocalMul(step3ResNode));
     }
-    const targetNode = targetSide === "left" ? eq2.left : eq2.right;
+    const targetNode = targetSide === "left" ? eq.left : eq.right;
     const step3Eq = Eq(targetNode, step3ResNode);
     return {
       targetSide,
@@ -6116,7 +6116,7 @@
   }
 
   // js/render.js
-  function renderEquation(eq2, opts = {}) {
+  function renderEquation(eq, opts = {}) {
     const {
       selectedId = null,
       dimIds = /* @__PURE__ */ new Set(),
@@ -6124,14 +6124,14 @@
       interactive = false,
       showImplicitDen = false
     } = opts;
-    const memberOpts = { ...opts, eq: eq2 };
+    const memberOpts = { ...opts, eq };
     if (!interactive) {
-      const left = renderNode(eq2.left, "left", memberOpts);
-      const right = renderNode(eq2.right, "right", memberOpts);
+      const left = renderNode(eq.left, "left", memberOpts);
+      const right = renderNode(eq.right, "right", memberOpts);
       return `<span class="math-eq">${left}<span class="eq-sign" aria-label="uguale">=</span>${right}</span>`;
     }
-    const leftMember = renderMember(eq2.left, "left", memberOpts);
-    const rightMember = renderMember(eq2.right, "right", memberOpts);
+    const leftMember = renderMember(eq.left, "left", memberOpts);
+    const rightMember = renderMember(eq.right, "right", memberOpts);
     return `<div class="math-eq interactive-math-eq ${showImplicitDen ? "show-implicit-denominators" : ""}">  <div class="math-member-wrap math-member-left">${leftMember}</div>  <div class="eq-sign-wrap"><span class="eq-sign" aria-label="uguale">=</span></div>  <div class="math-member-wrap math-member-right">${rightMember}</div></div>`;
   }
   function insertionSlot(side, slot) {
@@ -6627,102 +6627,102 @@
     }
     return false;
   }
-  function removeFactorFromExpr(expr2, targetVarName) {
-    expr2 = unwrap(expr2);
-    if (isMatch(expr2, targetVarName)) {
+  function removeFactorFromExpr(expr, targetVarName) {
+    expr = unwrap(expr);
+    if (isMatch(expr, targetVarName)) {
       return Num(1);
     }
-    if (expr2.type === "Neg") {
-      const inner = removeFactorFromExpr(expr2.arg, targetVarName);
-      if (structurallyEqual(inner, expr2.arg)) return expr2;
+    if (expr.type === "Neg") {
+      const inner = removeFactorFromExpr(expr.arg, targetVarName);
+      if (structurallyEqual(inner, expr.arg)) return expr;
       if (inner.type === "Num" && inner.value === 1) return Num(-1);
       return { type: "Neg", arg: inner };
     }
-    if (expr2.type === "Mul") {
-      let idx = expr2.args.findIndex((a) => isMatch(a, targetVarName));
+    if (expr.type === "Mul") {
+      let idx = expr.args.findIndex((a) => isMatch(a, targetVarName));
       if (idx !== -1) {
-        const remaining = expr2.args.filter((_, i) => i !== idx);
+        const remaining = expr.args.filter((_, i) => i !== idx);
         if (remaining.length === 0) return Num(1);
         if (remaining.length === 1) return remaining[0];
         return Mul(...remaining);
       }
-      const negIdx = expr2.args.findIndex((a) => {
+      const negIdx = expr.args.findIndex((a) => {
         const u = unwrap(a);
         if (u.type !== "Neg") return false;
         const inner = removeFactorFromExpr(u.arg, targetVarName);
         return !structurallyEqual(inner, u.arg);
       });
       if (negIdx !== -1) {
-        const u = unwrap(expr2.args[negIdx]);
+        const u = unwrap(expr.args[negIdx]);
         const newInner = removeFactorFromExpr(u.arg, targetVarName);
         const newArg = newInner.type === "Num" && newInner.value === 1 ? Num(-1) : { type: "Neg", arg: newInner };
-        const newArgs = expr2.args.map((a, i) => i === negIdx ? newArg : a);
+        const newArgs = expr.args.map((a, i) => i === negIdx ? newArg : a);
         return Mul(...newArgs);
       }
-      idx = expr2.args.findIndex((a) => {
+      idx = expr.args.findIndex((a) => {
         const u = unwrap(a);
         return u.type === "Num" && u.value < 0 && String(-u.value) === String(targetVarName);
       });
       if (idx !== -1) {
-        const newArgs = expr2.args.map((a, i) => i === idx ? Num(-1) : a);
+        const newArgs = expr.args.map((a, i) => i === idx ? Num(-1) : a);
         if (newArgs.length === 1) return newArgs[0];
         return Mul(...newArgs);
       }
-      const divIdx = expr2.args.findIndex((a) => {
+      const divIdx = expr.args.findIndex((a) => {
         const u = unwrap(a);
         if (u.type !== "Div") return false;
         const res = removeFactorFromExpr(u.num, targetVarName);
         return !structurallyEqual(res, u.num);
       });
       if (divIdx !== -1) {
-        const u = unwrap(expr2.args[divIdx]);
+        const u = unwrap(expr.args[divIdx]);
         const newNum = removeFactorFromExpr(u.num, targetVarName);
         const newDiv = Div(newNum, u.den);
-        const newArgs = expr2.args.map((a, i) => i === divIdx ? newDiv : a);
+        const newArgs = expr.args.map((a, i) => i === divIdx ? newDiv : a);
         return Mul(...newArgs);
       }
     }
-    if (expr2.type === "Div") {
-      const newNum = removeFactorFromExpr(expr2.num, targetVarName);
-      return Div(newNum, expr2.den);
+    if (expr.type === "Div") {
+      const newNum = removeFactorFromExpr(expr.num, targetVarName);
+      return Div(newNum, expr.den);
     }
-    return expr2;
+    return expr;
   }
-  function addFactorToDenominator(expr2, factorNode) {
-    expr2 = unwrap(expr2);
-    if (expr2.type === "Neg") {
-      return { type: "Neg", arg: addFactorToDenominator(expr2.arg, factorNode) };
+  function addFactorToDenominator(expr, factorNode) {
+    expr = unwrap(expr);
+    if (expr.type === "Neg") {
+      return { type: "Neg", arg: addFactorToDenominator(expr.arg, factorNode) };
     }
-    if (expr2.type === "Div") {
-      const curDen = unwrap(expr2.den);
+    if (expr.type === "Div") {
+      const curDen = unwrap(expr.den);
       let newDen;
       if (curDen.type === "Mul") {
         newDen = Mul(...curDen.args, factorNode);
       } else {
         newDen = Mul(curDen, factorNode);
       }
-      return Div(expr2.num, newDen);
+      return Div(expr.num, newDen);
     }
-    return Div(expr2, factorNode);
+    return Div(expr, factorNode);
   }
-  function removeFactorFromDenominator(expr2, targetVarName) {
-    expr2 = unwrap(expr2);
-    if (expr2.type === "Neg") {
-      const inner = removeFactorFromDenominator(expr2.arg, targetVarName);
-      return structurallyEqual(inner, expr2.arg) ? expr2 : { type: "Neg", arg: inner };
+  function removeFactorFromDenominator(expr, targetVarName) {
+    expr = unwrap(expr);
+    if (expr.type === "Neg") {
+      const inner = removeFactorFromDenominator(expr.arg, targetVarName);
+      return structurallyEqual(inner, expr.arg) ? expr : { type: "Neg", arg: inner };
     }
-    if (expr2.type === "Div") {
-      const den = unwrap(expr2.den);
+    if (expr.type === "Div") {
+      const den = unwrap(expr.den);
       if (isMatch(den, targetVarName)) {
-        return expr2.num;
+        return expr.num;
       }
       if (den.type === "Neg") {
         const inner = removeFactorFromExpr(den.arg, targetVarName);
         if (!structurallyEqual(inner, den.arg)) {
           if (inner.type === "Num" && inner.value === 1) {
-            return { type: "Neg", arg: expr2.num };
+            return { type: "Neg", arg: expr.num };
           }
-          return Div(expr2.num, { type: "Neg", arg: inner });
+          return Div(expr.num, { type: "Neg", arg: inner });
         }
       }
       if (den.type === "Mul") {
@@ -6730,7 +6730,7 @@
         if (idx !== -1) {
           const remaining = den.args.filter((_, i) => i !== idx);
           const newDen = remaining.length === 1 ? remaining[0] : Mul(...remaining);
-          return Div(expr2.num, newDen);
+          return Div(expr.num, newDen);
         }
         const negIdx = den.args.findIndex((a) => {
           const u = unwrap(a);
@@ -6743,12 +6743,12 @@
           const newInner = removeFactorFromExpr(u.arg, targetVarName);
           const newArg = newInner.type === "Num" && newInner.value === 1 ? Num(-1) : { type: "Neg", arg: newInner };
           const newArgs = den.args.map((a, i) => i === negIdx ? newArg : a);
-          return Div(expr2.num, Mul(...newArgs));
+          return Div(expr.num, Mul(...newArgs));
         }
       }
     }
-    if (expr2.type === "Mul") {
-      const idx = expr2.args.findIndex((a) => {
+    if (expr.type === "Mul") {
+      const idx = expr.args.findIndex((a) => {
         const u = unwrap(a);
         if (u.type !== "Div") return false;
         const den = unwrap(u.den);
@@ -6759,32 +6759,32 @@
         return false;
       });
       if (idx !== -1) {
-        const updatedFactor = removeFactorFromDenominator(expr2.args[idx], targetVarName);
+        const updatedFactor = removeFactorFromDenominator(expr.args[idx], targetVarName);
         const uFact = unwrap(updatedFactor);
         let newArgs;
         if (uFact.type === "Num" && uFact.value === 1) {
-          newArgs = expr2.args.filter((_, i) => i !== idx);
+          newArgs = expr.args.filter((_, i) => i !== idx);
           if (newArgs.length === 0) return Num(1);
           if (newArgs.length === 1) return newArgs[0];
           return Mul(...newArgs);
         } else {
-          newArgs = expr2.args.map((arg, i) => i === idx ? updatedFactor : arg);
+          newArgs = expr.args.map((arg, i) => i === idx ? updatedFactor : arg);
           return Mul(...newArgs);
         }
       }
     }
-    return expr2;
+    return expr;
   }
-  function addFactorToNumerator(expr2, factorNode) {
-    expr2 = unwrap(expr2);
-    if (expr2.type === "Neg") {
-      return { type: "Neg", arg: addFactorToNumerator(expr2.arg, factorNode) };
+  function addFactorToNumerator(expr, factorNode) {
+    expr = unwrap(expr);
+    if (expr.type === "Neg") {
+      return { type: "Neg", arg: addFactorToNumerator(expr.arg, factorNode) };
     }
-    if (expr2.type === "Num" && expr2.value === 1) {
+    if (expr.type === "Num" && expr.value === 1) {
       return factorNode;
     }
-    if (expr2.type === "Div") {
-      const curNum = unwrap(expr2.num);
+    if (expr.type === "Div") {
+      const curNum = unwrap(expr.num);
       let newNum;
       if (curNum.type === "Num" && curNum.value === 1) {
         newNum = factorNode;
@@ -6793,12 +6793,12 @@
       } else {
         newNum = Mul(curNum, factorNode);
       }
-      return Div(newNum, expr2.den);
+      return Div(newNum, expr.den);
     }
-    if (expr2.type === "Mul") {
-      return Mul(...expr2.args, factorNode);
+    if (expr.type === "Mul") {
+      return Mul(...expr.args, factorNode);
     }
-    return Mul(expr2, factorNode);
+    return Mul(expr, factorNode);
   }
   function moveAdditiveTermByDrag(fromExpr, toExpr, targetVarName) {
     const terms = additiveTerms(fromExpr);
@@ -7605,1160 +7605,6 @@
     return String(rounded);
   }
 
-  // js/tests.js
-  var counter = 0;
-  function test(name, fn) {
-    const id = "test-" + counter++;
-    try {
-      const r = fn();
-      const ok = r === true || r !== false && typeof r !== "string";
-      return { id, name, ok, detail: typeof r === "string" ? r : null };
-    } catch (err) {
-      return { id, name, ok: false, detail: err.message };
-    }
-  }
-  function eq(str) {
-    return parseEquation(str);
-  }
-  function expr(str) {
-    return parseExpression(str);
-  }
-  function checkRule(ruleKey, input, ctx, expected) {
-    const inputEq = eq(input);
-    const expectedEq = eq(expected);
-    const res = applyRule(RULES[ruleKey], inputEq, ctx);
-    if (!res.ok) return `regola rifiutata: ${res.error}`;
-    if (!equivalentEq(res.equation, expectedEq)) {
-      return `atteso ${expected}, ottenuto ${toPretty(res.equation, 0)}`;
-    }
-    return true;
-  }
-  function checkReject(ruleKey, input, ctx) {
-    const inputEq = eq(input);
-    const res = applyRule(RULES[ruleKey], inputEq, ctx);
-    if (res.ok) return `la regola \xE8 stata accettata ma doveva essere rifiutata (${toPretty(res.equation, 0)})`;
-    return true;
-  }
-  function runAllTests() {
-    counter = 0;
-    const results = [];
-    results.push(test("Parser: v = s/t", () => {
-      const e = eq("v = s/t");
-      return equivalentEq(e, eq("v = s/t"));
-    }));
-    results.push(test("Parser: coefficiente implicito 2pir -> 2*pi*r", () => {
-      const e = eq("C = 2*pi*r");
-      return collectVars(e).has("r");
-    }));
-    results.push(test('Parser: errore su "v = s/" (denominatore mancante)', () => {
-      try {
-        eq("v = s/");
-        return "nessun errore lanciato";
-      } catch (e) {
-        return e instanceof ParseError ? true : "tipo di errore errato: " + e.name;
-      }
-    }));
-    results.push(test('Parser: errore su "v = (s/t" (parentesi non chiusa)', () => {
-      try {
-        eq("v = (s/t");
-        return "nessun errore lanciato";
-      } catch (e) {
-        return e instanceof ParseError ? true : "tipo di errore errato";
-      }
-    }));
-    results.push(test('Parser: errore su "v = s + " (termine mancante)', () => {
-      try {
-        eq("v = s +");
-        return "nessun errore lanciato";
-      } catch (e) {
-        return e instanceof ParseError ? true : "tipo di errore errato";
-      }
-    }));
-    results.push(test('Parser: errore su "v = s/(0)" (divisione per zero con parentesi)', () => {
-      try {
-        eq("v = s/(0)");
-        return "nessun errore lanciato";
-      } catch (e) {
-        return e instanceof ParseError ? true : "tipo di errore errato: " + e.name;
-      }
-    }));
-    results.push(test(
-      "Regola: v = s/t, divido? no \u2014 moltiplico per t -> v*t = s",
-      () => checkRule("mulBoth", "v = s/t", { value: expr("t"), valueText: "t" }, "v*t = (s/t)*t")
-    ));
-    results.push(test(
-      "Regola: primo principio x - a = b -> x = b + a (trasporto termine)",
-      () => checkRule("moveTerm", "x - a = b", { term: expr("a"), side: "left", termText: "a" }, "x = b + a")
-    ));
-    results.push(test(
-      "Regola: scambio membri a = b -> b = a",
-      () => checkRule("swapSides", "a = b", {}, "b = a")
-    ));
-    results.push(test(
-      "Regola: moltiplicazione incrociata a/b = c/d -> a*d = b*c",
-      () => checkRule("crossMultiply", "a/b = c/d", {}, "a*d = b*c")
-    ));
-    results.push(test(
-      "Regola: inversione a/b = c/d -> b/a = d/c",
-      () => checkRule("invertProportion", "a/b = c/d", {}, "b/a = d/c")
-    ));
-    results.push(test(
-      "Regola: divisione entrambi i membri 4*x = 8 -> 4*x/2 = 8/2",
-      () => checkRule("divBoth", "4*x = 8", { value: expr("2"), valueText: "2" }, "(4*x)/2 = 8/2")
-    ));
-    results.push(test(
-      "Regola: trasporto fattore 2*L = b -> 2*L/2 = b/2",
-      () => checkRule("moveFactor", "2*L = b", { factor: expr("2"), side: "left", factorText: "2" }, "(2*L)/2 = b/2")
-    ));
-    results.push(test(
-      "Regola: propriet\xE0 distributiva a*(x + b) = c -> a*x + a*b = c",
-      () => checkRule("distribute", "a*(x + b) = c", { side: "left" }, "a*x + a*b = c")
-    ));
-    results.push(test(
-      "Regola: radice quadrata x^2 = 9 -> x = \xB1sqrt(9) (con \xB1)",
-      () => {
-        const res = applyRule(RULES.sqrtBoth, eq("x^2 = 9"), { side: "left", insideVar: "x" });
-        if (!res.ok) return "regola rifiutata: " + res.error;
-        const txt = toPretty(res.equation, 0);
-        return txt.includes("\xB1") ? true : "manca il segno \xB1 in: " + txt;
-      }
-    ));
-    results.push(test(
-      "Regola: radice di indice pari x^4 = 16 -> x = \xB116^(1/4) (con \xB1)",
-      () => {
-        const res = applyRule(RULES.sqrtBoth, eq("x^4 = 16"), { side: "left", insideVar: "x" });
-        if (!res.ok) return "regola rifiutata: " + res.error;
-        const txt = toPretty(res.equation, 0);
-        if (!txt.includes("\xB1")) return "manca il segno \xB1 in: " + txt;
-        return res.conditions && res.conditions.some((c) => c.includes("\u2265")) ? true : "manca la condizione radicando \u2265 0";
-      }
-    ));
-    results.push(test(
-      "Regola: radice cubica x^3 = 27 -> x = 27^(1/3) SENZA \xB1",
-      () => {
-        const res = applyRule(RULES.rootOddBoth, eq("x^3 = 27"), { side: "left", insideVar: "x" });
-        if (!res.ok) return "regola rifiutata: " + res.error;
-        const txt = toPretty(res.equation, 0);
-        if (txt.includes("\xB1")) return "la radice di indice dispari NON deve introdurre \xB1: " + txt;
-        return res.conditions && res.conditions.length === 0 ? true : "la radice dispari non deve produrre condizioni di segno: " + JSON.stringify(res.conditions);
-      }
-    ));
-    results.push(test(
-      "Regola: radice dispari accetta radicando negativo x^3 = -8 -> x = (-8)^(1/3)",
-      () => {
-        const res = applyRule(RULES.rootOddBoth, eq("x^3 = -8"), { side: "left", insideVar: "x" });
-        if (!res.ok) return "regola rifiutata: " + res.error;
-        return !toPretty(res.equation, 0).includes("\xB1") ? true : "non deve comparire \xB1";
-      }
-    ));
-    results.push(test(
-      "Regola: cancellazione (s/t)*t = s (fattore comune tra frazione e prodotto)",
-      () => {
-        const res = applyRule(RULES.cancelFactor, eq("v*t = (s/t)*t"), { den: expr("t"), side: "right", denText: "t" });
-        if (!res.ok) return "regola rifiutata: " + res.error;
-        return equivalentEq(res.equation, eq("v*t = s")) ? true : "atteso v*t = s, ottenuto " + toPretty(res.equation, 0);
-      }
-    ));
-    results.push(test(
-      "Regola: cancellazione rifiutata se non c'\xE8 fattore comune",
-      () => checkReject("cancelFactor", "v*t = (s/t)*u", { den: expr("t"), side: "right", denText: "t" })
-    ));
-    results.push(test(
-      "Mossa illecita: divisione per 0 rifiutata",
-      () => checkReject("divBoth", "x = 5", { value: expr("0"), valueText: "0" })
-    ));
-    results.push(test(
-      "Mossa illecita: moltiplicazione per 0 rifiutata",
-      () => checkReject("mulBoth", "x = 5", { value: expr("0"), valueText: "0" })
-    ));
-    results.push(test(
-      "Mossa illecita: inversione con un solo membro frazionario rifiutata",
-      () => checkReject("invertProportion", "a/b = c", {})
-    ));
-    results.push(test(
-      "Mossa illecita: moltiplicazione incrociata senza proporzione rifiutata",
-      () => checkReject("crossMultiply", "a = c", {})
-    ));
-    results.push(test(
-      "Mossa illecita: trasporto di un fattore che non esiste rifiutato",
-      () => checkReject("moveFactor", "a + b = c", { factor: expr("a"), side: "left", factorText: "a" })
-    ));
-    results.push(test(
-      "Equivalenza: x = y e y = x sono equivalenti",
-      () => equivalentEq(eq("x = y"), eq("y = x"))
-    ));
-    results.push(test(
-      "Non equivalenza: x = y e x = z NON equivalenti",
-      () => equivalentEq(eq("x = y"), eq("x = z")) === false
-    ));
-    results.push(test(
-      'Obiettivo: in "v = s/t" la var t NON \xE8 isolata',
-      () => isGoalReached(eq("v = s/t"), "t") === false
-    ));
-    results.push(test(
-      'Obiettivo: in "t = s/v" la var t \xC8 isolata',
-      () => isGoalReached(eq("t = s/v"), "t") === true
-    ));
-    results.push(test(
-      "Trasporto termine x - a = b raggiunge x isolata",
-      () => isGoalReached(eq("x = b + a"), "x") === true
-    ));
-    results.push(test(
-      "Suggerimento: per isolare t in v = s/t propone di moltiplicare per t",
-      () => {
-        const sug = suggestNextStep(eq("v = s/t"), "t");
-        if (!sug.found) return "nessun suggerimento trovato";
-        return sug.action.ruleKey === "mulBoth" ? true : "regola suggerita: " + sug.action.ruleKey;
-      }
-    ));
-    results.push(test(
-      "Enumerazione elementi: v = s/t produce pi\xF9 elementi selezionabili",
-      () => enumerateElements(eq("v = s/t")).length >= 4
-    ));
-    results.push(test(
-      "Catena: applicare il primo principio preserva la soluzione (v=s/t)",
-      () => {
-        const res = applyRule(RULES.mulBoth, eq("v = s/t"), { value: expr("t"), valueText: "t" });
-        if (!res.ok) return "rifiutata: " + res.error;
-        const hasV = collectVars(res.equation).has("v");
-        const hasS = collectVars(res.equation).has("s");
-        return hasV && hasS;
-      }
-    ));
-    results.push(test(
-      "Regola: cancellazione frazione numeratore (2*L)/2 = b -> L = b",
-      () => {
-        const res = applyRule(RULES.cancelFactor, eq("(2*L)/2 = b/2"), { den: expr("2"), side: "left", denText: "2" });
-        if (!res.ok) return "rifiutata: " + res.error;
-        return equivalentEq(res.equation, eq("L = b/2")) ? true : "atteso L = b/2, ottenuto " + toPretty(res.equation, 0);
-      }
-    ));
-    results.push(test(
-      "Regola: cancellazione frazione (t*v)/v = s/v -> t = s/v",
-      () => {
-        const res = applyRule(RULES.cancelFactor, eq("(t*v)/v = s/v"), { den: expr("v"), side: "left", denText: "v" });
-        if (!res.ok) return "rifiutata: " + res.error;
-        return equivalentEq(res.equation, eq("t = s/v")) ? true : "atteso t = s/v, ottenuto " + toPretty(res.equation, 0);
-      }
-    ));
-    results.push(test(
-      "Risoluzione completa: sequenza automatica per isolare t in v = s/t",
-      () => {
-        let current = eq("v = s/t");
-        for (let s = 0; s < 6; s++) {
-          if (isGoalReached(current, "t")) return true;
-          const sug = suggestNextStep(current, "t");
-          if (!sug.found) return "nessun suggerimento al passo " + s;
-          const res = performAction(current, sug.action);
-          if (!res.ok) return "azione fallita: " + res.error;
-          current = res.equation;
-        }
-        return isGoalReached(current, "t") ? true : "obiettivo t non raggiunto: " + toPretty(current, 0);
-      }
-    ));
-    results.push(test(
-      "La stringa originale NON viene riscritta (nessun testo hardcoded)",
-      () => {
-        const e = eq("v = s/t");
-        const tex = toPretty(e, 0);
-        return tex.includes("v") && tex.includes("s") && tex.includes("t");
-      }
-    ));
-    results.push(test(
-      "Simboli con pedici greci: theta0 -> \u03B8\u2080 e omega0 -> \u03C9\u2080",
-      () => prettyVar("theta0") === "\u03B8\u2080" && prettyVar("omega0") === "\u03C9\u2080" && prettyVar("alpha0") === "\u03B1\u2080"
-    ));
-    results.push(test(
-      "LaTeX: conversione corretta per frazioni e radici",
-      () => {
-        const l1 = toLatex(eq("v = s/t"));
-        const l2 = toLatex(eq("c = sqrt(a^2 + b^2)"));
-        return l1 === "v = \\frac{s}{t}" && l2.includes("\\sqrt") && (l2.includes("a^{2}") || l2.includes("a^2"));
-      }
-    ));
-    results.push(test(
-      "LaTeX: theta = theta0 + omega0*t converte a \\theta = \\theta_0 + \\omega_0 \\cdot t",
-      () => {
-        const l = toLatex(eq("theta = theta0 + omega0*t"));
-        return l === "\\theta = \\theta_0 + \\omega_0 \\cdot t";
-      }
-    ));
-    results.push(test("Reciproci: v = s/t diventa 1/v = t/s", () => {
-      const r = reciprocalEquation(eq("v = s/t"));
-      if (!r.ok) return `rifiutata: ${r.error}`;
-      return equivalentEq(r.newEq, eq("1/v = t/s")) || `ottenuto ${toPretty(r.newEq, 0)}`;
-    }));
-    results.push(test("Reciproci: A/B = C/D diventa B/A = D/C", () => {
-      const r = reciprocalEquation(eq("A/B = C/D"));
-      if (!r.ok) return `rifiutata: ${r.error}`;
-      return equivalentEq(r.newEq, eq("B/A = D/C")) || `ottenuto ${toPretty(r.newEq, 0)}`;
-    }));
-    results.push(test("Reciproci: denominatore sottinteso F = m*a diventa 1/F = 1/(m*a)", () => {
-      const r = reciprocalEquation(eq("F = m*a"));
-      if (!r.ok) return `rifiutata: ${r.error}`;
-      return equivalentEq(r.newEq, eq("1/F = 1/(m*a)")) || `ottenuto ${toPretty(r.newEq, 0)}`;
-    }));
-    results.push(test("Reciproci: (1/2)*m*v^2 estrae il fattore 2 al numeratore", () => {
-      const r = reciprocalEquation(eq("Ec = (1/2)*m*v^2"));
-      if (!r.ok) return `rifiutata: ${r.error}`;
-      return equivalentEq(r.newEq, eq("1/Ec = 2/(m*v^2)")) || `ottenuto ${toPretty(r.newEq, 0)}`;
-    }));
-    results.push(test("Reciproci: somma di frazioni viene rifiutata con spiegazione", () => {
-      const r = reciprocalEquation(eq("1/Req = 1/R1 + 1/R2"));
-      if (r.ok) return "accettata ma doveva essere rifiutata";
-      return !/somma/.test(r.error) ? `messaggio poco chiaro: ${r.error}` : true;
-    }));
-    results.push(test("Reciproci: applicata due volte torna all'equazione di partenza", () => {
-      const start = eq("a = (v - v0)/t");
-      const once = reciprocalEquation(start);
-      if (!once.ok) return `rifiutata: ${once.error}`;
-      const twice = reciprocalEquation(once.newEq);
-      if (!twice.ok) return `rifiutata al secondo passaggio: ${twice.error}`;
-      return equivalentEq(twice.newEq, start) || `ottenuto ${toPretty(twice.newEq, 0)}`;
-    }));
-    results.push(test("Notazione: i fattori sono ordinati (m\xB7v\xB2, non v\xB2\xB7m)", () => {
-      const s = toPretty(canonical(eq("Ec = (1/2)*m*v^2")), 0);
-      return s.includes("m\xB7v^2") ? true : `ottenuto ${s}`;
-    }));
-    results.push(test("Notazione: 1/2 resta frazione, non diventa 0.5", () => {
-      const s = toPretty(canonical(eq("Ec = (1/2)*m*v^2")), 0);
-      return s.includes("0.5") ? `decimalizzato: ${s}` : true;
-    }));
-    results.push(test("Notazione: 2\xB7(1/2)\xB7m si semplifica in m", () => {
-      const s = toPretty(canonical(parseExpression("2*(1/2)*m")), 0);
-      return s === "m" ? true : `ottenuto ${s}`;
-    }));
-    results.push(test("Notazione: la differenza si scrive v \u2212 v0, non v + -1\xB7v0", () => {
-      const s = toPretty(canonical(eq("a = (v - v0)/t")), 0);
-      return s.includes("+ -") || s.includes("\u2212 -") ? `ottenuto ${s}` : true;
-    }));
-    results.push(test("Drag: trasporto fattore 2 da coefficiente negativo Num(-2) al denominatore", () => {
-      const e = eq("-2*a*s = b");
-      const r = applyDragMove({
-        currentEq: e,
-        varName: "2",
-        nodeType: "Num",
-        fromSide: "left",
-        fromSlot: "num",
-        targetSide: "right",
-        targetSlot: "den"
-      });
-      if (!r.ok) return `rifiutata: ${r.error}`;
-      const leftText = toPretty(r.newEq.left, 0);
-      if (leftText.includes("2")) return `Num(-2) non rimosso: ${leftText}`;
-      const rightText = toPretty(r.newEq.right, 0);
-      return rightText.includes("2") ? true : `2 non al denominatore destro: ${rightText}`;
-    }));
-    results.push(test("Notazione: nessuna parentesi ridondante sul membro isolato", () => {
-      const r = applyDragMove({
-        currentEq: eq("P = p0 + d*g*h"),
-        varName: "d*g*h",
-        nodeType: "Mul",
-        fromSide: "right",
-        fromSlot: "num",
-        targetSide: "left",
-        targetSlot: "add"
-      });
-      if (!r.ok) return `mossa rifiutata: ${r.error}`;
-      const s = toPretty(r.newEq, 0);
-      return s.startsWith("(P)") ? `parentesi ridondanti: ${s}` : true;
-    }));
-    results.push(test("Notazione: le parentesi scritte dall'utente restano visibili", () => {
-      const html = renderEquation(eq("x - (a + b) = 0"), {});
-      const text = html.replace(/<[^>]+>/g, "");
-      return text.includes("(a") && text.includes("b)") ? true : `reso come ${text}`;
-    }));
-    results.push(test("Notazione: 1/2 in un prodotto non mostra parentesi (es. U = (1/2)*k*x^2)", () => {
-      const html = renderEquation(eq("U = (1/2)*k*x^2"), {});
-      return !html.includes("node-group-parens") ? true : `contiene ancora parentesi: ${html}`;
-    }));
-    results.push(test("Notazione: numeratore/denominatore intero non mostra parentesi superflue (es. (2*v0)/g)", () => {
-      const html = renderEquation(eq("t = (2*v0)/g"), {});
-      return !html.includes("node-group-parens") ? true : `contiene parentesi nel numeratore: ${html}`;
-    }));
-    results.push(test("Notazione: frazione elevata a potenza mantiene le parentesi centrate (has-frac)", () => {
-      const html = renderEquation(eq("y = (a/b)^2"), {});
-      return html.includes("node-group-parens") && html.includes("has-frac") ? true : `mancano parentesi has-frac: ${html}`;
-    }));
-    results.push(test("Croce: (2\xB7L)/2 semplifica il 2 e resta L = b", () => {
-      const r = crossCancel(eq("(2*L)/2 = b"), "left/num/Mul0", "left/den");
-      if (!r.ok) return `rifiutata: ${r.error}`;
-      return equivalentEq(r.newEq, eq("L = b")) || `ottenuto ${toPretty(r.newEq, 0)}`;
-    }));
-    results.push(test("Croce: (t\xB7v)/v semplifica v e resta t = s/v", () => {
-      const r = crossCancel(eq("(t*v)/v = s/v"), "left/num/Mul1", "left/den");
-      if (!r.ok) return `rifiutata: ${r.error}`;
-      return equivalentEq(r.newEq, eq("t = s/v")) || `ottenuto ${toPretty(r.newEq, 0)}`;
-    }));
-    results.push(test("Croce: v\xB2/v semplifica a v", () => {
-      const r = crossCancel(eq("(v^2*t)/v = s"), "left/num/Mul0/base", "left/den");
-      if (!r.ok) return `rifiutata: ${r.error}`;
-      return equivalentEq(r.newEq, eq("t*v = s")) || `ottenuto ${toPretty(r.newEq, 0)}`;
-    }));
-    results.push(test("Croce: rifiuta due fattori diversi", () => {
-      const r = crossCancel(eq("(t*v)/v = s/v"), "left/num/Mul0", "left/den");
-      return r.ok ? "accettata ma doveva essere rifiutata" : true;
-    }));
-    results.push(test("Croce: rifiuta due fattori nello stesso numeratore", () => {
-      const r = crossCancel(eq("v = s/t"), "left/num", "left/num");
-      return r.ok ? "accettata ma doveva essere rifiutata" : true;
-    }));
-    results.push(test("Croce: rifiuta fattori in membri diversi", () => {
-      const r = crossCancel(eq("v = s/t"), "right/num", "left/num");
-      return r.ok ? "accettata ma doveva essere rifiutata" : true;
-    }));
-    results.push(test("Croce: (a/b)\xB7(b/c) diventa a/c", () => {
-      const r = crossCancel(eq("z = (a/b)*(b/c)"), "right/Mul0/den", "right/Mul1/num");
-      if (!r.ok) return `rifiutata: ${r.error}`;
-      return equivalentEq(r.newEq, eq("z = a/c")) || `ottenuto ${toPretty(r.newEq, 0)}`;
-    }));
-    results.push(test("Croce: non elimina un addendo di una somma", () => {
-      const r = crossCancel(eq("x + a = b"), "left/Add0", "left/Add0");
-      return r.ok ? "accettata ma doveva essere rifiutata" : true;
-    }));
-    results.push(test("Croce additiva: a e \u2212a nella stessa somma \u2192 si cancellano", () => {
-      const e = eq("x + a - a = b");
-      const r = crossCancel(e, "left/Sub0/Add1", "left/Sub1");
-      if (!r.ok) return `rifiutata: ${r.error}`;
-      return equivalentEq(r.newEq, eq("x = b")) ? true : `atteso x = b, ottenuto ${toPretty(r.newEq, 0)}`;
-    }));
-    results.push(test("Croce additiva: stessa grandezza su ambo i membri \u2192 si cancella", () => {
-      const e = eq("a + F = a + G");
-      const r = crossCancel(e, "left/Add0", "right/Add0");
-      if (!r.ok) return `rifiutata: ${r.error}`;
-      return equivalentEq(r.newEq, eq("F = G")) ? true : `atteso F = G, ottenuto ${toPretty(r.newEq, 0)}`;
-    }));
-    results.push(test("Croce additiva: rifiuta due termini non opposti nella stessa somma", () => {
-      const r = crossCancel(eq("a + b = c"), "left/Add0", "left/Add1");
-      return r.ok ? "accettata ma doveva essere rifiutata (a \u2260 -b in generale)" : true;
-    }));
-    results.push(test("Croce additiva: rifiuta grandezze diverse su ambo i membri", () => {
-      const r = crossCancel(eq("a + F = b + G"), "left/Add0", "right/Add1");
-      return r.ok ? "accettata ma doveva essere rifiutata (a \u2260 G)" : true;
-    }));
-    const autoResolve = (formula, target) => {
-      let curr = eq(formula);
-      for (let i = 0; i < 25; i++) {
-        if (isGoalReached(curr, target)) break;
-        const sug = suggestNextStep(curr, target);
-        if (!sug.found) return `bloccata su ${toPretty(curr, 0)} (${sug.message})`;
-        const res = performAction(curr, sug.action);
-        if (!res.ok) return `passo fallito: ${res.error}`;
-        curr = res.equation;
-      }
-      return isGoalReached(curr, target) ? true : `non isolata: ${toPretty(curr, 0)}`;
-    };
-    results.push(test("Risoluzione: v = s/t isola t", () => autoResolve("v = s/t", "t")));
-    results.push(test("Risoluzione: v = s/t isola s", () => autoResolve("v = s/t", "s")));
-    results.push(test("Risoluzione: F = m*a isola m", () => autoResolve("F = m*a", "m")));
-    results.push(test("Risoluzione: h = v0^2/(2*g) isola g (fattori comuni)", () => autoResolve("h = v0^2/(2*g)", "g")));
-    results.push(test("Risoluzione: h = v0^2/(2*g) isola v0", () => autoResolve("h = v0^2/(2*g)", "v0")));
-    results.push(test("Risoluzione: U = -G*(M*m)/r isola r (segno davanti alla frazione)", () => autoResolve("U = -G*(M*m)/r", "r")));
-    results.push(test("Risoluzione: En = -E1/n^2 isola n", () => autoResolve("En = -E1/n^2", "n")));
-    results.push(test("Risoluzione: J = m*v - m*v0 isola m (raccoglimento)", () => autoResolve("J = m*v - m*v0", "m")));
-    results.push(test("Risoluzione: Req = (R1*R2)/(R1+R2) isola R1", () => autoResolve("Req = (R1*R2)/(R1+R2)", "R1")));
-    results.push(test("Risoluzione: W = (1/2)*m*v^2 - (1/2)*m*v0^2 isola m", () => autoResolve("W = (1/2)*m*v^2 - (1/2)*m*v0^2", "m")));
-    results.push(test("Risoluzione: F = G*(m1*m2)/r^2 isola r", () => autoResolve("F = G*(m1*m2)/r^2", "r")));
-    results.push(test("Risoluzione: p = (1/2)*rho*v^2 + rho*g*z isola rho", () => autoResolve("p = (1/2)*rho*v^2 + rho*g*z", "rho")));
-    results.push(test("Risoluzione: ingrandimento G = -q/p isola p", () => autoResolve("G = -q/p", "p")));
-    results.push(test("Regola: addBoth x = 5 aggiunge 3 \u2192 x + 3 = 5 + 3", () => checkRule("addBoth", "x = 5", { value: expr("3"), valueText: "3" }, "x + 3 = 5 + 3")));
-    results.push(test("Regola: subBoth x + a = b sottrae a \u2192 x + a - a = b - a", () => checkRule("subBoth", "x + a = b", { value: expr("a"), valueText: "a" }, "x + a - a = b - a")));
-    results.push(test("Regola: invertFunction sin(x) = a \u2192 x = asin(a)", () => {
-      const res = applyRule(RULES.invertFunction, eq("sin(x) = a"), { side: "left", fnNode: Sin(Var("x")) });
-      if (!res.ok) return "rifiutata: " + res.error;
-      return equivalentEq(res.equation, eq("x = asin(a)")) ? true : "atteso x = asin(a), ottenuto " + toPretty(res.equation, 0);
-    }));
-    results.push(test("Regola: invertFunction ln(x) = a \u2192 x = exp(a)", () => {
-      const res = applyRule(RULES.invertFunction, eq("ln(x) = a"), { side: "left", fnNode: Ln(Var("x")) });
-      if (!res.ok) return "rifiutata: " + res.error;
-      return equivalentEq(res.equation, eq("x = exp(a)")) ? true : "atteso x = exp(a), ottenuto " + toPretty(res.equation, 0);
-    }));
-    results.push(test("Regola: factorCommon m*v - m*v0 = J \u2192 m*(v-v0) = J", () => {
-      const res = applyRule(RULES.factorCommon, eq("m*v - m*v0 = J"), { side: "left", common: Var("m"), commonText: "m" });
-      if (!res.ok) return "rifiutata: " + res.error;
-      return equivalentEq(res.equation, eq("m*(v - v0) = J")) ? true : "atteso m*(v-v0) = J, ottenuto " + toPretty(res.equation, 0);
-    }));
-    results.push(test("Regola: propriet\xE0 distributiva Doppler fp*v = f*(v - vo) \u2192 fp*v = f*v - f*vo", () => {
-      const startEq = eq("fp * v = f * (v - vo)");
-      if (!canDistribute(startEq.right)) return "atteso canDistribute true per membro destro";
-      const res = applyRule(RULES.distribute, startEq, { side: "right" });
-      if (!res.ok) return "rifiutata: " + res.error;
-      return equivalentEq(res.equation, eq("fp * v = f * v - f * vo")) ? true : "atteso fp*v = f*v - f*vo, ottenuto " + toPretty(res.equation, 0);
-    }));
-    results.push(test("Regola: raccoglimento a fattori per Doppler fp*v - f*v = -f*vo \u2192 v*(fp - f) = -f*vo", () => {
-      const startEq = eq("fp * v - f * v = -f * vo");
-      const commonV = findCommonFactor(startEq.left, "v");
-      if (!commonV || commonV.name !== "v") return "atteso fattore comune v, trovato: " + JSON.stringify(commonV);
-      const res = applyRule(RULES.factorCommon, startEq, { side: "left", common: commonV, commonText: "v" });
-      if (!res.ok) return "rifiutata: " + res.error;
-      return equivalentEq(res.equation, eq("v * (fp - f) = -f * vo")) ? true : "atteso v*(fp - f) = -f*vo, ottenuto " + toPretty(res.equation, 0);
-    }));
-    results.push(test("Risoluzione: effetto Doppler fp = (f*(v - vo))/v isola v", () => autoResolve("fp = (f * (v - vo)) / v", "v")));
-    results.push(test("Risoluzione: sin(theta) = F/G isola theta", () => autoResolve("sin(theta) = F/G", "theta")));
-    results.push(test("Risoluzione: ln(x) = a isola x", () => autoResolve("ln(x) = a", "x")));
-    results.push(test("Risoluzione: nessuna equazione va in ciclo infinito", () => {
-      const casi = ["v = s/t", "Req = (R1*R2)/(R1+R2)", "h = v0^2/(2*g)", "U = -G*(M*m)/r"];
-      for (const f of casi) {
-        const start = eq(f);
-        for (const target of collectVars(start)) {
-          let curr = clone(start);
-          const seen = /* @__PURE__ */ new Set();
-          for (let i = 0; i < 25; i++) {
-            if (isGoalReached(curr, target)) break;
-            const key = toPretty(curr, 0);
-            if (seen.has(key)) return `ciclo su ${key} isolando ${target} in ${f}`;
-            seen.add(key);
-            const sug = suggestNextStep(curr, target);
-            if (!sug.found) break;
-            const res = performAction(curr, sug.action);
-            if (!res.ok) break;
-            curr = res.equation;
-          }
-        }
-      }
-      return true;
-    }));
-    results.push(test("Reciproci: x = 0 rifiutato per divisione per zero", () => {
-      const res = reciprocalEquation(eq("x = 0"));
-      return !res.ok ? true : "accettata ma x=0 non deve essere invertibile";
-    }));
-    results.push(test("Regola: invertProportion rifiutata con numeratore o denominatore nullo", () => {
-      const res1 = applyRule(RULES.invertProportion, eq("0/b = c/d"), {});
-      if (res1.ok) return "accettata inversione con 0 al numeratore";
-      return true;
-    }));
-    results.push(test("Regola: powBoth con esponente 0 rifiutata", () => {
-      const res = applyRule(RULES.powBoth, eq("x = y"), { value: Num(0), valueText: "0" });
-      return !res.ok ? true : "accettata elevazione a potenza 0";
-    }));
-    results.push(test("Regola: sqrtBoth con radicando negativo x^2 = -9 rifiutata", () => {
-      const res = applyRule(RULES.sqrtBoth, eq("x^2 = -9"), { side: "left", insideVar: "x" });
-      return !res.ok ? true : "accettata radice di indice pari su radicando negativo";
-    }));
-    results.push(test("Tastierino: sqrt su membro negativo x = -4 rifiutata", () => {
-      const res = applyKeypadOperation(eq("x = -4"), "sqrt", null, null, "x");
-      return !res.ok ? true : "accettata radice del tastierino su membro negativo";
-    }));
-    results.push(test("Regola: invertFunction sin(x) = 2 rifiutata fuori dal dominio [-1, 1]", () => {
-      const res = applyRule(RULES.invertFunction, eq("sin(x) = 2"), { side: "left", fnNode: Sin(Var("x")) });
-      return !res.ok ? true : "accettata arcsin di valore > 1";
-    }));
-    results.push(test("Tastierino: arcsin su sin(theta) = F/G libera theta = asin(F/G)", () => {
-      const res = applyKeypadOperation(eq("sin(theta) = F/G"), "asin", null, null, "theta");
-      if (!res.ok) return "rifiutata: " + res.error;
-      return equivalentEq(res.equation, eq("theta = asin(F/G)")) ? true : "atteso theta = asin(F/G), ottenuto " + toPretty(res.equation, 0);
-    }));
-    results.push(test("Tastierino: arccos su cos(theta) = a/b libera theta = acos(a/b)", () => {
-      const res = applyKeypadOperation(eq("cos(theta) = a/b"), "acos", null, null, "theta");
-      if (!res.ok) return "rifiutata: " + res.error;
-      return equivalentEq(res.equation, eq("theta = acos(a/b)")) ? true : "atteso theta = acos(a/b), ottenuto " + toPretty(res.equation, 0);
-    }));
-    results.push(test("Tastierino: arctan su tan(theta) = mu libera theta = atan(mu)", () => {
-      const res = applyKeypadOperation(eq("tan(theta) = mu"), "atan", null, null, "theta");
-      if (!res.ok) return "rifiutata: " + res.error;
-      return equivalentEq(res.equation, eq("theta = atan(mu)")) ? true : "atteso theta = atan(mu), ottenuto " + toPretty(res.equation, 0);
-    }));
-    results.push(test("Tastierino: arcsin rifiutata con spiegazione se sin non e isolato", () => {
-      const res = applyKeypadOperation(eq("v = -A*omega*sin(omega*t)"), "asin", null, null, "t");
-      if (res.ok) return "accettata operazione arcsin con sin non isolato";
-      return res.error.includes("isolare la funzione") ? true : "messaggio inatteso: " + res.error;
-    }));
-    results.push(test("Tastierino: arcsin rifiutata se non c'e alcuna funzione seno nell'equazione", () => {
-      const res = applyKeypadOperation(eq("v = s/t"), "asin", null, null, "s");
-      if (res.ok) return "accettata arcsin su equazione senza seno";
-      return res.error.includes("Nessuna funzione") ? true : "messaggio inatteso: " + res.error;
-    }));
-    results.push(test("Croce additiva: a - b - c = a preserva segni negativi -b - c = 0", () => {
-      const e = eq("a - b - c = a");
-      const r = crossCancel(e, "left/Sub0", "right");
-      if (!r.ok) return "rifiutata: " + r.error;
-      return equivalentEq(r.newEq, eq("-b - c = 0")) ? true : "atteso -b - c = 0, ottenuto " + toPretty(r.newEq, 0);
-    }));
-    results.push(test("Croce: (s/t)*t = v semplifica t producendo s = v", () => {
-      const e = eq("(s/t)*t = v");
-      const r = crossCancel(e, "left/Mul0/den", "left/Mul1");
-      if (!r.ok) return "rifiutata: " + r.error;
-      return equivalentEq(r.newEq, eq("s = v")) ? true : "atteso s = v, ottenuto " + toPretty(r.newEq, 0);
-    }));
-    results.push(test("Notazione: differenze con costanti si presentano come x - 3 e non + -3 o -3 + x", () => {
-      const exprAst = canonical(eq("x - 3 = y").left);
-      const pretty = toPretty(exprAst, 0);
-      if (pretty.includes("+ -") || pretty.startsWith("-3 +")) {
-        return "notazione non ottimale: " + pretty;
-      }
-      return true;
-    }));
-    results.push(test("Notazione: Ec ed Ep vengono formattati con pedici corretti in LaTeX", () => {
-      const latex = toLatex(eq("Ec = Ep"));
-      if (!latex.includes("E_c") || !latex.includes("E_p")) {
-        return "LaTeX non contiene pedici corretti: " + latex;
-      }
-      return true;
-    }));
-    results.push(test("Drag: (3/2)*x = y trascinando 3 al denominatore opposto produce (1/2)*x", () => {
-      const res = applyDragMove({
-        currentEq: eq("(3/2)*x = y"),
-        varName: "3",
-        nodeType: "Num",
-        fromSide: "left",
-        fromSlot: "num",
-        targetSide: "right",
-        targetSlot: "den"
-      });
-      if (!res.ok) return "drag fallito: " + (res.error || "");
-      return equivalentEq(res.newEq, eq("(1/2)*x = y/3")) ? true : "atteso (1/2)*x = y/3, ottenuto " + toPretty(res.newEq, 0);
-    }));
-    results.push(test("Drag: addendo in numeratore di frazione (a+b)/c = y non puo essere trascinato", () => {
-      const res = applyDragMove({
-        currentEq: eq("(a+b)/c = y"),
-        varName: "a",
-        nodeType: "Var",
-        fromSide: "left",
-        fromSlot: "num",
-        targetSide: "right",
-        targetSlot: "den"
-      });
-      return !res.ok ? true : "accettato trascinamento addendo da numeratore a frazione!";
-    }));
-    results.push(test('Drag: fattore composto tra parentesi fp*v = f*(v + vo) trascinando "v + vo" al denominatore', () => {
-      const e = eq("fp*v = f*(v + vo)");
-      const res = applyDragMove({
-        currentEq: e,
-        varName: "v + vo",
-        nodeType: "Add",
-        fromSide: "right",
-        fromSlot: "num",
-        targetSide: "left",
-        targetSlot: "den"
-      });
-      if (!res.ok) return "drag fallito: " + (res.error || "");
-      if (res.newEq.right.type !== "Var" || res.newEq.right.name !== "f") {
-        return "destra non \xE8 f: " + toPretty(res.newEq.right, 0);
-      }
-      const den = unwrap(res.newEq.left.den);
-      if (den.type !== "Add" || den.args.length !== 2) {
-        return "denominatore non \xE8 Add(v, vo): " + JSON.stringify(den);
-      }
-      const html = renderEquation(e, { interactive: true });
-      if (!html.includes('data-var-name="v + vo"') || !html.includes("draggable-token")) {
-        return "HTML non rende (v + vo) come draggable-token: " + html;
-      }
-      return true;
-    }));
-    results.push(test('Drag: denominatore composto (fp*v)/(v + vo) = f trascinando "v + vo" al numeratore', () => {
-      const e = canonical(eq("(fp*v)/(v + vo) = f"));
-      const res = applyDragMove({
-        currentEq: e,
-        varName: "v + vo",
-        nodeType: "Add",
-        fromSide: "left",
-        fromSlot: "den",
-        targetSide: "right",
-        targetSlot: "num"
-      });
-      if (!res.ok) return "drag dal denominatore fallito: " + (res.error || "");
-      const right = unwrap(res.newEq.right);
-      if (right.type !== "Mul" || right.args.length !== 2) {
-        return "destra non \xE8 Mul(f, v + vo): " + toPretty(right, 0);
-      }
-      const denHtml = renderEquation(e, { interactive: true });
-      if (!denHtml.includes('data-var-name="v + vo"') || !denHtml.includes('data-slot="den"')) {
-        return "HTML denominatore non ha draggable-token per (v + vo): " + denHtml;
-      }
-      return true;
-    }));
-    results.push(test("Drag: termine intero al secondo membro f*v in fp*v - fp*vs = f*v \xE8 trascinabile come blocco \u{1F4E6}", () => {
-      const e = canonical(eq("fp*v - fp*vs = f*v"));
-      const html = renderEquation(e, { interactive: true });
-      if (!html.includes('data-var-name="f*v"') || !html.includes("math-term-group")) {
-        return 'f*v a secondo membro non ha data-var-name="f*v" o math-term-group: ' + html;
-      }
-      const res = applyDragMove({
-        currentEq: e,
-        varName: "f*v",
-        nodeType: "Mul",
-        fromSide: "right",
-        fromSlot: "num",
-        targetSide: "left",
-        targetSlot: "add"
-      });
-      if (!res.ok) return "spostamento f*v a primo membro fallito: " + (res.error || "");
-      const right = unwrap(res.newEq.right);
-      if (right.type !== "Num" || right.value !== 0) {
-        return "destra non \xE8 0: " + toPretty(right, 0);
-      }
-      return true;
-    }));
-    results.push(test("Calcolo Numerico: evalWithEnv calcola frazione s/v con valori numerici", () => {
-      const expr2 = parseExpression("s/v");
-      const res = evalWithEnv(expr2, { s: 100, v: 20 });
-      return res.ok && res.value === 5 ? true : `atteso 5, ottenuto: ${JSON.stringify(res)}`;
-    }));
-    results.push(test("Calcolo Numerico: divisione per zero intercettata correttamente", () => {
-      const expr2 = parseExpression("s/t");
-      const res = evalWithEnv(expr2, { s: 50, t: 0 });
-      return !res.ok && res.error.includes("zero") ? true : `non intercettata divisione per zero: ${JSON.stringify(res)}`;
-    }));
-    results.push(test("Calcolo Numerico: radice quadrata e potenze sqrt((2*E)/k)", () => {
-      const expr2 = parseExpression("sqrt((2*E)/k)");
-      const res = evalWithEnv(expr2, { E: 200, k: 4 });
-      return res.ok && res.value === 10 ? true : `atteso 10, ottenuto: ${JSON.stringify(res)}`;
-    }));
-    results.push(test("Calcolo Numerico: substituteVarsInAst sostituisce correttamente le variabili", () => {
-      const expr2 = parseExpression("a + b");
-      const sub = substituteVarsInAst(expr2, { a: 3, b: 7 });
-      return sub.args[0].value === 3 && sub.args[1].value === 7 ? true : "sostituzione fallita";
-    }));
-    results.push(test("Unita SI: risoluzione unita e quantita fisiche", () => {
-      const infoS = getQuantityInfo("s");
-      const infoV = getQuantityInfo("v");
-      const infoA = getQuantityInfo("a");
-      return infoS.unit === "m" && infoV.unit === "m/s" && infoA.unit === "m/s\xB2" ? true : "unita non corrispondenti";
-    }));
-    results.push(test("Unita SI: formattazione numeri decimali e scientifici", () => {
-      const f1 = formatResultNumber(4.5);
-      const f2 = formatResultNumber(12);
-      const f3 = formatResultNumber(25e5);
-      return f1 === "4.5" && f2 === "12" && f3.includes("10^") ? true : `formattazione inattesa: ${f1}, ${f2}, ${f3}`;
-    }));
-    results.push(test("Drag: trasporto fattore A da prodotto con segno meno -A*omega*sin(...) al denominatore", () => {
-      const eq2 = parseEquation("v = -A*omega*sin(omega*t + phi)");
-      const res = applyDragMove({
-        currentEq: eq2,
-        varName: "A",
-        nodeType: "Var",
-        fromSide: "right",
-        fromSlot: "num",
-        targetSide: "left",
-        targetSlot: "den"
-      });
-      if (!res.ok) return `mossa rifiutata: ${res.error}`;
-      const leftPretty = toPretty(res.newEq.left, 0);
-      const rightPretty = toPretty(res.newEq.right, 0);
-      return (leftPretty === "v/A" || leftPretty === "(v)/A") && rightPretty.startsWith("\u2212") ? true : `risultato inatteso: ${leftPretty} = ${rightPretty}`;
-    }));
-    results.push(test("Drag: trasporto fattore -A intero da prodotto al denominatore", () => {
-      const eq2 = parseEquation("v = -A*omega*sin(omega*t + phi)");
-      const res = applyDragMove({
-        currentEq: eq2,
-        varName: "-A",
-        nodeType: "Var",
-        fromSide: "right",
-        fromSlot: "num",
-        targetSide: "left",
-        targetSlot: "den"
-      });
-      if (!res.ok) return `mossa rifiutata: ${res.error}`;
-      return true;
-    }));
-    results.push(test("Elementi neutri: isGoalReached riconosce 1*x e x*1 come x isolata", () => {
-      const e1 = parseEquation("1*x = y");
-      const e2 = parseEquation("x*1 = y");
-      const e3 = parseEquation("x + 0 = y");
-      if (!isGoalReached(e1, "x")) return "1*x non riconosciuto come isolato";
-      if (!isGoalReached(e2, "x")) return "x*1 non riconosciuto come isolato";
-      if (!isGoalReached(e3, "x")) return "x+0 non riconosciuto come isolato";
-      return true;
-    }));
-    results.push(test("Elementi neutri: stripNeutrals elimina 1 moltiplicativo e +0 additivo", () => {
-      const e1 = parseEquation("1*x = y + 0");
-      const stripped = stripNeutrals(e1);
-      return equivalentEq(stripped, parseEquation("x = y")) ? true : "atteso x = y, ottenuto " + toPretty(stripped, 0);
-    }));
-    results.push(test("Elementi neutri: stripNeutrals preserva 1 nelle differenze come 1 - cos(theta)", () => {
-      const e = parseEquation("c*dlam*m = h*(1 - cos(theta))");
-      const stripped = stripNeutrals(e);
-      return toPretty(stripped.right, 0).includes("1") ? true : "il numero 1 in 1 - cos(theta) \xE8 stato rimosso erroneamente: " + toPretty(stripped, 0);
-    }));
-    results.push(test("Drag: trascinando un fattore su membro orizzontale applica il 2\xB0 principio (divisione)", () => {
-      const eq2 = parseEquation("c*dlam*m = h*(1 - cos(theta))");
-      const res = applyDragMove({
-        currentEq: eq2,
-        varName: "h",
-        nodeType: "Var",
-        fromSide: "right",
-        fromSlot: "num",
-        targetSide: "left",
-        targetSlot: "num"
-        // rilasciato sul membro di sinistra
-      });
-      if (!res.ok) return "mossa rifiutata: " + res.error;
-      if (res.newEq.left.type !== "Div") return "la divisione non \xE8 stata applicata: " + toPretty(res.newEq, 0);
-      return true;
-    }));
-    results.push(test("Tastierino: arccos con 1*cos(theta) libera theta senza bloccare", () => {
-      const eq2 = parseEquation("1*cos(theta) = k");
-      const res = applyKeypadOperation(eq2, "acos", null, null, "theta");
-      if (!res.ok) return "rifiutata: " + res.error;
-      return equivalentEq(res.equation, parseEquation("theta = acos(k)")) ? true : "atteso theta = acos(k), ottenuto " + toPretty(res.equation, 0);
-    }));
-    results.push(test("Regola: cambio segno inverte -x = 5 in x = -5", () => {
-      const res = applyRule(RULES.changeSign, eq("-x = 5"), {});
-      if (!res.ok) return "regola fallita: " + res.error;
-      const str = toPretty(res.equation, 0);
-      return str === "x = -5" ? true : "atteso x = -5, ottenuto " + str;
-    }));
-    results.push(test("Regola: cambio segno inverte somma algebrica -v = -v0 + a*t", () => {
-      const res = applyRule(RULES.changeSign, eq("-v = -v0 + a*t"), {});
-      if (!res.ok) return "regola fallita: " + res.error;
-      return equivalentEq(res.equation, eq("v = v0 - a*t")) ? true : "atteso v = v0 - a*t, ottenuto " + toPretty(res.equation, 0);
-    }));
-    results.push(test("Regola: cambio segno applicata due volte ritorna all'equazione originale", () => {
-      const orig = eq("v - v0 = a*t");
-      const step1 = applyRule(RULES.changeSign, orig, {});
-      const step2 = applyRule(RULES.changeSign, step1.equation, {});
-      return equivalentEq(step2.equation, orig) ? true : "atteso " + toPretty(orig, 0) + ", ottenuto " + toPretty(step2.equation, 0);
-    }));
-    results.push(test("Raccoglimento: findCommonFactor individua m in J = m*v - m*v0", () => {
-      const common = findCommonFactor(expr("m*v - m*v0"), "m");
-      return common && common.name === "m" ? true : "m non individuata come fattore comune";
-    }));
-    results.push(test("Trigonometria: hasTrigConflict individua il conflitto di theta in a = g*(sin(theta) - mu*cos(theta))", () => {
-      const hasConflict = hasTrigConflict(expr("g*(sin(theta) - mu*cos(theta))"), "theta");
-      return hasConflict ? true : "conflitto trigonometrico su theta non rilevato";
-    }));
-    results.push(test("Trigonometria: suggestNextStep fornisce spiegazione didattica su theta in combinazione lineare", () => {
-      const sug = suggestNextStep(eq("a = g*(sin(theta) - mu*cos(theta))"), "theta");
-      return !sug.found && sug.message.includes("sin") && sug.message.includes("cos") ? true : "messaggio didattico non corretto: " + JSON.stringify(sug);
-    }));
-    results.push(test("Risoluzione: mu in a = g*(sin(theta) - mu*cos(theta)) viene isolata correttamente", () => {
-      let curr = eq("a = g*(sin(theta) - mu*cos(theta))");
-      for (let i = 0; i < 8; i++) {
-        if (isGoalReached(curr, "mu")) break;
-        const sug = suggestNextStep(curr, "mu");
-        if (!sug.found) return "passo non trovato al tentativo " + i;
-        const res = performAction(curr, sug.action);
-        if (!res.ok) return "azione fallita: " + res.error;
-        curr = res.equation;
-      }
-      return isGoalReached(curr, "mu") ? true : "mu non isolata: " + toPretty(curr, 0);
-    }));
-    results.push(test('Ricerca: "stevino" trova tutte le formule della legge di Stevino', () => {
-      const list = filterFormulas({ search: "stevino" });
-      const ids = list.map((f) => f.id);
-      if (!ids.includes("ph-rhoghh") || !ids.includes("stevino")) {
-        return `formule stevino mancanti: trovate ${ids.join(", ")}`;
-      }
-      return true;
-    }));
-    results.push(test('Ricerca: "archimede" trova spinta di Archimede e condizione di galleggiamento', () => {
-      const list = filterFormulas({ search: "archimede" });
-      const ids = list.map((f) => f.id);
-      if (!ids.includes("legge-archimede") || !ids.includes("galleggia")) {
-        return `formule archimede mancanti: trovate ${ids.join(", ")}`;
-      }
-      return true;
-    }));
-    results.push(test('Ricerca: "suono" restituisce tutte le formule di acustica e onde sonore', () => {
-      const list = filterFormulas({ search: "suono" });
-      const ids = list.map((f) => f.id);
-      const expected = [
-        "onda-v-lam-f",
-        "onda-periodo-frequenza",
-        "onda-v-lam-T",
-        "doppler-avvicinamento-sorgente",
-        "doppler-allontanamento-sorgente",
-        "doppler-avvicinamento-osservatore",
-        "doppler-allontanamento-osservatore",
-        "eco-suono",
-        "intensita-sonora",
-        "battimenti-sonori",
-        "canne-organo-aperte",
-        "corda-armonica"
-      ];
-      for (const exp of expected) {
-        if (!ids.includes(exp)) return `formula suono '${exp}' non trovata per query 'suono'`;
-      }
-      return list.length >= 12 ? true : `trovate solo ${list.length} formule`;
-    }));
-    results.push(test(`Ricerca: "doppler" trova le formule dell'effetto Doppler`, () => {
-      const list = filterFormulas({ search: "doppler" });
-      const ids = list.map((f) => f.id);
-      if (!ids.includes("doppler-avvicinamento-sorgente") || !ids.includes("doppler-avvicinamento-osservatore")) {
-        return `formule doppler mancanti: ${ids.join(", ")}`;
-      }
-      return true;
-    }));
-    results.push(test('Ricerca: "eco" trova la formula di riflessione ed eco del suono', () => {
-      const list = filterFormulas({ search: "eco" });
-      const ids = list.map((f) => f.id);
-      if (!ids.includes("eco-suono")) return `formula eco mancante: ${ids.join(", ")}`;
-      return true;
-    }));
-    results.push(test('Ricerca: normalizzazione con accenti e maiuscole "velocit\xE0 del suono"', () => {
-      const list = filterFormulas({ search: "Velocit\xE0 del Suono" });
-      const ids = list.map((f) => f.id);
-      if (!ids.includes("onda-v-lam-f")) return `formula v=lam*f mancante con ricerca accentata: ${ids.join(", ")}`;
-      return true;
-    }));
-    results.push(test("Ricerca: fallback globale se argomento selezionato non contiene la formula cercata", () => {
-      const list = filterFormulas({ topic: "cinematica", search: "stevino" });
-      const ids = list.map((f) => f.id);
-      if (!ids.includes("ph-rhoghh") && !ids.includes("stevino")) {
-        return `fallback globale fallito: trovate ${ids.join(", ")}`;
-      }
-      return true;
-    }));
-    results.push(test("Frazione di frazione: hasCompoundFraction riconosce frazioni di frazione e frazioni normali", () => {
-      const normal = eq("v = s/t");
-      if (hasCompoundFraction(normal.right)) return "s/t scambiata per frazione di frazione";
-      const A = Sub(Mul(Var("fp"), Var("p")), Var("f"));
-      const B = Mul(Var("f"), Var("vo"));
-      const compoundDoppler = Neg(Div(Num(1), Div(A, B)));
-      if (!hasCompoundFraction(compoundDoppler)) return "Doppler -1 / ((fp - f)/(f*vo)) non riconosciuta come frazione di frazione";
-      const c2 = Div(Num(1), Div(Var("a"), Var("b")));
-      if (!hasCompoundFraction(c2)) return "1 / (a/b) non riconosciuta";
-      const c3 = Div(Div(Var("a"), Var("b")), Var("c"));
-      if (!hasCompoundFraction(c3)) return "(a/b) / c non riconosciuta";
-      const c4 = Div(Div(Var("a"), Var("b")), Div(Var("c"), Var("d")));
-      if (!hasCompoundFraction(c4)) return "(a/b) / (c/d) non riconosciuta";
-      return true;
-    }));
-    results.push(test("Frazione di frazione: transformToReciprocalMul inverte il denominatore in moltiplicazione per la reciproca", () => {
-      const c1 = Div(Num(1), Div(Var("a"), Var("b")));
-      const s1 = transformToReciprocalMul(c1);
-      if (toPretty(s1, 0) !== "1\xB7(b/a)") return `atteso 1\xB7(b/a), ottenuto ${toPretty(s1, 0)}`;
-      const A = Sub(Mul(Var("fp"), Var("p")), Var("f"));
-      const B = Mul(Var("f"), Var("vo"));
-      const compoundDoppler = Neg(Div(Num(1), Div(A, B)));
-      const s2 = transformToReciprocalMul(compoundDoppler);
-      if (toPretty(s2, 0) !== "\u22121\xB7(f\xB7vo/(fp\xB7p \u2212 f))") {
-        return `atteso \u22121\xB7(f\xB7vo/(fp\xB7p \u2212 f)), ottenuto ${toPretty(s2, 0)}`;
-      }
-      return true;
-    }));
-    results.push(test("Frazione di frazione: getCompoundFractionSteps genera la sequenza didattica lenta a 3 passaggi", () => {
-      const A = Sub(Mul(Var("fp"), Var("p")), Var("f"));
-      const B = Mul(Var("f"), Var("vo"));
-      const dopplerEq = Eq(Var("v"), Neg(Div(Num(1), Div(A, B))));
-      const steps = getCompoundFractionSteps(dopplerEq, "v");
-      if (!steps) return "getCompoundFractionSteps ha restituito null per formula Doppler con frazione di frazione";
-      if (steps.targetVar !== "v") return `targetVar errato: ${steps.targetVar}`;
-      if (steps.step1Pretty !== "v = \u22121/((fp\xB7p \u2212 f)/(f\xB7vo))") return `step 1 errato: ${steps.step1Pretty}`;
-      if (steps.step2Pretty !== "v = \u22121\xB7(f\xB7vo/(fp\xB7p \u2212 f))") return `step 2 errato: ${steps.step2Pretty}`;
-      if (steps.step3Pretty !== "v = \u2212f\xB7vo/(fp\xB7p \u2212 f)") return `step 3 errato: ${steps.step3Pretty}`;
-      const normalEq = eq("v = s/t");
-      const noSteps = getCompoundFractionSteps(normalEq, "v");
-      if (noSteps !== null) return "atteso null per formula normale v = s/t";
-      return true;
-    }));
-    results.push(test("Obiettivo: isGoalReached rifiuta variabile presente in entrambi i membri (es. vo + fp*v/f = v)", () => {
-      const dopplerEq = eq("vo + (fp*v)/f = v");
-      if (isGoalReached(dopplerEq, "v") !== false) {
-        return "vo + (fp*v)/f = v non deve essere considerata risolta per v!";
-      }
-      const sug = suggestNextStep(dopplerEq, "v");
-      if (!sug.found || sug.action.id === "swap") {
-        return "suggestNextStep non deve proporre lo swap su una formula non ancora risolta: " + JSON.stringify(sug);
-      }
-      return true;
-    }));
-    results.push(test("Obiettivo: isGoalReached rifiuta variabile con segno negativo (es. -v0 = a*t - v o -x = 5)", () => {
-      const negEq = eq("-v0 = a*t - v");
-      if (isGoalReached(negEq, "v0") !== false) {
-        return "-v0 = a*t - v non deve essere considerata risolta per v0!";
-      }
-      const negX = eq("-x = 5");
-      if (isGoalReached(negX, "x") !== false) {
-        return "-x = 5 non deve essere considerata risolta per x!";
-      }
-      const sug = suggestNextStep(negEq, "v0");
-      if (!sug.found || sug.action.ruleKey !== "mulBoth") {
-        return "suggestNextStep deve proporre di moltiplicare per -1: " + JSON.stringify(sug);
-      }
-      return true;
-    }));
-    results.push(test("Obiettivo: ensureTargetOnFirstMember isola sempre la grandezza al primo membro", () => {
-      const eRight = eq("s/t = v");
-      const flipped = ensureTargetOnFirstMember(eRight, "v");
-      if (toPretty(flipped, 0) !== "v = s/t") {
-        return "Atteso v = s/t, ottenuto: " + toPretty(flipped, 0);
-      }
-      const eBoth = eq("vo + (fp*v)/f = v");
-      const unchangedBoth = ensureTargetOnFirstMember(eBoth, "v");
-      if (toPretty(unchangedBoth, 0) !== toPretty(eBoth, 0)) {
-        return "Formula con v in ambo i membri non deve essere invertita!";
-      }
-      return true;
-    }));
-    results.push(test("Drag: fattore composto tra parentesi (fp - f) in v*(fp - f) = -fp*vs \xE8 trascinabile per dividere", () => {
-      const e = eq("v*(fp - f) = -fp*vs");
-      const html = renderEquation(e, { interactive: true });
-      if (!html.includes('data-var-name="fp \u2212 f"') && !html.includes('data-var-name="fp - f"')) {
-        return "HTML non rende (fp - f) come draggable: " + html;
-      }
-      if (html.includes('data-var-name="v*fp \u2212 f"') || html.includes('data-var-name="v*fp - f"')) {
-        return "HTML non deve generare la sintassi corrotta v*fp - f: " + html;
-      }
-      const res = applyDragMove({
-        currentEq: e,
-        varName: "fp - f",
-        nodeType: "Sub",
-        fromSide: "left",
-        fromSlot: "num",
-        targetSide: "right",
-        targetSlot: "den"
-      });
-      if (!res.ok) return "drag di fp - f fallito: " + (res.error || "");
-      if (toPretty(res.newEq, 0) !== "v = \u2212fp\xB7vs/(fp \u2212 f)") {
-        return "formula risultante errata: " + toPretty(res.newEq, 0);
-      }
-      if (!isGoalReached(res.newEq, "v")) {
-        return "l'equazione risultante v = ... deve raggiungere l'obiettivo!";
-      }
-      return true;
-    }));
-    results.push(test("Drag: fp*vs e (fp-f) possono essere mossi in croce in blocco", () => {
-      const e = eq("v*(fp - f) = fp*vs");
-      const html = renderEquation(e, { interactive: true });
-      if (!html.includes('data-var-name="fp \u2212 f"') && !html.includes('data-var-name="fp - f"')) {
-        return "HTML non rende (fp - f) come draggable: " + html;
-      }
-      if (!html.includes('data-var-name="fp*vs"') && !html.includes('data-var-name="fp\xB7vs"')) {
-        return "HTML non rende fp*vs come blocco draggable: " + html;
-      }
-      const r1 = applyDragMove({
-        currentEq: e,
-        varName: "fp - f",
-        nodeType: "Sub",
-        fromSide: "left",
-        fromSlot: "num",
-        targetSide: "right",
-        targetSlot: "den"
-      });
-      if (!r1.ok) return "spostamento in croce di (fp - f) fallito: " + (r1.error || "");
-      if (toPretty(r1.newEq, 0) !== "v = fp\xB7vs/(fp \u2212 f)") {
-        return "risultato errato per (fp - f): " + toPretty(r1.newEq, 0);
-      }
-      if (!isGoalReached(r1.newEq, "v")) {
-        return "v deve risultare isolata al primo membro dopo lo spostamento di (fp - f)!";
-      }
-      const r2 = applyDragMove({
-        currentEq: e,
-        varName: "fp*vs",
-        nodeType: "Mul",
-        fromSide: "right",
-        fromSlot: "num",
-        targetSide: "left",
-        targetSlot: "den"
-      });
-      if (!r2.ok) return "spostamento in croce di fp*vs fallito: " + (r2.error || "");
-      if (toPretty(r2.newEq, 0) !== "v\xB7(fp \u2212 f)/(fp\xB7vs) = 1") {
-        return "risultato errato per fp*vs: " + toPretty(r2.newEq, 0);
-      }
-      const r3 = applyDragMove({
-        currentEq: r2.newEq,
-        varName: "fp*vs",
-        nodeType: "Mul",
-        fromSide: "left",
-        fromSlot: "den",
-        targetSide: "right",
-        targetSlot: "num"
-      });
-      if (!r3.ok) return "ritorno in croce di fp*vs fallito: " + (r3.error || "");
-      if (toPretty(r3.newEq, 0) !== "v\xB7(fp \u2212 f) = fp\xB7vs") {
-        return "ritorno errato: " + toPretty(r3.newEq, 0);
-      }
-      return true;
-    }));
-    results.push(test("m.c.m.: somma di frazioni 1/R1 + 1/R2 diventa (R1 + R2)/(R1\xB7R2)", () => {
-      const expr2 = Add(Div(Num(1), Var("R_1")), Div(Num(1), Var("R_2")));
-      const res = reduceToSingleFraction(expr2);
-      const pretty = toPretty(res, 0);
-      return pretty === "(R_1 + R_2)/(R_1\xB7R_2)" ? true : `atteso (R_1 + R_2)/(R_1\xB7R_2), ottenuto: ${pretty}`;
-    }));
-    results.push(test("m.c.m.: somma frazione e termine intero A/B + C diventa (A + B\xB7C)/B", () => {
-      const expr2 = Add(Div(Var("A"), Var("B")), Var("C"));
-      const res = reduceToSingleFraction(expr2);
-      const pretty = toPretty(res, 0);
-      return pretty === "(A + B\xB7C)/B" ? true : `atteso (A + B\xB7C)/B, ottenuto: ${pretty}`;
-    }));
-    results.push(test("m.c.m.: differenza termine e frazione A - B/C diventa (A\xB7C \u2212 B)/C", () => {
-      const expr2 = Sub(Var("A"), Div(Var("B"), Var("C")));
-      const res = reduceToSingleFraction(expr2);
-      const pretty = toPretty(res, 0);
-      return pretty === "(A\xB7C \u2212 B)/C" ? true : `atteso (A\xB7C \u2212 B)/C, ottenuto: ${pretty}`;
-    }));
-    results.push(test("m.c.m.: frazione con denominatori numerici x/2 + y/4 diventa (y + 2\xB7x)/4", () => {
-      const expr2 = Add(Div(Var("x"), Num(2)), Div(Var("y"), Num(4)));
-      const res = reduceToSingleFraction(expr2);
-      const pretty = toPretty(res, 0);
-      return pretty === "(y + 2\xB7x)/4" ? true : `atteso (y + 2\xB7x)/4, ottenuto: ${pretty}`;
-    }));
-    results.push(test("m.c.m.: doppia frazione con somma al denominatore 1 / (1/R1 + 1/R2) diventa R1\xB7R2/(R1 + R2)", () => {
-      const expr2 = Div(Num(1), Add(Div(Num(1), Var("R_1")), Div(Num(1), Var("R_2"))));
-      const res = reduceToSingleFraction(expr2);
-      const pretty = toPretty(res, 0);
-      return pretty === "R_1\xB7R_2/(R_1 + R_2)" ? true : `atteso R_1\xB7R_2/(R_1 + R_2), ottenuto: ${pretty}`;
-    }));
-    results.push(test("m.c.m.: frazione di frazione semplice v / (s/t) diventa t\xB7v/s", () => {
-      const expr2 = Div(Var("v"), Div(Var("s"), Var("t")));
-      const res = reduceToSingleFraction(expr2);
-      const pretty = toPretty(res, 0);
-      return pretty === "t\xB7v/s" ? true : `atteso t\xB7v/s, ottenuto: ${pretty}`;
-    }));
-    results.push(test("Regola: commonDenom applicata a 1/Req = 1/R1 + 1/R2 produce 1/Req = (R1 + R2)/(R1\xB7R2)", () => {
-      const e = eq("1/Req = 1/R1 + 1/R2");
-      const res = applyRule(RULES.commonDenom, e, { side: "right" });
-      if (!res.ok) return "regola commonDenom rifiutata: " + res.error;
-      const pretty = toPretty(res.equation, 0);
-      return pretty === "1/Req = (R1 + R2)/(R1\xB7R2)" ? true : `atteso 1/Req = (R1 + R2)/(R1\xB7R2), ottenuto: ${pretty}`;
-    }));
-    results.push(test("Risoluzione completa: 1/Req = 1/R1 + 1/R2 con commonDenom + reciproco isola Req", () => {
-      const e = eq("1/Req = 1/R1 + 1/R2");
-      const step1 = applyRule(RULES.commonDenom, e, { side: "right" });
-      if (!step1.ok) return "passo 1 fallito: " + step1.error;
-      const step2 = reciprocalEquation(step1.equation);
-      if (!step2.ok) return "passo 2 fallito: " + step2.error;
-      const finalPretty = toPretty(step2.newEq, 0);
-      const goal = isGoalReached(step2.newEq, "Req");
-      return goal && finalPretty === "Req = R1\xB7R2/(R1 + R2)" ? true : `atteso Req = R1\xB7R2/(R1 + R2), ottenuto: ${finalPretty}`;
-    }));
-    results.push(test("Regola: commonDenom rifiutata se l'equazione \xE8 gi\xE0 a frazione semplice", () => {
-      const e = eq("v = s/t");
-      const res = applyRule(RULES.commonDenom, e);
-      return !res.ok && res.error.includes("denominatore comune") ? true : "doveva rifiutare v = s/t";
-    }));
-    results.push(test("Archivio: formula resistori-parallelo configurata come 1/R_eq = 1/R_1 + 1/R_2", () => {
-      const e = eq("1/R_eq = 1/R_1 + 1/R_2");
-      const step1 = applyRule(RULES.commonDenom, e, { side: "right" });
-      if (!step1.ok) return "m.c.m. fallito: " + step1.error;
-      const step2 = reciprocalEquation(step1.equation);
-      if (!step2.ok) return "reciproco fallito: " + step2.error;
-      const goal = isGoalReached(step2.newEq, "R_eq");
-      const finalPretty = toPretty(step2.newEq, 0);
-      return goal && finalPretty === "R_eq = R_1\xB7R_2/(R_1 + R_2)" ? true : `atteso R_eq = R_1\xB7R_2/(R_1 + R_2), ottenuto: ${finalPretty}`;
-    }));
-    results.push(test("Risoluzione: 1/R_eq = 1/R_1 + 1/R_2 isola R_1 con trasporto, m.c.m. e reciproco", () => {
-      const e = eq("1/R_eq - 1/R_2 = 1/R_1");
-      const step1 = applyRule(RULES.commonDenom, e, { side: "left" });
-      if (!step1.ok) return "m.c.m. fallito: " + step1.error;
-      const step2 = reciprocalEquation(step1.equation);
-      if (!step2.ok) return "reciproco fallito: " + step2.error;
-      const step3 = applyRule(RULES.swapSides, step2.newEq, {});
-      const goal = isGoalReached(step3.equation, "R_1");
-      return goal ? true : "obiettivo R_1 non raggiunto";
-    }));
-    return results;
-  }
-  function formatTestResults(results) {
-    const passed = results.filter((r) => r.ok).length;
-    const failed = results.length - passed;
-    const html = results.map((r) => {
-      const cls = r.ok ? "pass" : "fail";
-      const icon = r.ok ? "\u2713" : "\u2717";
-      return `<div class="test-row ${cls}">
-      <span class="test-icon">${icon}</span>
-      <span class="test-name">${escapeHtml2(r.name)}</span>
-      ${r.detail ? `<span class="test-detail">${escapeHtml2(r.detail)}</span>` : ""}
-    </div>`;
-    }).join("");
-    return { passed, failed, total: results.length, html };
-  }
-  function escapeHtml2(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-  }
-
   // js/formula-db.js
   var STORAGE_KEY = "formuleInverse.userFormulas.v1";
   var GREEK_MAP = {
@@ -9185,10 +8031,6 @@
     modalTitle: $("#modal-title"),
     modalBody: $("#modal-body"),
     modalActions: $("#modal-actions"),
-    testsBackdrop: $("#tests-backdrop"),
-    testsSummary: $("#tests-summary"),
-    testsBody: $("#tests-body"),
-    btnRunTests: $("#btn-run-tests"),
     btnHelp: $("#btn-help"),
     btnContrast: $("#btn-contrast"),
     btnTheme: $("#btn-theme"),
@@ -9384,14 +8226,14 @@
       try {
         mathHtml = renderEquation(parseFormulaCached(f.formula), {});
       } catch (e) {
-        mathHtml = escapeHtml3(f.formula);
+        mathHtml = escapeHtml2(f.formula);
       }
       card.innerHTML = `
       <div class="formula-card-head">
-        <span class="formula-topic">${escapeHtml3(f.topic)}</span>
+        <span class="formula-topic">${escapeHtml2(f.topic)}</span>
         <span class="formula-diff" title="Difficolt\xE0 ${f.difficulty}/5">${dif}</span>
       </div>
-      <div class="formula-name">${escapeHtml3(f.name)}</div>
+      <div class="formula-name">${escapeHtml2(f.name)}</div>
       <div class="formula-math">${mathHtml}</div>
       <div class="formula-isolate">
         <span class="isolate-label">Scegli cosa ricavare:</span>
@@ -9443,7 +8285,7 @@
       const btn = document.createElement("button");
       btn.className = "pick-target-btn";
       btn.type = "button";
-      btn.innerHTML = `<span>${escapeHtml3(prettyVar(v))}</span><small>ricava ${escapeHtml3(prettyVar(v))}</small>`;
+      btn.innerHTML = `<span>${escapeHtml2(prettyVar(v))}</span><small>ricava ${escapeHtml2(prettyVar(v))}</small>`;
       btn.addEventListener("click", () => {
         dom.pickTargetBackdrop.hidden = true;
         loadFormula(formulaEntry, v);
@@ -9474,14 +8316,14 @@
   function loadFormula(formulaEntry, targetVar) {
     cancelCompoundFractionAnimation();
     cancelActiveSwapAnimations();
-    let eq2;
+    let eq;
     try {
-      eq2 = parseEquation(formulaEntry.formula);
+      eq = parseEquation(formulaEntry.formula);
     } catch (e) {
       showMessage("Errore nel caricamento della formula: " + e.message, "error");
       return;
     }
-    const vars = collectVars(eq2);
+    const vars = collectVars(eq);
     if (!vars.has(targetVar)) {
       const alt = [...vars].find((v) => v.toLowerCase() === targetVar.toLowerCase());
       if (alt) targetVar = alt;
@@ -9491,8 +8333,8 @@
       }
     }
     state.baseFormula = formulaEntry;
-    state.startEq = clone(eq2);
-    state.currentEq = clone(eq2);
+    state.startEq = clone(eq);
+    state.currentEq = clone(eq);
     state.targetVar = targetVar;
     state.conditions = (formulaEntry.conditions || []).slice();
     state.history = [];
@@ -9508,7 +8350,7 @@
       dom.btnCross.setAttribute("aria-pressed", "false");
     }
     pushHistory({
-      equation: clone(eq2),
+      equation: clone(eq),
       ruleName: "Formula di partenza",
       rulePrinciple: formulaEntry.formula,
       steps: [],
@@ -10378,8 +9220,8 @@
   function applyReciprocalRule() {
     if (!state.currentEq) return;
     playSoundFraction();
-    const eq2 = state.currentEq;
-    const res = reciprocalEquation(eq2);
+    const eq = state.currentEq;
+    const res = reciprocalEquation(eq);
     if (!res.ok) {
       clearPreview();
       renderEquationView();
@@ -10387,7 +9229,7 @@
       return;
     }
     const newEq = res.newEq;
-    if (equivalentEq(newEq, eq2)) {
+    if (equivalentEq(newEq, eq)) {
       showMessage("Questa operazione non cambia l'equazione: prova un'altra trasformazione.", "info");
       return;
     }
@@ -10405,7 +9247,7 @@
       ruleName: rule.name,
       rulePrinciple: rule.principle,
       ruleId: "reciprocal",
-      steps: [`Calcolo il reciproco di entrambi i membri: ${toPretty(eq2, 0)} \u2192 ${toPretty(newEq, 0)}.`],
+      steps: [`Calcolo il reciproco di entrambi i membri: ${toPretty(eq, 0)} \u2192 ${toPretty(newEq, 0)}.`],
       conditions: state.conditions.slice(),
       explanationKey: null,
       note: null,
@@ -10427,9 +9269,9 @@
   }
   function applyDistributeRule() {
     if (!state.currentEq) return;
-    const eq2 = state.currentEq;
-    const leftDist = canDistribute(eq2.left);
-    const rightDist = canDistribute(eq2.right);
+    const eq = state.currentEq;
+    const leftDist = canDistribute(eq.left);
+    const rightDist = canDistribute(eq.right);
     if (!leftDist && !rightDist) {
       showMessage("Non ci sono prodotti con parentesi (somme o differenze) da sviluppare.", "info");
       return;
@@ -10443,8 +9285,8 @@
       }
     }
     if (!chosenSide) {
-      const targetLeft = hasDistributableSum(eq2.left, state.targetVar);
-      const targetRight = hasDistributableSum(eq2.right, state.targetVar);
+      const targetLeft = hasDistributableSum(eq.left, state.targetVar);
+      const targetRight = hasDistributableSum(eq.right, state.targetVar);
       if (targetRight && !targetLeft && rightDist) chosenSide = "right";
       else if (targetLeft && !targetRight && leftDist) chosenSide = "left";
       else if (rightDist && !leftDist) chosenSide = "right";
@@ -10452,7 +9294,7 @@
       else chosenSide = "right";
     }
     playSoundTransport();
-    const res = applyRule(RULES.distribute, eq2, { side: chosenSide });
+    const res = applyRule(RULES.distribute, eq, { side: chosenSide });
     if (!res.ok) {
       showInvalidMove(res.error, res.hint);
       return;
@@ -10466,7 +9308,7 @@
       ruleName: rule.name,
       rulePrinciple: rule.principle,
       ruleId: "distribute",
-      steps: [`Sviluppo le parentesi con la propriet\xE0 distributiva al ${chosenSide === "left" ? "primo" : "secondo"} membro: ${toPretty(eq2, 0)} \u2192 ${toPretty(res.equation, 0)}.`],
+      steps: [`Sviluppo le parentesi con la propriet\xE0 distributiva al ${chosenSide === "left" ? "primo" : "secondo"} membro: ${toPretty(eq, 0)} \u2192 ${toPretty(res.equation, 0)}.`],
       conditions: state.conditions.slice(),
       explanationKey: "distribute",
       note: null,
@@ -10488,13 +9330,13 @@
   }
   function applyFactorCommonRule() {
     if (!state.currentEq) return;
-    const eq2 = state.currentEq;
-    const targetSide = whichSideHas(eq2, state.targetVar) || "right";
+    const eq = state.currentEq;
+    const targetSide = whichSideHas(eq, state.targetVar) || "right";
     const sidesToCheck = targetSide === "both" ? ["right", "left"] : [targetSide, targetSide === "left" ? "right" : "left"];
     let foundSide = null;
     let commonNode = null;
     for (const s of sidesToCheck) {
-      const member = s === "left" ? eq2.left : eq2.right;
+      const member = s === "left" ? eq.left : eq.right;
       const common = findCommonFactor(member, state.targetVar);
       if (common) {
         foundSide = s;
@@ -10504,7 +9346,7 @@
     }
     if (!commonNode) {
       for (const s of sidesToCheck) {
-        const member = s === "left" ? eq2.left : eq2.right;
+        const member = s === "left" ? eq.left : eq.right;
         const common = findCommonFactor(member, null);
         if (common) {
           foundSide = s;
@@ -10514,7 +9356,7 @@
       }
     }
     if (!commonNode) {
-      const member = targetSide === "left" ? eq2.left : eq2.right;
+      const member = targetSide === "left" ? eq.left : eq.right;
       if (hasTrigConflict(member, state.targetVar)) {
         showMessage(`\u26A0\uFE0F Non \xE8 possibile raccogliere ${prettyVar(state.targetVar)} a fattor comune: ${prettyVar(state.targetVar)} \xE8 l'argomento di funzioni trigonometriche distinte (sin e cos), non un fattore moltiplicativo.`, "warning");
         return;
@@ -10524,7 +9366,7 @@
     }
     playSoundTransport();
     const commonText = toPretty(commonNode, 0);
-    const res = applyRule(RULES.factorCommon, eq2, { side: foundSide, common: commonNode, commonText });
+    const res = applyRule(RULES.factorCommon, eq, { side: foundSide, common: commonNode, commonText });
     if (!res.ok) {
       showInvalidMove(res.error, res.hint);
       return;
@@ -10538,7 +9380,7 @@
       ruleName: rule.name,
       rulePrinciple: rule.principle,
       ruleId: "factorCommon",
-      steps: [`Raccolgo ${commonText} a fattor comune al ${foundSide === "left" ? "primo" : "secondo"} membro: ${toPretty(eq2, 0)} \u2192 ${toPretty(res.equation, 0)}.`],
+      steps: [`Raccolgo ${commonText} a fattor comune al ${foundSide === "left" ? "primo" : "secondo"} membro: ${toPretty(eq, 0)} \u2192 ${toPretty(res.equation, 0)}.`],
       conditions: state.conditions.slice(),
       explanationKey: null,
       note: null,
@@ -10560,19 +9402,19 @@
   }
   function applyCommonDenominatorRule() {
     if (!state.currentEq) return;
-    const eq2 = state.currentEq;
+    const eq = state.currentEq;
     let chosenSide = null;
     if (state.selectedId) {
       const selInfo = analyseElementId(state.selectedId);
       if (selInfo && selInfo.side) chosenSide = selInfo.side;
     }
-    const res = reduceEquationToCommonDenominator(eq2, chosenSide);
+    const res = reduceEquationToCommonDenominator(eq, chosenSide);
     if (!res.ok) {
       showInvalidMove(res.error, res.hint, { label: "Minimo comune multiplo (m.c.m.)" });
       return;
     }
     const newEq = res.newEq;
-    if (equivalentEq(newEq, eq2)) {
+    if (equivalentEq(newEq, eq)) {
       showMessage("L'equazione \xE8 gi\xE0 espressa a denominatore comune.", "info");
       return;
     }
@@ -10625,8 +9467,8 @@
   function applyChangeSignRule() {
     if (!state.currentEq) return;
     playSoundTransport();
-    const eq2 = state.currentEq;
-    const newEq = Eq(negateExpr(eq2.left), negateExpr(eq2.right));
+    const eq = state.currentEq;
+    const newEq = Eq(negateExpr(eq.left), negateExpr(eq.right));
     state.currentEq = newEq;
     state.selectedId = null;
     clearPreview();
@@ -10641,7 +9483,7 @@
       ruleName: rule.name,
       rulePrinciple: rule.principle,
       ruleId: "changeSign",
-      steps: [`Moltiplico entrambi i membri per \u22121: ${toPretty(eq2, 0)} \u2192 ${toPretty(newEq, 0)}.`],
+      steps: [`Moltiplico entrambi i membri per \u22121: ${toPretty(eq, 0)} \u2192 ${toPretty(newEq, 0)}.`],
       conditions: state.conditions.slice(),
       explanationKey: null,
       note: null,
@@ -10711,7 +9553,7 @@
       return;
     }
     dom.conditionsBox.hidden = false;
-    dom.conditionsList.innerHTML = state.conditions.map((c) => `<li>${escapeHtml3(c)}</li>`).join("");
+    dom.conditionsList.innerHTML = state.conditions.map((c) => `<li>${escapeHtml2(c)}</li>`).join("");
   }
   function selectElement(id) {
     if (!state.currentEq) return;
@@ -10744,8 +9586,8 @@
       const btn = document.createElement("button");
       btn.className = "action-btn";
       btn.type = "button";
-      btn.innerHTML = `<span class="action-label">${escapeHtml3(action.label)}</span>
-      <span class="action-desc">${escapeHtml3(action.description || "")}</span>`;
+      btn.innerHTML = `<span class="action-label">${escapeHtml2(action.label)}</span>
+      <span class="action-desc">${escapeHtml2(action.description || "")}</span>`;
       btn.addEventListener("click", () => previewAction(action));
       dom.actionButtons.appendChild(btn);
     }
@@ -10800,7 +9642,7 @@
   }
   function showPreview(action, res) {
     dom.previewBox.hidden = false;
-    dom.previewText.innerHTML = `Anteprima: <span class="preview-eq">${escapeHtml3(toPretty(res.equation, 0))}</span> \u2014 regola: <em>${escapeHtml3(action.label)}</em>`;
+    dom.previewText.innerHTML = `Anteprima: <span class="preview-eq">${escapeHtml2(toPretty(res.equation, 0))}</span> \u2014 regola: <em>${escapeHtml2(action.label)}</em>`;
     dom.btnConfirm.focus();
   }
   function clearPreview() {
@@ -10981,36 +9823,36 @@
   }
   function showRulePanel(rule, result, afterEq) {
     const ex = rule ? getExplanation(rule.explanation) : null;
-    let html = `<div class="rule-name">\u{1F4DC} ${escapeHtml3(rule ? rule.name : "Trasformazione")}</div>`;
+    let html = `<div class="rule-name">\u{1F4DC} ${escapeHtml2(rule ? rule.name : "Trasformazione")}</div>`;
     if (ex) {
-      html += `<div class="rule-section"><strong>\u{1F4A1} Spiegazione intuitiva</strong><p>${escapeHtml3(ex.intuitiva)}</p></div>`;
-      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio di equivalenza</strong><p>${escapeHtml3(ex.principio)}</p></div>`;
-      html += `<div class="rule-section"><strong>\u{1F3AF} Perch\xE9 \xE8 corretta</strong><p>${escapeHtml3(ex.perche)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u{1F4A1} Spiegazione intuitiva</strong><p>${escapeHtml2(ex.intuitiva)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio di equivalenza</strong><p>${escapeHtml2(ex.principio)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u{1F3AF} Perch\xE9 \xE8 corretta</strong><p>${escapeHtml2(ex.perche)}</p></div>`;
     } else if (rule && rule.principle) {
-      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio matematico</strong><p>${escapeHtml3(rule.principle)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio matematico</strong><p>${escapeHtml2(rule.principle)}</p></div>`;
     }
     if (result.steps && result.steps.length) {
-      html += `<div class="rule-section"><strong>\u2699\uFE0F Operazione svolta</strong><ul class="steps-list">${result.steps.map((s) => `<li>${escapeHtml3(s)}</li>`).join("")}</ul></div>`;
+      html += `<div class="rule-section"><strong>\u2699\uFE0F Operazione svolta</strong><ul class="steps-list">${result.steps.map((s) => `<li>${escapeHtml2(s)}</li>`).join("")}</ul></div>`;
     }
     html += `<div class="rule-section rule-eq"><strong>\u{1F4D0} Equazione dopo</strong><div class="rule-math">${renderEquation(afterEq, {})}</div></div>`;
     if (result.conditions && result.conditions.length) {
-      html += `<div class="rule-section conditions"><strong>\u{1F50D} Condizioni di validit\xE0 richieste</strong><ul>${result.conditions.map((c) => `<li>${escapeHtml3(c)}</li>`).join("")}</ul></div>`;
+      html += `<div class="rule-section conditions"><strong>\u{1F50D} Condizioni di validit\xE0 richieste</strong><ul>${result.conditions.map((c) => `<li>${escapeHtml2(c)}</li>`).join("")}</ul></div>`;
     }
     if (ex && ex.attenzione && ex.attenzione.length) {
-      html += `<div class="rule-section warning"><strong>\u26A0\uFE0F Attenzione</strong><ul>${ex.attenzione.map((c) => `<li>${escapeHtml3(c)}</li>`).join("")}</ul></div>`;
+      html += `<div class="rule-section warning"><strong>\u26A0\uFE0F Attenzione</strong><ul>${ex.attenzione.map((c) => `<li>${escapeHtml2(c)}</li>`).join("")}</ul></div>`;
     }
     if (result.note) {
-      html += `<div class="rule-section warning"><p>${escapeHtml3(result.note)}</p></div>`;
+      html += `<div class="rule-section warning"><p>${escapeHtml2(result.note)}</p></div>`;
     }
     dom.rulePanel.innerHTML = html;
   }
   function updateRulePanelInitial(formulaEntry) {
     dom.rulePanel.innerHTML = `
     <div class="rule-name">Formula di partenza</div>
-    <div class="rule-section"><strong>${escapeHtml3(formulaEntry.name)}</strong>
+    <div class="rule-section"><strong>${escapeHtml2(formulaEntry.name)}</strong>
       <div class="rule-math">${renderEquation(state.startEq, {})}</div></div>
-    ${formulaEntry.notes ? `<div class="rule-section"><p>${escapeHtml3(formulaEntry.notes)}</p></div>` : ""}
-    ${formulaEntry.hypotheses ? `<div class="rule-section"><strong>Ipotesi</strong><p>${escapeHtml3(formulaEntry.hypotheses)}</p></div>` : ""}
+    ${formulaEntry.notes ? `<div class="rule-section"><p>${escapeHtml2(formulaEntry.notes)}</p></div>` : ""}
+    ${formulaEntry.hypotheses ? `<div class="rule-section"><strong>Ipotesi</strong><p>${escapeHtml2(formulaEntry.hypotheses)}</p></div>` : ""}
     <div class="rule-section"><p>Seleziona un elemento nell'area di lavoro per iniziare a ricavare la formula inversa.</p></div>
   `;
   }
@@ -11245,11 +10087,11 @@
       item.innerHTML = `
       <div class="calc-input-meta">
         <span class="calc-input-symbol">${prettyVar(v)}</span>
-        <span class="calc-input-label" title="${escapeHtml3(qInfo.name)}">${escapeHtml3(qInfo.name)}</span>
+        <span class="calc-input-label" title="${escapeHtml2(qInfo.name)}">${escapeHtml2(qInfo.name)}</span>
       </div>
       <div class="calc-input-row">
-        <input type="number" step="any" class="calc-num-input" data-var="${escapeHtml3(v)}" placeholder="0" />
-        <span class="calc-unit-badge">${escapeHtml3(qInfo.unit)}</span>
+        <input type="number" step="any" class="calc-num-input" data-var="${escapeHtml2(v)}" placeholder="0" />
+        <span class="calc-unit-badge">${escapeHtml2(qInfo.unit)}</span>
       </div>
     `;
       const input = item.querySelector(".calc-num-input");
@@ -11374,11 +10216,11 @@
       if (i > state.historyIndex) li.classList.add("future");
       li.innerHTML = `
       <div class="history-head">
-        <span class="history-step">${h.failed ? "\u2717" : i === 0 ? "0" : i}</span> <span class="history-rule">${escapeHtml3(h.ruleName)}</span>
+        <span class="history-step">${h.failed ? "\u2717" : i === 0 ? "0" : i}</span> <span class="history-rule">${escapeHtml2(h.ruleName)}</span>
       </div>
       <div class="history-eq">${renderEquation(h.equation, {})}</div>
-      ${h.conditions && h.conditions.length ? `<div class="history-cond">Condizioni: ${h.conditions.map(escapeHtml3).join("; ")}</div>` : ""}
-      ${h.note ? `<div class="history-note">${escapeHtml3(h.note)}</div>` : ""}
+      ${h.conditions && h.conditions.length ? `<div class="history-cond">Condizioni: ${h.conditions.map(escapeHtml2).join("; ")}</div>` : ""}
+      ${h.note ? `<div class="history-note">${escapeHtml2(h.note)}</div>` : ""}
       <div class="history-status">${h.verified ? "\u2713 controllo matematico superato" : "\u2717 mossa rifiutata"}</div>
     `;
       li.addEventListener("click", () => goToHistory(i));
@@ -11832,15 +10674,15 @@
     if (!dom.actionButtons) return;
     dom.actionButtons.innerHTML = "";
     if (!sug.found) {
-      dom.actionButtons.innerHTML = `<p class="placeholder small">${escapeHtml3(sug.message || "Nessuna sequenza automatica diretta trovata per questa formula.")}</p>`;
+      dom.actionButtons.innerHTML = `<p class="placeholder small">${escapeHtml2(sug.message || "Nessuna sequenza automatica diretta trovata per questa formula.")}</p>`;
       return;
     }
     const nextBtn = document.createElement("button");
     nextBtn.className = "action-btn auto-step-btn";
     nextBtn.type = "button";
     nextBtn.innerHTML = `
-    <span class="action-label">\u{1F5B1}\uFE0F Fai clic per eseguire: ${escapeHtml3(sug.action.label)}</span>
-    <span class="action-desc"><strong>Giustificazione della regola:</strong> ${escapeHtml3(sug.reason || sug.action.description || "")}</span>
+    <span class="action-label">\u{1F5B1}\uFE0F Fai clic per eseguire: ${escapeHtml2(sug.action.label)}</span>
+    <span class="action-desc"><strong>Giustificazione della regola:</strong> ${escapeHtml2(sug.reason || sug.action.description || "")}</span>
   `;
     nextBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -11857,8 +10699,8 @@
           <li class="roadmap-item ${idx === 0 ? "roadmap-current" : ""}">
             <span class="roadmap-step-num">${idx + 1}</span>
             <div class="roadmap-step-content">
-              <strong>${escapeHtml3(s.action.label)}</strong>
-              <p>${escapeHtml3(s.reason || s.action.description || "")}</p>
+              <strong>${escapeHtml2(s.action.label)}</strong>
+              <p>${escapeHtml2(s.reason || s.action.description || "")}</p>
             </div>
           </li>
         `).join("")}
@@ -11910,14 +10752,14 @@
       showCustomError("Inserisci una formula.");
       return;
     }
-    let eq2;
+    let eq;
     try {
-      eq2 = parseEquation(text);
+      eq = parseEquation(text);
     } catch (e) {
       showCustomError("Errore di sintassi: " + e.message);
       return;
     }
-    const vars = collectVars(eq2);
+    const vars = collectVars(eq);
     let t = target;
     let multipleSpecified = false;
     if (t && (t.includes(",") || t.includes(";"))) {
@@ -11932,7 +10774,7 @@
       }
     }
     if (!t) {
-      const L = unwrap(eq2.left);
+      const L = unwrap(eq.left);
       if (L.type === "Var") t = L.name;
       else {
         showCustomError("Specifica la grandezza da isolare (una sola lettera, es. " + [...vars][0] + ").");
@@ -11971,7 +10813,6 @@
     dom.btnHelp.addEventListener("click", showHelp);
     dom.btnContrast.addEventListener("click", toggleContrast);
     if (dom.btnTheme) dom.btnTheme.addEventListener("click", toggleTheme);
-    dom.btnRunTests.addEventListener("click", runTests);
     document.querySelectorAll("[data-close]").forEach((btn) => {
       btn.addEventListener("click", () => {
         document.getElementById(btn.dataset.close).hidden = true;
@@ -11979,10 +10820,6 @@
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
-        if (!dom.testsBackdrop.hidden) {
-          dom.testsBackdrop.hidden = true;
-          return;
-        }
         if (!dom.modalBackdrop.hidden) {
           dom.modalBackdrop.hidden = true;
           return;
@@ -12266,13 +11103,6 @@ ${lines.join(" \\\\\n")}
     });
     dom.modalBackdrop.hidden = false;
   }
-  function runTests() {
-    const results = runAllTests();
-    const { passed, failed, total, html } = formatTestResults(results);
-    dom.testsSummary.innerHTML = `<span class="test-pass">${passed}</span> / <span class="test-total">${total}</span> superati` + (failed ? ` \u2014 <span class="test-fail">${failed} falliti</span>` : ' \u2014 <span class="test-pass">tutti superati</span>');
-    dom.testsBody.innerHTML = html;
-    dom.testsBackdrop.hidden = false;
-  }
   function bindLatexEvents() {
     dom.btnLatexPreview.addEventListener("click", previewLatex);
     dom.btnLatexSave.addEventListener("click", saveLatex);
@@ -12318,9 +11148,9 @@ ${lines.join(" \\\\\n")}
       try {
         mathHtml = renderEquation(parseEquation(syntax), {});
       } catch (e) {
-        mathHtml = escapeHtml3(syntax);
+        mathHtml = escapeHtml2(syntax);
       }
-      dom.latexPreview.innerHTML = `<span class="conv-label">Sintassi per l'editor</span><div class="conv-code">` + escapeHtml3(syntax) + '</div><span class="conv-label" style="margin-top:.5rem">Anteprima</span><div class="latex-math-preview">' + mathHtml + "</div>";
+      dom.latexPreview.innerHTML = `<span class="conv-label">Sintassi per l'editor</span><div class="conv-code">` + escapeHtml2(syntax) + '</div><span class="conv-label" style="margin-top:.5rem">Anteprima</span><div class="latex-math-preview">' + mathHtml + "</div>";
     }
     return syntax;
   }
@@ -12343,14 +11173,14 @@ ${lines.join(" \\\\\n")}
     if (!syntax) return;
     const name = (dom.latexName.value || "").trim() || "formula da LaTeX";
     const targetRaw = (dom.latexTarget.value || "").trim();
-    let eq2;
+    let eq;
     try {
-      eq2 = parseEquation(syntax);
+      eq = parseEquation(syntax);
     } catch (e) {
       showLatexError("Errore di sintassi: " + e.message);
       return;
     }
-    const vars = collectVars(eq2);
+    const vars = collectVars(eq);
     let isolateList = [...vars];
     if (targetRaw) {
       const parts = targetRaw.split(/[,;\s]+/).filter(Boolean);
@@ -12428,14 +11258,14 @@ ${lines.join(" \\\\\n")}
       try {
         mathHtml = renderEquation(parseEquation(f.formula), {});
       } catch (e) {
-        mathHtml = escapeHtml3(f.formula);
+        mathHtml = escapeHtml2(f.formula);
       }
       card.innerHTML = `
       <div class="formula-card-head">
-        <span class="formula-topic">${escapeHtml3(f.topic || "Le mie formule")}</span>
+        <span class="formula-topic">${escapeHtml2(f.topic || "Le mie formule")}</span>
         <button class="icon-btn" type="button" title="Elimina" aria-label="Elimina formula">\u2715</button>
       </div>
-      <div class="formula-name">${escapeHtml3(f.name)}</div>
+      <div class="formula-name">${escapeHtml2(f.name)}</div>
       <div class="formula-math">${mathHtml}</div>
       ${f.isolate && f.isolate.length ? `<div class="formula-isolate">Isola: ${f.isolate.map((v) => prettyVar(v)).join(", ")}</div>` : ""}
     `;
@@ -12528,7 +11358,7 @@ ${lines.join(" \\\\\n")}
     renderMyFormulas();
     showMessage("Archivio svuotato.", "info");
   }
-  function escapeHtml3(s) {
+  function escapeHtml2(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   }
   if (document.readyState === "loading") {

@@ -605,21 +605,29 @@ body.dark-theme .app-header {
 .library-list {
   display: flex;
   flex-direction: column;
-  gap: .55rem;
-  max-height: 440px;
+  gap: .75rem;
+  max-height: 480px;
   overflow-y: auto;
-  padding: .15rem;
+  padding: .25rem;
   margin-bottom: .9rem;
 }
 
 .formula-card {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--bg-card);
-  padding: .65rem .8rem;
+  padding: .75rem .85rem;
   cursor: pointer;
   transition: all .15s ease;
   box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
+  height: auto !important;
+  min-height: fit-content !important;
+  overflow: visible;
 }
 .formula-card:hover {
   border-color: var(--primary);
@@ -633,7 +641,7 @@ body.dark-theme .app-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: .25rem;
+  margin-bottom: 0;
 }
 .formula-topic {
   font-size: .72rem;
@@ -643,9 +651,33 @@ body.dark-theme .app-header {
   color: var(--primary);
 }
 .formula-diff { color: var(--warning); font-size: .8rem; }
-.formula-name { font-weight: 600; font-size: .95rem; margin-bottom: .25rem; }
-.formula-math { margin: .35rem 0; font-size: 1.05rem; }
-.formula-isolate { font-size: .78rem; color: var(--ink-muted); }
+.formula-name {
+  font-weight: 600;
+  font-size: .95rem;
+  line-height: 1.35;
+  margin: 0;
+  color: var(--ink);
+}
+.formula-math {
+  position: relative;
+  display: block;
+  margin: 0.25rem 0;
+  font-size: 1.15rem;
+  line-height: 1.4;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 4px 0;
+  white-space: nowrap;
+}
+.formula-isolate {
+  font-size: .78rem;
+  color: var(--ink-muted);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
 
 .library-actions .btn { width: 100%; font-size: .95rem; padding: .65rem 1rem; }
 
@@ -2136,33 +2168,30 @@ sup.node-exp {
     font-size: 1.05rem;
   }
 
-  /* Barra strumenti algebrici scrollabile orizzontalmente con tocco fluido */
+  /* Barra strumenti algebrici: tutti i pulsanti visibili direttamente senza scorrere a destra */
   .work-header-tools {
     display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    gap: 0.45rem;
-    padding: 0.2rem 0.2rem 0.65rem 0.2rem;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    scroll-snap-type: x proximity;
+    flex-wrap: wrap;
+    overflow-x: visible;
+    gap: 0.38rem;
+    padding: 0.2rem 0;
     margin-bottom: 0.75rem;
   }
   .work-header-tools::-webkit-scrollbar {
     display: none;
   }
   .work-header-tools .btn-mini {
-    flex-shrink: 0;
-    scroll-snap-align: start;
-    font-size: 0.8rem;
-    padding: 0.45rem 0.8rem;
-    min-height: 42px;
+    flex: 1 1 auto;
+    font-size: 0.78rem;
+    padding: 0.38rem 0.6rem;
+    min-height: 38px;
     border-radius: var(--radius-pill);
     white-space: nowrap;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    justify-content: center;
+    gap: 0.3rem;
     touch-action: manipulation;
   }
 
@@ -2348,8 +2377,11 @@ sup.node-exp {
     width: 100%;
   }
   .formula-card {
-    padding: 0.8rem 0.85rem;
-    min-height: 52px;
+    flex-shrink: 0;
+    padding: 0.75rem 0.85rem;
+    height: auto !important;
+    min-height: fit-content !important;
+    overflow: visible;
   }
 
   /* Modali e Fumetto didattico su mobile */
