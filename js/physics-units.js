@@ -94,8 +94,17 @@ export const PHYSICAL_QUANTITIES = {
   C: { name: 'Capacità elettrica', unit: 'F', sample: 0.0001 },
   Delta_V: { name: 'Differenza di potenziale', unit: 'V', sample: 12 },
   Req: { name: 'Resistenza equivalente', unit: 'Ω', sample: 20 },
+  R_eq: { name: 'Resistenza equivalente', unit: 'Ω', sample: 20 },
   R1: { name: 'Resistenza 1', unit: 'Ω', sample: 30 },
+  R_1: { name: 'Resistenza 1', unit: 'Ω', sample: 30 },
   R2: { name: 'Resistenza 2', unit: 'Ω', sample: 60 },
+  R_2: { name: 'Resistenza 2', unit: 'Ω', sample: 60 },
+  Ceq: { name: 'Capacità equivalente', unit: 'F', sample: 0.00005 },
+  C_eq: { name: 'Capacità equivalente', unit: 'F', sample: 0.00005 },
+  C1: { name: 'Capacità 1', unit: 'F', sample: 0.0001 },
+  C_1: { name: 'Capacità 1', unit: 'F', sample: 0.0001 },
+  C2: { name: 'Capacità 2', unit: 'F', sample: 0.0001 },
+  C_2: { name: 'Capacità 2', unit: 'F', sample: 0.0001 },
 };
 
 /**
@@ -106,9 +115,15 @@ export function getQuantityInfo(symbol, formulaEntry = null) {
   const formulaId = (formulaEntry && formulaEntry.id) ? formulaEntry.id.toLowerCase() : '';
 
   // Context-specific overrides
-  if (symbol === 'R' || symbol === 'Req' || symbol === 'R1' || symbol === 'R2') {
-    if (topic.includes('elettricita') || topic.includes('circuito') || topic.includes('elettromagnetismo') || formulaId.includes('ohm')) {
+  if (['R', 'Req', 'R_eq', 'R1', 'R_1', 'R2', 'R_2'].includes(symbol)) {
+    if (topic.includes('elettricita') || topic.includes('circuito') || topic.includes('elettromagnetismo') || formulaId.includes('ohm') || formulaId.includes('resistor')) {
       return { name: 'Resistenza elettrica', unit: 'Ω', sample: 10 };
+    }
+  }
+
+  if (['C', 'Ceq', 'C_eq', 'C1', 'C_1', 'C2', 'C_2'].includes(symbol)) {
+    if (topic.includes('elettricita') || topic.includes('circuito') || topic.includes('condensator')) {
+      return { name: 'Capacità elettrica', unit: 'F', sample: 0.0001 };
     }
   }
 

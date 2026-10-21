@@ -1296,6 +1296,29 @@ export function runAllTests() {
     return !res.ok && res.error.includes('denominatore comune') ? true : 'doveva rifiutare v = s/t';
   }));
 
+  results.push(test('Archivio: formula resistori-parallelo configurata come 1/R_eq = 1/R_1 + 1/R_2', () => {
+    const e = eq('1/R_eq = 1/R_1 + 1/R_2');
+    const step1 = applyRule(RULES.commonDenom, e, { side: 'right' });
+    if (!step1.ok) return 'm.c.m. fallito: ' + step1.error;
+    const step2 = reciprocalEquation(step1.equation);
+    if (!step2.ok) return 'reciproco fallito: ' + step2.error;
+    const goal = isGoalReached(step2.newEq, 'R_eq');
+    const finalPretty = toPretty(step2.newEq, 0);
+    return goal && finalPretty === 'R_eq = R_1·R_2/(R_1 + R_2)' ? true : `atteso R_eq = R_1·R_2/(R_1 + R_2), ottenuto: ${finalPretty}`;
+  }));
+
+  results.push(test('Risoluzione: 1/R_eq = 1/R_1 + 1/R_2 isola R_1 con trasporto, m.c.m. e reciproco', () => {
+    // 1. Sposta 1/R_2 al primo membro
+    const e = eq('1/R_eq - 1/R_2 = 1/R_1');
+    const step1 = applyRule(RULES.commonDenom, e, { side: 'left' });
+    if (!step1.ok) return 'm.c.m. fallito: ' + step1.error;
+    const step2 = reciprocalEquation(step1.equation);
+    if (!step2.ok) return 'reciproco fallito: ' + step2.error;
+    const step3 = applyRule(RULES.swapSides, step2.newEq, {});
+    const goal = isGoalReached(step3.equation, 'R_1');
+    return goal ? true : 'obiettivo R_1 non raggiunto';
+  }));
+
   return results;
 }
 

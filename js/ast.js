@@ -458,6 +458,9 @@ export function toLatex(node, parentPrec = 0) {
       if (LATEX_VAR_MAP[node.name]) return LATEX_VAR_MAP[node.name];
       const knownSubsLatex = {
         Ceq: 'C_{\\text{eq}}', Req: 'R_{\\text{eq}}',
+        C_eq: 'C_{\\text{eq}}', R_eq: 'R_{\\text{eq}}',
+        R_1: 'R_1', R_2: 'R_2',
+        C_1: 'C_1', C_2: 'C_2',
         Ieff: 'I_{\\text{eff}}', Veff: 'V_{\\text{eff}}', Vmax: 'V_{\\text{max}}',
         Icm: 'I_{\\text{cm}}', xcm: 'x_{\\text{cm}}',
         PhiB: '\\Phi_B', PhiE: '\\Phi_E',

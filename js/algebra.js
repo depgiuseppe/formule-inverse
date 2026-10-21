@@ -14,6 +14,7 @@ import {
   isIdenticallyZero, clone, FUNC_INFO,
 } from './ast.js';
 import { RULES, applyRule, additiveTerms, cancelFractionFactor, findCommonFactorInFraction, hasTrigConflict, canDistribute, findCommonFactor } from './rules.js';
+import { canReduceToSingleFraction } from './common-denom.js';
 
 // ---------------------------------------------------------------------------
 // Stato/contesto di lavoro
@@ -733,6 +734,60 @@ export function suggestNextStep(eq, target) {
       },
       reason: `La grandezza ${target} è "dentro" la funzione ${key}: per liberarla applica la funzione inversa ${info.inverse} a entrambi i membri${condText}.`,
     };
+  }
+
+  // Caso Denominatore comune (m.c.m.): se il membro opposto a target contiene una somma di frazioni
+  // o una frazione composta, ridurla a denominatore comune è prioritario per avere un'unica frazione.
+  if (canReduceToSingleFraction(other)) {
+    const sideName = side === 'left' ? 'secondo' : 'primo';
+    return {
+      found: true,
+      action: {
+        id: 'common-denom',
+        label: `Calcola il minimo comune multiplo (m.c.m.) al ${sideName} membro`,
+        description: 'Somma le frazioni a denominatore comune per ottenere un\'unica frazione canonica.',
+        ruleKey: 'commonDenom',
+        build: () => ({ side: side === 'left' ? 'right' : 'left' }),
+      },
+      reason: `Al ${sideName} membro c'è una somma di frazioni: calcola il minimo comune multiplo (m.c.m.) per trasformarla in una singola frazione canonica.`,
+    };
+  }
+
+  // Se invece il membro CON target contiene frazioni riducibili e NON ci sono addendi estranei da trasportare:
+  const memberTerms = additiveTerms(member);
+  const hasStrangeTerms = memberTerms.length > 1 && memberTerms.some((t) => !collectVars(t.node).has(target));
+  if (!hasStrangeTerms && canReduceToSingleFraction(member)) {
+    const sideName = side === 'left' ? 'primo' : 'secondo';
+    return {
+      found: true,
+      action: {
+        id: 'common-denom',
+        label: `Calcola il minimo comune multiplo (m.c.m.) al ${sideName} membro`,
+        description: 'Somma le frazioni a denominatore comune per ottenere un\'unica frazione canonica.',
+        ruleKey: 'commonDenom',
+        build: () => ({ side }),
+      },
+      reason: `Al ${sideName} membro c'è una somma di frazioni: calcola il minimo comune multiplo (m.c.m.) per trasformarla in una singola frazione canonica.`,
+    };
+  }
+
+  // Se la variabile target è al denominatore di una frazione isolata 1/x = A/B,
+  // la regola del reciproco (inverti entrambi i membri) è la via più elegante e diretta.
+  if (mU.type === 'Div' && unwrap(mU.num).type === 'Num' && unwrap(mU.num).value === 1 && unwrap(mU.den).type === 'Var' && unwrap(mU.den).name === target) {
+    const otherU = unwrap(other);
+    if (otherU.type === 'Div') {
+      return {
+        found: true,
+        action: {
+          id: 'reciprocal',
+          label: 'Inverti entrambi i membri (regola del reciproco)',
+          description: `Da 1/${target} = A/B si ottiene ${target} = B/A invertendo numeratore e denominatore su entrambi i membri.`,
+          ruleKey: 'reciprocal',
+          build: () => ({}),
+        },
+        reason: `L'incognita ${target} si trova al denominatore della frazione 1/${target} e l'altro membro è una frazione: applica la regola del reciproco per portarla subito al numeratore.`,
+      };
+    }
   }
 
   // Caso 1: il membro con target è una frazione

@@ -629,8 +629,17 @@ export const FORMULAS_FISICA = [
   },
   {
     id: 'resistori-parallelo', topic: 'circuiti elettrici', name: 'resistori in parallelo',
+    formula: '1/R_eq = 1/R_1 + 1/R_2', isolate: ['R_eq', 'R_1', 'R_2'], difficulty: 3,
+    aliases: ['1/Req = 1/R1 + 1/R2', 'Req = (R1*R2)/(R1 + R2)'],
+    conditions: ['R_eq ≠ 0', 'R_1 ≠ 0', 'R_2 ≠ 0'],
+    hypotheses: 'Due resistori collegati in parallelo; la tensione è uguale ai capi di entrambi.',
+    notes: 'Formula fondamentale dei resistori in parallelo. Si usa il minimo comune multiplo (m.c.m.) per sommare le frazioni e poi la regola del reciproco per isolare l\'incognita.',
+  },
+  {
+    id: 'resistori-parallelo-equivalente', topic: 'circuiti elettrici', name: 'resistori in parallelo (formula ridotta)',
     formula: 'Req = (R1*R2)/(R1 + R2)', isolate: ['Req', 'R1', 'R2'], difficulty: 3,
     conditions: ['R1 + R2 ≠ 0'],
+    notes: 'Forma a frazione singola della resistenza equivalente di due resistori in parallelo.',
   },
   {
     id: 'condensatori-parallelo', topic: 'circuiti elettrici', name: 'condensatori in parallelo',
@@ -639,6 +648,13 @@ export const FORMULAS_FISICA = [
   },
   {
     id: 'condensatori-serie', topic: 'circuiti elettrici', name: 'condensatori in serie',
+    formula: '1/C_eq = 1/C_1 + 1/C_2', isolate: ['C_eq', 'C_1', 'C_2'], difficulty: 3,
+    aliases: ['1/Ceq = 1/C1 + 1/C2', 'Ceq = (C1*C2)/(C1 + C2)'],
+    conditions: ['C_eq ≠ 0', 'C_1 ≠ 0', 'C_2 ≠ 0'],
+    notes: 'Formula fondamentale per due condensatori in serie.',
+  },
+  {
+    id: 'condensatori-serie-equivalente', topic: 'circuiti elettrici', name: 'condensatori in serie (formula ridotta)',
     formula: 'Ceq = (C1*C2)/(C1 + C2)', isolate: ['Ceq', 'C1', 'C2'], difficulty: 3,
     conditions: ['C1 + C2 ≠ 0'],
   },

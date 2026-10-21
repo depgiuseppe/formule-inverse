@@ -418,6 +418,8 @@ const SPECIAL_PRETTY_VARS = {
   PhiB: 'Φ_B', PhiE: 'Φ_E',
   Icm: 'I_cm', xcm: 'x_cm',
   Req: 'R_eq', Ceq: 'C_eq',
+  R_eq: 'R_eq', R_1: 'R₁', R_2: 'R₂',
+  C_eq: 'C_eq', C_1: 'C₁', C_2: 'C₂',
   Ec: 'E_c', Ep: 'E_p',
   Vmax: 'V_max', Veff: 'V_eff', Ieff: 'I_eff',
   rho_corpo: 'ρ_corpo', rho_fluido: 'ρ_fluido',

@@ -452,6 +452,12 @@
         const knownSubsLatex = {
           Ceq: "C_{\\text{eq}}",
           Req: "R_{\\text{eq}}",
+          C_eq: "C_{\\text{eq}}",
+          R_eq: "R_{\\text{eq}}",
+          R_1: "R_1",
+          R_2: "R_2",
+          C_1: "C_1",
+          C_2: "C_2",
           Ieff: "I_{\\text{eff}}",
           Veff: "V_{\\text{eff}}",
           Vmax: "V_{\\text{max}}",
@@ -3110,6 +3116,52 @@
         reason: `La grandezza ${target} \xE8 "dentro" la funzione ${key}: per liberarla applica la funzione inversa ${info.inverse} a entrambi i membri${condText}.`
       };
     }
+    if (canReduceToSingleFraction(other)) {
+      const sideName = side === "left" ? "secondo" : "primo";
+      return {
+        found: true,
+        action: {
+          id: "common-denom",
+          label: `Calcola il minimo comune multiplo (m.c.m.) al ${sideName} membro`,
+          description: "Somma le frazioni a denominatore comune per ottenere un'unica frazione canonica.",
+          ruleKey: "commonDenom",
+          build: () => ({ side: side === "left" ? "right" : "left" })
+        },
+        reason: `Al ${sideName} membro c'\xE8 una somma di frazioni: calcola il minimo comune multiplo (m.c.m.) per trasformarla in una singola frazione canonica.`
+      };
+    }
+    const memberTerms = additiveTerms(member);
+    const hasStrangeTerms = memberTerms.length > 1 && memberTerms.some((t) => !collectVars(t.node).has(target));
+    if (!hasStrangeTerms && canReduceToSingleFraction(member)) {
+      const sideName = side === "left" ? "primo" : "secondo";
+      return {
+        found: true,
+        action: {
+          id: "common-denom",
+          label: `Calcola il minimo comune multiplo (m.c.m.) al ${sideName} membro`,
+          description: "Somma le frazioni a denominatore comune per ottenere un'unica frazione canonica.",
+          ruleKey: "commonDenom",
+          build: () => ({ side })
+        },
+        reason: `Al ${sideName} membro c'\xE8 una somma di frazioni: calcola il minimo comune multiplo (m.c.m.) per trasformarla in una singola frazione canonica.`
+      };
+    }
+    if (mU.type === "Div" && unwrap(mU.num).type === "Num" && unwrap(mU.num).value === 1 && unwrap(mU.den).type === "Var" && unwrap(mU.den).name === target) {
+      const otherU = unwrap(other);
+      if (otherU.type === "Div") {
+        return {
+          found: true,
+          action: {
+            id: "reciprocal",
+            label: "Inverti entrambi i membri (regola del reciproco)",
+            description: `Da 1/${target} = A/B si ottiene ${target} = B/A invertendo numeratore e denominatore su entrambi i membri.`,
+            ruleKey: "reciprocal",
+            build: () => ({})
+          },
+          reason: `L'incognita ${target} si trova al denominatore della frazione 1/${target} e l'altro membro \xE8 una frazione: applica la regola del reciproco per portarla subito al numeratore.`
+        };
+      }
+    }
     if (mU.type === "Div") {
       const den = mU.den;
       const denText = toPretty(den, 0);
@@ -4942,10 +4994,23 @@
       id: "resistori-parallelo",
       topic: "circuiti elettrici",
       name: "resistori in parallelo",
+      formula: "1/R_eq = 1/R_1 + 1/R_2",
+      isolate: ["R_eq", "R_1", "R_2"],
+      difficulty: 3,
+      aliases: ["1/Req = 1/R1 + 1/R2", "Req = (R1*R2)/(R1 + R2)"],
+      conditions: ["R_eq \u2260 0", "R_1 \u2260 0", "R_2 \u2260 0"],
+      hypotheses: "Due resistori collegati in parallelo; la tensione \xE8 uguale ai capi di entrambi.",
+      notes: "Formula fondamentale dei resistori in parallelo. Si usa il minimo comune multiplo (m.c.m.) per sommare le frazioni e poi la regola del reciproco per isolare l'incognita."
+    },
+    {
+      id: "resistori-parallelo-equivalente",
+      topic: "circuiti elettrici",
+      name: "resistori in parallelo (formula ridotta)",
       formula: "Req = (R1*R2)/(R1 + R2)",
       isolate: ["Req", "R1", "R2"],
       difficulty: 3,
-      conditions: ["R1 + R2 \u2260 0"]
+      conditions: ["R1 + R2 \u2260 0"],
+      notes: "Forma a frazione singola della resistenza equivalente di due resistori in parallelo."
     },
     {
       id: "condensatori-parallelo",
@@ -4960,6 +5025,17 @@
       id: "condensatori-serie",
       topic: "circuiti elettrici",
       name: "condensatori in serie",
+      formula: "1/C_eq = 1/C_1 + 1/C_2",
+      isolate: ["C_eq", "C_1", "C_2"],
+      difficulty: 3,
+      aliases: ["1/Ceq = 1/C1 + 1/C2", "Ceq = (C1*C2)/(C1 + C2)"],
+      conditions: ["C_eq \u2260 0", "C_1 \u2260 0", "C_2 \u2260 0"],
+      notes: "Formula fondamentale per due condensatori in serie."
+    },
+    {
+      id: "condensatori-serie-equivalente",
+      topic: "circuiti elettrici",
+      name: "condensatori in serie (formula ridotta)",
       formula: "Ceq = (C1*C2)/(C1 + C2)",
       isolate: ["Ceq", "C1", "C2"],
       difficulty: 3,
@@ -6411,6 +6487,12 @@
     xcm: "x_cm",
     Req: "R_eq",
     Ceq: "C_eq",
+    R_eq: "R_eq",
+    R_1: "R\u2081",
+    R_2: "R\u2082",
+    C_eq: "C_eq",
+    C_1: "C\u2081",
+    C_2: "C\u2082",
     Ec: "E_c",
     Ep: "E_p",
     Vmax: "V_max",
@@ -7438,15 +7520,29 @@
     C: { name: "Capacit\xE0 elettrica", unit: "F", sample: 1e-4 },
     Delta_V: { name: "Differenza di potenziale", unit: "V", sample: 12 },
     Req: { name: "Resistenza equivalente", unit: "\u03A9", sample: 20 },
+    R_eq: { name: "Resistenza equivalente", unit: "\u03A9", sample: 20 },
     R1: { name: "Resistenza 1", unit: "\u03A9", sample: 30 },
-    R2: { name: "Resistenza 2", unit: "\u03A9", sample: 60 }
+    R_1: { name: "Resistenza 1", unit: "\u03A9", sample: 30 },
+    R2: { name: "Resistenza 2", unit: "\u03A9", sample: 60 },
+    R_2: { name: "Resistenza 2", unit: "\u03A9", sample: 60 },
+    Ceq: { name: "Capacit\xE0 equivalente", unit: "F", sample: 5e-5 },
+    C_eq: { name: "Capacit\xE0 equivalente", unit: "F", sample: 5e-5 },
+    C1: { name: "Capacit\xE0 1", unit: "F", sample: 1e-4 },
+    C_1: { name: "Capacit\xE0 1", unit: "F", sample: 1e-4 },
+    C2: { name: "Capacit\xE0 2", unit: "F", sample: 1e-4 },
+    C_2: { name: "Capacit\xE0 2", unit: "F", sample: 1e-4 }
   };
   function getQuantityInfo(symbol, formulaEntry = null) {
     const topic = formulaEntry && formulaEntry.topic ? formulaEntry.topic.toLowerCase() : "";
     const formulaId = formulaEntry && formulaEntry.id ? formulaEntry.id.toLowerCase() : "";
-    if (symbol === "R" || symbol === "Req" || symbol === "R1" || symbol === "R2") {
-      if (topic.includes("elettricita") || topic.includes("circuito") || topic.includes("elettromagnetismo") || formulaId.includes("ohm")) {
+    if (["R", "Req", "R_eq", "R1", "R_1", "R2", "R_2"].includes(symbol)) {
+      if (topic.includes("elettricita") || topic.includes("circuito") || topic.includes("elettromagnetismo") || formulaId.includes("ohm") || formulaId.includes("resistor")) {
         return { name: "Resistenza elettrica", unit: "\u03A9", sample: 10 };
+      }
+    }
+    if (["C", "Ceq", "C_eq", "C1", "C_1", "C2", "C_2"].includes(symbol)) {
+      if (topic.includes("elettricita") || topic.includes("circuito") || topic.includes("condensator")) {
+        return { name: "Capacit\xE0 elettrica", unit: "F", sample: 1e-4 };
       }
     }
     if (symbol === "V" || symbol === "Delta_V") {
@@ -8622,6 +8718,26 @@
       const e = eq("v = s/t");
       const res = applyRule(RULES.commonDenom, e);
       return !res.ok && res.error.includes("denominatore comune") ? true : "doveva rifiutare v = s/t";
+    }));
+    results.push(test("Archivio: formula resistori-parallelo configurata come 1/R_eq = 1/R_1 + 1/R_2", () => {
+      const e = eq("1/R_eq = 1/R_1 + 1/R_2");
+      const step1 = applyRule(RULES.commonDenom, e, { side: "right" });
+      if (!step1.ok) return "m.c.m. fallito: " + step1.error;
+      const step2 = reciprocalEquation(step1.equation);
+      if (!step2.ok) return "reciproco fallito: " + step2.error;
+      const goal = isGoalReached(step2.newEq, "R_eq");
+      const finalPretty = toPretty(step2.newEq, 0);
+      return goal && finalPretty === "R_eq = R_1\xB7R_2/(R_1 + R_2)" ? true : `atteso R_eq = R_1\xB7R_2/(R_1 + R_2), ottenuto: ${finalPretty}`;
+    }));
+    results.push(test("Risoluzione: 1/R_eq = 1/R_1 + 1/R_2 isola R_1 con trasporto, m.c.m. e reciproco", () => {
+      const e = eq("1/R_eq - 1/R_2 = 1/R_1");
+      const step1 = applyRule(RULES.commonDenom, e, { side: "left" });
+      if (!step1.ok) return "m.c.m. fallito: " + step1.error;
+      const step2 = reciprocalEquation(step1.equation);
+      if (!step2.ok) return "reciproco fallito: " + step2.error;
+      const step3 = applyRule(RULES.swapSides, step2.newEq, {});
+      const goal = isGoalReached(step3.equation, "R_1");
+      return goal ? true : "obiettivo R_1 non raggiunto";
     }));
     return results;
   }
