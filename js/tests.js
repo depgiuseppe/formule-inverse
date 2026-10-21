@@ -20,7 +20,7 @@ import { filterFormulas, FORMULAS } from './formulas.js';
 import { getQuantityInfo, formatResultNumber } from './physics-units.js';
 import { hasCompoundFraction, transformToReciprocalMul, getCompoundFractionSteps } from './compound-fraction.js';
 import { reduceToSingleFraction, canReduceToSingleFraction, reduceEquationToCommonDenominator } from './common-denom.js';
-import { Div, Sub, Mul, Neg, Eq, Add } from './ast.js';
+import { Div, Sub, Mul, Neg, Eq, Add, Sqrt } from './ast.js';
 
 let counter = 0;
 function test(name, fn) {
@@ -833,6 +833,35 @@ export function runAllTests() {
     const f2 = formatResultNumber(12);
     const f3 = formatResultNumber(2.5e6);
     return f1 === '4.5' && f2 === '12' && f3.includes('10^') ? true : `formattazione inattesa: ${f1}, ${f2}, ${f3}`;
+  }));
+
+  results.push(test('Unita SI: energia cinetica e potenziale (Ec, E_c, Ek, Ep, E_p) in Joule [J]', () => {
+    const qEc = getQuantityInfo('Ec');
+    const qE_c = getQuantityInfo('E_c');
+    const qEk = getQuantityInfo('Ek');
+    const qEp = getQuantityInfo('Ep');
+    const qE_p = getQuantityInfo('E_p');
+    if (qEc.unit !== 'J' || qE_c.unit !== 'J' || qEk.unit !== 'J' || qEp.unit !== 'J' || qE_p.unit !== 'J') {
+      return `Unità errata: Ec=${qEc.unit}, E_c=${qE_c.unit}, Ek=${qEk.unit}, Ep=${qEp.unit}, E_p=${qE_p.unit}`;
+    }
+    return true;
+  }));
+
+  results.push(test('Calcolo Numerico: espressione con ± non include ± nelle variabili e valuta correttamente', () => {
+    const expr = Add(Var('±'), Sqrt(Div(Mul(Num(2), Var('E_c')), Var('m'))));
+    const vars = Array.from(collectVars(expr));
+    if (vars.includes('±')) {
+      return `collectVars include erroneamente '±': [${vars.join(', ')}]`;
+    }
+    const res = evalWithEnv(expr, { E_c: 6, m: 5 });
+    if (!res.ok) {
+      return `evalWithEnv fallita: ${res.error || res.missing}`;
+    }
+    const valFormatted = formatResultNumber(res.value);
+    if (valFormatted !== '1.5492') {
+      return `Valore atteso 1.5492 (sqrt(2.4)), ottenuto: ${valFormatted}`;
+    }
+    return true;
   }));
 
   // ---- Fattori con segno meno (es. -A*omega*sin(...)) ----

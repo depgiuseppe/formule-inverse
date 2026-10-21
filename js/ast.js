@@ -223,6 +223,7 @@ export function evalWithEnv(node, env = {}) {
     case 'Var': {
       if (node.name === 'pi' || node.name === 'π') return { ok: true, value: Math.PI };
       if (node.name === 'e') return { ok: true, value: Math.E };
+      if (node.name === '±') return { ok: true, value: 0 };
       if (env[node.name] !== undefined && env[node.name] !== null && env[node.name] !== '') {
         const val = Number(env[node.name]);
         if (Number.isFinite(val)) return { ok: true, value: val };
@@ -230,6 +231,12 @@ export function evalWithEnv(node, env = {}) {
       return { ok: false, missing: node.name };
     }
     case 'Add': {
+      if (node.args.length === 2) {
+        const first = unwrap(node.args[0]);
+        if (first.type === 'Var' && first.name === '±') {
+          return evalWithEnv(node.args[1], env);
+        }
+      }
       const vals = node.args.map((a) => evalWithEnv(a, env));
       const failed = vals.find((v) => !v.ok);
       if (failed) return failed;
@@ -303,7 +310,7 @@ export function substituteVarsInAst(node, env = {}) {
     case 'Num':
       return node;
     case 'Var': {
-      if (node.name === 'pi' || node.name === 'π' || node.name === 'e') return node;
+      if (node.name === 'pi' || node.name === 'π' || node.name === 'e' || node.name === '±') return node;
       if (env[node.name] !== undefined && env[node.name] !== null && env[node.name] !== '') {
         const val = Number(env[node.name]);
         if (Number.isFinite(val)) return { type: 'Num', value: val };
@@ -977,7 +984,7 @@ export function collectVars(node, out = new Set()) {
     case 'Num':
       break;
     case 'Var':
-      out.add(node.name);
+      if (node.name !== '±') out.add(node.name);
       break;
     case 'Add':
     case 'Sub':

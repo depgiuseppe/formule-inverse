@@ -2532,10 +2532,20 @@ function updateNumericalCalculator() {
   if (dom.calcFinalUnit) dom.calcFinalUnit.textContent = targetInfo.unit;
 
   const freeVars = Array.from(collectVars(solvedExpr)).filter(
-    (v) => v !== state.targetVar && v !== 'pi' && v !== 'π' && v !== 'e'
+    (v) => v !== state.targetVar && v !== 'pi' && v !== 'π' && v !== 'e' && v !== '±'
   );
 
   renderCalculatorInputs(freeVars, solvedExpr);
+}
+
+function hasPmSign(node) {
+  node = unwrap(node);
+  if (!node) return false;
+  if (node.type === 'Add' && node.args.length === 2) {
+    const first = unwrap(node.args[0]);
+    if (first.type === 'Var' && first.name === '±') return true;
+  }
+  return false;
 }
 
 function renderCalculatorInputs(freeVars, solvedExpr) {
@@ -2544,9 +2554,11 @@ function renderCalculatorInputs(freeVars, solvedExpr) {
 
   if (freeVars.length === 0) {
     const evalRes = evalWithEnv(solvedExpr, {});
-    const valStr = evalRes.ok ? formatResultNumber(evalRes.value) : '—';
-    if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = valStr;
-    if (dom.calcStepFormula) dom.calcStepFormula.textContent = `${prettyVar(state.targetVar)} = ${valStr}`;
+    const formatted = evalRes.ok ? formatResultNumber(evalRes.value) : '—';
+    const withPm = hasPmSign(solvedExpr);
+    const displayVal = (evalRes.ok && withPm) ? `± ${formatted}` : formatted;
+    if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = displayVal;
+    if (dom.calcStepFormula) dom.calcStepFormula.textContent = `${prettyVar(state.targetVar)} = ${displayVal}`;
     return;
   }
 
@@ -2621,7 +2633,9 @@ function runNumericalCalculation(solvedExpr) {
   const evalRes = evalWithEnv(solvedExpr, env);
   if (evalRes.ok) {
     const formatted = formatResultNumber(evalRes.value);
-    if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = formatted;
+    const withPm = hasPmSign(solvedExpr);
+    const displayVal = withPm ? `± ${formatted}` : formatted;
+    if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = displayVal;
     if (dom.calcErrorNotice) dom.calcErrorNotice.hidden = true;
 
     try {
@@ -2633,13 +2647,13 @@ function runNumericalCalculation(solvedExpr) {
           <span class="calc-step-eq">=</span>
           <span class="calc-step-expr">${substitutedHtml}</span>
           <span class="calc-step-eq">=</span>
-          <strong>${formatted}</strong>
+          <strong>${displayVal}</strong>
           <span class="calc-step-unit">${targetInfo.unit}</span>
         `;
       }
     } catch {
       if (dom.calcStepFormula) {
-        dom.calcStepFormula.textContent = `${prettyVar(state.targetVar)} = ${formatted} ${targetInfo.unit}`;
+        dom.calcStepFormula.textContent = `${prettyVar(state.targetVar)} = ${displayVal} ${targetInfo.unit}`;
       }
     }
   } else {
@@ -2918,7 +2932,7 @@ function bindWorkAreaEvents() {
       const solvedExpr = getSolvedExpression();
       if (!solvedExpr) return;
       const freeVars = Array.from(collectVars(solvedExpr)).filter(
-        (v) => v !== state.targetVar && v !== 'pi' && v !== 'π' && v !== 'e'
+        (v) => v !== state.targetVar && v !== 'pi' && v !== 'π' && v !== 'e' && v !== '±'
       );
       populateCalculatorSamples(freeVars, solvedExpr);
     });
