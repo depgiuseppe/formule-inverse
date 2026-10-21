@@ -41,7 +41,7 @@
 <main class="app-grid">
 
   <!-- A. LIBRERIA -->
-  <section class="panel panel-library" aria-labelledby="h-library">
+  <section class="panel panel-library" id="library-panel" aria-labelledby="h-library">
     <div class="panel-header">
       <h2 id="h-library">A. Libreria delle formule</h2>
       <span class="panel-badge" id="library-count-badge">188 formule</span>
@@ -330,7 +330,7 @@
   </section>
 
   <!-- D. CRONOLOGIA -->
-  <section class="panel panel-history" aria-labelledby="h-history">
+  <section class="panel panel-history" id="history-panel" aria-labelledby="h-history">
     <div class="panel-header">
       <h2 id="h-history">D. Cronologia passaggi</h2>
       <div class="history-header-tools">
@@ -383,6 +383,26 @@
     </div>
   </div>
 </div>
+
+<!-- Barra di navigazione rapida per dispositivi mobile -->
+<nav class="mobile-nav-bar" id="mobile-nav-bar" aria-label="Navigazione rapida sezioni mobile">
+  <button class="mobile-nav-item active" type="button" data-jump="workarea" aria-label="Vai all'area di lavoro">
+    <span class="mobile-nav-icon">📐</span>
+    <span class="mobile-nav-label">Formula</span>
+  </button>
+  <button class="mobile-nav-item" type="button" data-jump="library-panel" aria-label="Vai alla libreria formule">
+    <span class="mobile-nav-icon">📚</span>
+    <span class="mobile-nav-label">Libreria</span>
+  </button>
+  <button class="mobile-nav-item" type="button" data-jump="history-panel" aria-label="Vai alla cronologia passaggi">
+    <span class="mobile-nav-icon">📜</span>
+    <span class="mobile-nav-label">Passaggi</span>
+  </button>
+  <button class="mobile-nav-item" type="button" data-jump="numerical-calc-card" aria-label="Vai al calcolo numerico">
+    <span class="mobile-nav-icon">🔢</span>
+    <span class="mobile-nav-label">Calcolo</span>
+  </button>
+</nav>
 
 <!-- Bundle JavaScript standalone: esecuzione istantanea offline e compatibile al 100% con file:// -->
 <script src="js/bundle.js"></script>

@@ -1993,8 +1993,14 @@ sup.node-exp {
 .tests-body .fail { color: var(--danger); font-weight: 700; }
 
 /* ------------------------------------------------------------------------- */
-/* 15. Responsive Design                                                      */
+/* 15. Responsive Design & Ottimizzazione Mobile                             */
 /* ------------------------------------------------------------------------- */
+
+/* Mobile Navigation Bar (Barra inferiore per smartphone) */
+.mobile-nav-bar {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .app-grid {
     grid-template-columns: 1fr;
@@ -2003,6 +2009,383 @@ sup.node-exp {
       "library"
       "rules"
       "history";
+    gap: 1rem;
+    padding: 1rem 0.75rem;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Prevenzione zoom involontario su iPhone / Android */
+  input, select, textarea, button {
+    touch-action: manipulation;
+  }
+  .field input, .field select, .field textarea,
+  #custom-formula, #custom-target, #library-search {
+    font-size: 16px !important;
+  }
+
+  /* Padding inferiore per evitare che la barra fissa copra i contenuti */
+  body {
+    padding-bottom: max(65px, env(safe-area-inset-bottom));
+  }
+
+  /* Header compatto */
+  .app-header {
+    padding: 0.85rem 1rem max(0.85rem, env(safe-area-inset-top)) 1rem;
+    gap: 0.65rem;
+  }
+  .header-brand {
+    max-width: 100%;
+  }
+  .brand-badge {
+    font-size: 0.68rem;
+    padding: 0.15rem 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+  .app-header h1 {
+    font-size: clamp(1.2rem, 5vw, 1.45rem);
+    margin-bottom: 0.2rem;
+  }
+  .subtitle {
+    font-size: 0.82rem;
+    line-height: 1.35;
+    opacity: 0.88;
+  }
+  .header-actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .header-actions .btn {
+    font-size: 0.78rem;
+    padding: 0.38rem 0.65rem;
+    min-height: 38px;
+    flex: 1 1 auto;
+    text-align: center;
+    border-radius: var(--radius-pill);
+  }
+
+  /* Barra di navigazione rapida inferiore mobile */
+  .mobile-nav-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--line-strong);
+    padding: 0.35rem 0.5rem max(0.45rem, env(safe-area-inset-bottom)) 0.5rem;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  }
+  body.dark-theme .mobile-nav-bar {
+    background: rgba(15, 23, 42, 0.92);
+    border-top-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
+  }
+  .mobile-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    color: var(--ink-muted);
+    padding: 0.35rem 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-nav-item:active {
+    transform: scale(0.92);
+  }
+  .mobile-nav-item.active {
+    color: var(--primary);
+    font-weight: 700;
+  }
+  .mobile-nav-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+  .mobile-nav-label {
+    font-size: 0.7rem;
+    letter-spacing: -0.01em;
+  }
+
+  /* Pannelli più compatti e moderni */
+  .panel {
+    padding: 1rem 0.85rem;
+    border-radius: 16px;
+  }
+  .panel-header {
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.6rem;
+  }
+  .panel-header h2 {
+    font-size: 1.05rem;
+  }
+
+  /* Barra strumenti algebrici scrollabile orizzontalmente con tocco fluido */
+  .work-header-tools {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 0.45rem;
+    padding: 0.2rem 0.2rem 0.65rem 0.2rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    margin-bottom: 0.75rem;
+  }
+  .work-header-tools::-webkit-scrollbar {
+    display: none;
+  }
+  .work-header-tools .btn-mini {
+    flex-shrink: 0;
+    scroll-snap-align: start;
+    font-size: 0.8rem;
+    padding: 0.45rem 0.8rem;
+    min-height: 42px;
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    touch-action: manipulation;
+  }
+
+  /* Obiettivo compatto con chip touch-friendly */
+  .objective {
+    padding: 0.65rem 0.8rem;
+    gap: 0.45rem;
+    border-radius: 12px;
+  }
+  .objective-main {
+    font-size: 0.88rem;
+    line-height: 1.35;
+  }
+  .target-chip {
+    min-height: 40px;
+    min-width: 40px;
+    font-size: 1.05rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+  }
+  .btn-retry {
+    min-height: 38px;
+    padding: 0.3rem 0.75rem;
+  }
+
+  /* Modalità di interazione */
+  .mode-row {
+    margin-bottom: 0.75rem;
+    gap: 0.4rem;
+  }
+  .mode-btn {
+    min-height: 40px;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.84rem;
+    border-radius: var(--radius-pill);
+  }
+
+  /* Card dell'equazione & Frazioni touch-friendly */
+  .equation-display-card {
+    border-radius: 16px;
+    margin-bottom: 0.85rem;
+  }
+  .drag-hint-bar {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.78rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+  .equation-display {
+    padding: 1.25rem 0.6rem;
+    min-height: 140px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .interactive-math-eq {
+    font-size: clamp(1.2rem, 4.8vw, 1.55rem);
+    gap: 0.8rem;
+    padding: 0.4rem 0.2rem;
+  }
+  .math-node, .token-variable, .token-number, .token-group {
+    min-height: 42px;
+    min-width: 36px;
+    padding: 0.3rem 0.45rem;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .math-node:active, .token-variable:active {
+    transform: scale(0.95);
+  }
+  .dropzone {
+    min-height: 42px;
+    min-width: 36px;
+    padding: 0.25rem 0.45rem;
+  }
+
+  /* Tastierino operazioni a griglia touch con dita */
+  .keypad {
+    padding: 0.65rem 0.75rem;
+    border-radius: 14px;
+    margin-bottom: 0.85rem;
+  }
+  .keypad-ops {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.4rem;
+  }
+  .keypad-op-btn {
+    min-height: 44px;
+    font-size: 1.05rem;
+    border-radius: 10px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .keypad-operands {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+    margin-top: 0.5rem;
+  }
+  .keypad-var-btn, .keypad-const-btn {
+    min-height: 42px;
+    min-width: 42px;
+    font-size: 1rem;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .keypad-apply-btn {
+    min-height: 42px;
+    padding: 0.45rem 1rem;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 700;
+  }
+
+  /* Banner celebrativo e didattico */
+  .completion-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.8rem 0.95rem;
+  }
+  .completion-actions {
+    width: 100%;
+    display: flex;
+    gap: 0.5rem;
+  }
+  .completion-actions .btn {
+    flex: 1;
+    min-height: 42px;
+    justify-content: center;
+  }
+
+  .compound-fraction-banner {
+    padding: 0.65rem 0.85rem;
+    font-size: 0.82rem;
+    margin: 0.35rem 0.4rem 0.65rem 0.4rem;
+  }
+
+  /* Laboratorio di Calcolo Numerico */
+  .calc-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.65rem;
+  }
+  .calc-header-actions {
+    width: 100%;
+    display: flex;
+    gap: 0.4rem;
+  }
+  .calc-header-actions .btn-calc-action {
+    flex: 1;
+    justify-content: center;
+    min-height: 40px;
+    font-size: 0.8rem;
+  }
+  .calc-inputs-grid {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+  .calc-result-box {
+    padding: 0.85rem;
+  }
+  .calc-result-val-wrap {
+    flex-wrap: wrap;
+    font-size: 1.25rem;
+  }
+
+  /* Libreria Formule & Filtri */
+  .filter-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .filter-half {
+    width: 100%;
+  }
+  .formula-card {
+    padding: 0.8rem 0.85rem;
+    min-height: 52px;
+  }
+
+  /* Modali e Fumetto didattico su mobile */
+  .modal {
+    max-width: 95vw;
+    width: 95vw;
+    max-height: 88vh;
+    padding: 1.1rem 0.9rem;
+    border-radius: 16px;
+  }
+  .pick-target-grid {
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    gap: 0.5rem;
+  }
+  .didactic-bubble {
+    width: 96%;
+    max-width: 96%;
+    padding: 12px 14px;
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-grid {
+    padding: 0.5rem 0.35rem calc(65px + env(safe-area-inset-bottom)) 0.35rem;
+    gap: 0.75rem;
+  }
+  .panel {
+    padding: 0.85rem 0.65rem;
+    border-radius: 14px;
+  }
+  .app-header h1 {
+    font-size: 1.2rem;
+  }
+  .keypad-ops {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 

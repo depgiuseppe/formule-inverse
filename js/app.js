@@ -172,6 +172,7 @@ const dom = {
   calcFinalUnit: $('#calc-final-unit'),
   btnCopyCalcResult: $('#btn-copy-calc-result'),
   calcErrorNotice: $('#calc-error-notice'),
+  mobileNavBar: $('#mobile-nav-bar'),
 };
 
 // ---------------------------------------------------------------------------
@@ -193,6 +194,7 @@ function init() {
   if (dom.crossLayer) dom.crossLayer.hidden = true; // mantenuto per compatibilità ma non mostrato
   initDragArrow();
   initPwa();
+  initMobileNav();
   loadFormula(getFormulaById('v-st'), 't');
 }
 
@@ -251,6 +253,57 @@ function initPwa() {
     deferredInstallPrompt = null;
     showMessage('🎉 "Formule Inverse" è ora installata sul tuo dispositivo!', 'success');
   });
+}
+
+// ---------------------------------------------------------------------------
+// Mobile Navigation Bar (Quick Jump & Scroll Spy)
+// ---------------------------------------------------------------------------
+function initMobileNav() {
+  if (!dom.mobileNavBar) return;
+  const items = dom.mobileNavBar.querySelectorAll('.mobile-nav-item');
+  if (!items.length) return;
+
+  function setActive(targetId) {
+    items.forEach((btn) => {
+      if (btn.dataset.jump === targetId) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  }
+
+  items.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const targetId = btn.dataset.jump;
+      if (!targetId) return;
+      const targetEl = document.getElementById(targetId);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setActive(targetId);
+      }
+    });
+  });
+
+  const targetIds = ['workarea', 'library-panel', 'history-panel', 'numerical-calc-card'];
+  const targets = targetIds.map((id) => document.getElementById(id)).filter(Boolean);
+
+  if ('IntersectionObserver' in window && targets.length > 0) {
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.2) {
+          setActive(entry.target.id);
+        }
+      }
+    }, {
+      root: null,
+      rootMargin: '-10% 0px -40% 0px',
+      threshold: [0.2, 0.5]
+    });
+
+    targets.forEach((el) => observer.observe(el));
+  }
 }
 
 function populateTopics() {
