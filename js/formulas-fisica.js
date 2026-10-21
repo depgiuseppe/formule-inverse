@@ -15,7 +15,7 @@ export const FORMULAS_FISICA = [
   },
   {
     id: 's-vt-half-at2', topic: 'cinematica', name: 'legge oraria (moto accelerato)',
-    formula: 'x = x0 + v0*t + (1/2)*a*t^2', isolate: ['x', 'x0', 'v0', 'a', 't'], difficulty: 4,
+    formula: 'x = x0 + v0*t + 1/2*a*t^2', isolate: ['x', 'x0', 'v0', 'a', 't'], difficulty: 4,
     conditions: [],
     hypotheses: 'Moto rettilineo uniformemente accelerato.',
   },
@@ -27,7 +27,7 @@ export const FORMULAS_FISICA = [
   },
   {
     id: 's-vmedia', topic: 'cinematica', name: 'spazio medio (velocità media)',
-    formula: 's = ((v0 + v)/2)*t', isolate: ['s', 'v0', 'v', 't'], difficulty: 3,
+    formula: 's = (v0 + v)/2*t', isolate: ['s', 'v0', 'v', 't'], difficulty: 3,
     conditions: [],
     hypotheses: 'Accelerazione costante.',
   },
@@ -120,7 +120,7 @@ export const FORMULAS_FISICA = [
   },
   {
     id: 'theta-legge-oraria', topic: 'cinematica', name: 'legge oraria angolare',
-    formula: 'theta = theta0 + omega0*t + (1/2)*alpha*t^2', isolate: ['theta', 'theta0', 'omega0', 'alpha', 't'], difficulty: 5,
+    formula: 'theta = theta0 + omega0*t + 1/2*alpha*t^2', isolate: ['theta', 'theta0', 'omega0', 'alpha', 't'], difficulty: 5,
     conditions: [],
     hypotheses: 'Moto circolare uniformemente accelerato.',
   },
@@ -186,12 +186,6 @@ export const FORMULAS_FISICA = [
     formula: 'a = g*sin(theta)', isolate: ['a', 'g', 'theta'], difficulty: 3,
     conditions: [],
   },
-  {
-    id: 'piano-accel-attrito', topic: 'dinamica', name: 'accelerazione in discesa (con attrito)',
-    formula: 'a = g*(sin(theta) - mu*cos(theta))', isolate: ['a', 'g', 'theta', 'mu'], difficulty: 4,
-    conditions: [],
-    hypotheses: 'Piano inclinato con attrito dinamico.',
-  },
 
   // ================= LAVORO, ENERGIA E POTENZA =================
   {
@@ -206,12 +200,12 @@ export const FORMULAS_FISICA = [
   },
   {
     id: 'teorema-ec', topic: 'lavoro, energia e potenza', name: 'teorema dell\'energia cinetica',
-    formula: 'W = (1/2)*m*v^2 - (1/2)*m*v0^2', isolate: ['W', 'm', 'v', 'v0'], difficulty: 4,
+    formula: 'W = 1/2*m*v^2 - 1/2*m*v0^2', isolate: ['W', 'm', 'v', 'v0'], difficulty: 4,
     conditions: [],
   },
   {
     id: 'Uel', topic: 'lavoro, energia e potenza', name: 'energia potenziale elastica',
-    formula: 'U = (1/2)*k*x^2', isolate: ['U', 'k', 'x'], difficulty: 3,
+    formula: 'U = 1/2*k*x^2', isolate: ['U', 'k', 'x'], difficulty: 3,
     conditions: [],
   },
   {
@@ -277,7 +271,7 @@ export const FORMULAS_FISICA = [
   },
   {
     id: 'Ec-rot', topic: 'corpo rigido e gravitazione', name: 'energia cinetica rotazionale',
-    formula: 'Ec = (1/2)*I*omega^2', isolate: ['Ec', 'I', 'omega'], difficulty: 3,
+    formula: 'Ec = 1/2*I*omega^2', isolate: ['Ec', 'I', 'omega'], difficulty: 3,
     conditions: [],
   },
   {
@@ -319,19 +313,24 @@ export const FORMULAS_FISICA = [
 
   // ==================== PRESSIONE E FLUIDOSTATICA ====================
   {
-    id: 'stevino', topic: 'pressione e fluidostatica', name: 'legge di Stevino',
+    id: 'stevino', topic: 'pressione e fluidostatica', name: 'legge di Stevino (pressione totale)',
     formula: 'p = p0 + rho*g*h', isolate: ['p', 'p0', 'rho', 'g', 'h'], difficulty: 3,
     conditions: [],
+    hypotheses: 'Legge di Stevino con pressione atmosferica superficiale p0.',
+    tags: ['stevino', 'stevin', 'pressione atmosferica', 'idrostatica', 'profondita', 'sub', 'fondale'],
   },
   {
     id: 'pascal', topic: 'pressione e fluidostatica', name: 'principio di Pascal (torchio idraulico)',
     formula: 'F1/A1 = F2/A2', isolate: ['F1', 'A1', 'F2', 'A2'], difficulty: 3,
     conditions: ['A1 ≠ 0', 'A2 ≠ 0'],
+    tags: ['pascal', 'torchio idraulico', 'freni', 'pistone', 'pressione'],
   },
   {
-    id: 'galleggia', topic: 'pressione e fluidostatica', name: 'condizione di galleggiamento',
+    id: 'galleggia', topic: 'pressione e fluidostatica', name: 'condizione di galleggiamento (Archimede)',
     formula: 'rho_corpo/rho_fluido = V_imm/V_tot', isolate: ['rho_corpo', 'rho_fluido', 'V_imm', 'V_tot'], difficulty: 4,
     conditions: ['rho_fluido ≠ 0', 'V_tot ≠ 0'],
+    hypotheses: 'Principio di Archimede applicato all\'equilibrio di galleggiamento.',
+    tags: ['archimede', 'galleggiamento', 'galleggia', 'iceberg', 'volume immerso', 'spinta'],
   },
 
   // ============================ IDRODINAMICA ============================
@@ -348,7 +347,7 @@ export const FORMULAS_FISICA = [
   },
   {
     id: 'bernoulli', topic: 'idrodinamica', name: 'teorema di Bernoulli',
-    formula: 'p + (1/2)*rho*v^2 + rho*g*z = cost', isolate: ['p', 'rho', 'v', 'g', 'z', 'cost'], difficulty: 5,
+    formula: 'p + 1/2*rho*v^2 + rho*g*z = cost', isolate: ['p', 'rho', 'v', 'g', 'z', 'cost'], difficulty: 5,
     conditions: [],
     hypotheses: 'Fluido ideale, regime stazionario.',
   },
@@ -365,6 +364,13 @@ export const FORMULAS_FISICA = [
   },
 
   // ============================ TERMOLOGIA ============================
+  {
+    id: 'dilatazione-lineare-completa', topic: 'termologia', name: 'dilatazione termica lineare',
+    formula: 'l = l0 + lam*L0*(T - T0)', isolate: ['l', 'l0', 'lam', 'L0', 'T', 'T0'], difficulty: 3,
+    conditions: [],
+    hypotheses: 'Solido isotropo; l0 (o L0) lunghezza iniziale, lam coeff. di dilatazione termica.',
+    notes: 'Dilatazione termica lineare: l = l₀ + λ·L₀·(T − T₀).',
+  },
   {
     id: 'dilatazione-vol', topic: 'termologia', name: 'dilatazione volumetrica',
     formula: 'dV = alpha*V0*dT', isolate: ['dV', 'alpha', 'V0', 'dT'], difficulty: 3,
@@ -405,7 +411,7 @@ export const FORMULAS_FISICA = [
   // ============================ TERMODINAMICA ============================
   {
     id: 'equipartizione', topic: 'termodinamica', name: 'energia interna (equipartizione)',
-    formula: 'U = (f/2)*n*R*T', isolate: ['U', 'f', 'n', 'R', 'T'], difficulty: 4,
+    formula: 'U = f/2*n*R*T', isolate: ['U', 'f', 'n', 'R', 'T'], difficulty: 4,
     conditions: [],
   },
   {
@@ -433,6 +439,92 @@ export const FORMULAS_FISICA = [
     id: 'lavoro-isoterma', topic: 'termodinamica', name: 'lavoro in isoterma reversibile',
     formula: 'W = n*R*T*ln(V2/V1)', isolate: ['W', 'n', 'R', 'T', 'V2', 'V1'], difficulty: 5,
     conditions: ['V1 ≠ 0'],
+  },
+
+  // ============================ ONDE E ACUSTICA ============================
+  {
+    id: 'onda-v-lam-f', topic: 'onde e acustica', name: 'velocità di propagazione dell\'onda (suono e luce)',
+    formula: 'v = lam*f', isolate: ['v', 'lam', 'f'], difficulty: 2,
+    conditions: [],
+    hypotheses: 'Relazione fondamentale tra velocità dell\'onda sonora o elettromagnetica, lunghezza d\'onda e frequenza.',
+    tags: ['suono', 'onda', 'acustica', 'velocita del suono', 'lunghezza d onda', 'frequenza'],
+  },
+  {
+    id: 'onda-periodo-frequenza', topic: 'onde e acustica', name: 'relazione frequenza-periodo sonoro',
+    formula: 'f = 1/T', isolate: ['f', 'T'], difficulty: 1,
+    conditions: ['T ≠ 0'],
+    hypotheses: 'Frequenza sonora come inverso del periodo di oscillazione T.',
+    tags: ['suono', 'onda', 'acustica', 'frequenza', 'periodo', 'tempo'],
+  },
+  {
+    id: 'onda-v-lam-T', topic: 'onde e acustica', name: 'velocità d\'onda in funzione del periodo',
+    formula: 'v = lam/T', isolate: ['v', 'lam', 'T'], difficulty: 2,
+    conditions: ['T ≠ 0'],
+    hypotheses: 'Velocità di propagazione del suono calcolata a partire dal periodo T.',
+    tags: ['suono', 'onda', 'acustica', 'velocita', 'periodo', 'lunghezza d onda'],
+  },
+  {
+    id: 'doppler-avvicinamento-sorgente', topic: 'onde e acustica', name: 'effetto Doppler (sorgente sonora in avvicinamento)',
+    formula: 'fp = (f*v)/(v - vs)', isolate: ['fp', 'f', 'v', 'vs'], difficulty: 4,
+    conditions: ['v - vs ≠ 0'],
+    hypotheses: 'Sorgente sonora in avvicinamento verso osservatore fermo. v = velocità del suono nell\'aria, vs = velocità sorgente, f = frequenza emessa, fp = frequenza percepita.',
+    tags: ['doppler', 'suono', 'effetto doppler', 'acustica', 'sorgente in moto', 'ambulanza', 'avvicinamento', 'frequenza'],
+  },
+  {
+    id: 'doppler-allontanamento-sorgente', topic: 'onde e acustica', name: 'effetto Doppler (sorgente sonora in allontanamento)',
+    formula: 'fp = (f*v)/(v + vs)', isolate: ['fp', 'f', 'v', 'vs'], difficulty: 4,
+    conditions: [],
+    hypotheses: 'Sorgente sonora che si allontana dall\'osservatore fermo. La frequenza percepita fp diminuisce rispetto alla frequenza emessa f.',
+    tags: ['doppler', 'suono', 'effetto doppler', 'acustica', 'sorgente in moto', 'sirena', 'allontanamento', 'frequenza'],
+  },
+  {
+    id: 'doppler-avvicinamento-osservatore', topic: 'onde e acustica', name: 'effetto Doppler (osservatore in avvicinamento)',
+    formula: 'fp = f*(v + vo)/v', isolate: ['fp', 'f', 'v', 'vo'], difficulty: 3,
+    conditions: ['v ≠ 0'],
+    hypotheses: 'Osservatore in moto con velocità vo verso una sorgente sonora ferma.',
+    tags: ['doppler', 'suono', 'effetto doppler', 'acustica', 'osservatore in moto', 'avvicinamento'],
+  },
+  {
+    id: 'doppler-allontanamento-osservatore', topic: 'onde e acustica', name: 'effetto Doppler (osservatore in allontanamento)',
+    formula: 'fp = f*(v - vo)/v', isolate: ['fp', 'f', 'v', 'vo'], difficulty: 3,
+    conditions: ['v ≠ 0'],
+    hypotheses: 'Osservatore in allontanamento con velocità vo dalla sorgente sonora ferma.',
+    tags: ['doppler', 'suono', 'effetto doppler', 'acustica', 'osservatore in moto', 'allontanamento'],
+  },
+  {
+    id: 'eco-suono', topic: 'onde e acustica', name: 'eco e sonar (riflessione del suono)',
+    formula: '2*d = v*t', isolate: ['d', 'v', 't'], difficulty: 2,
+    conditions: [],
+    hypotheses: 'Onda sonora che compie il percorso di andata e ritorno (2*d) a velocità v nel tempo totale t.',
+    tags: ['suono', 'eco', 'sonar', 'acustica', 'riflessione', 'distanza ostacolo', 'tempo di ritorno'],
+  },
+  {
+    id: 'intensita-sonora', topic: 'onde e acustica', name: 'intensità sonora (onda sferica)',
+    formula: 'I = P/(4*pi*r^2)', isolate: ['I', 'P', 'r'], difficulty: 4,
+    conditions: ['r ≠ 0'],
+    hypotheses: 'Intensità I dell\'onda sonora a distanza r da sorgente puntiforme isotropa di potenza acustica P.',
+    tags: ['suono', 'intensita sonora', 'acustica', 'decibel', 'potenza acustica', 'propagazione', 'sfera'],
+  },
+  {
+    id: 'battimenti-sonori', topic: 'onde e acustica', name: 'frequenza dei battimenti sonori',
+    formula: 'fb = f1 - f2', isolate: ['fb', 'f1', 'f2'], difficulty: 1,
+    conditions: [],
+    hypotheses: 'Battimenti sonori percepiti per sovrapposizione di due onde di frequenze vicine f1 > f2.',
+    tags: ['suono', 'battimenti', 'acustica', 'interferenza', 'accordatore', 'frequenze'],
+  },
+  {
+    id: 'canne-organo-aperte', topic: 'onde e acustica', name: 'frequenza fondamentale di una canna d\'organo aperta',
+    formula: 'f = v/(2*L)', isolate: ['f', 'v', 'L'], difficulty: 2,
+    conditions: ['L ≠ 0'],
+    hypotheses: 'Tubo o canna sonora aperta a entrambe le estremità di lunghezza L. v = velocità del suono nell\'aria.',
+    tags: ['suono', 'canne d organo', 'tubo sonoro', 'acustica', 'musica', 'risonanza'],
+  },
+  {
+    id: 'corda-armonica', topic: 'onde e acustica', name: 'legge di Mersenne (corda vibrante)',
+    formula: 'f = (1/(2*L))*sqrt(T/mu)', isolate: ['f', 'L', 'T', 'mu'], difficulty: 5,
+    conditions: ['L ≠ 0', 'mu ≠ 0'],
+    hypotheses: 'Frequenza della nota fondamentale emessa da una corda di lunghezza L tesa con forza T e densità lineare mu.',
+    tags: ['suono', 'mersenne', 'corda vibrante', 'chitarra', 'musica', 'acustica', 'tensione'],
   },
 
   // ============================ ELETTROSTATICA ============================
@@ -478,7 +570,7 @@ export const FORMULAS_FISICA = [
   },
   {
     id: 'energia-condensatore', topic: 'elettrostatica', name: 'energia immagazzinata in un condensatore',
-    formula: 'U = (1/2)*C*V^2', isolate: ['U', 'C', 'V'], difficulty: 4,
+    formula: 'U = 1/2*C*V^2', isolate: ['U', 'C', 'V'], difficulty: 4,
     conditions: [],
   },
 
@@ -616,12 +708,12 @@ export const FORMULAS_FISICA = [
   },
   {
     id: 'energia-induttanza', topic: 'elettromagnetismo', name: 'energia immagazzinata in un\'induttanza',
-    formula: 'U = (1/2)*L*I^2', isolate: ['U', 'L', 'I'], difficulty: 3,
+    formula: 'U = 1/2*L*I^2', isolate: ['U', 'L', 'I'], difficulty: 3,
     conditions: [],
   },
   {
     id: 'densita-energia', topic: 'elettromagnetismo', name: 'densità di energia del campo elettrico',
-    formula: 'u = (1/2)*eps0*E^2', isolate: ['u', 'eps0', 'E'], difficulty: 4,
+    formula: 'u = 1/2*eps0*E^2', isolate: ['u', 'eps0', 'E'], difficulty: 4,
     conditions: [],
   },
   {

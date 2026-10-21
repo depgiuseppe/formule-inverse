@@ -21,15 +21,16 @@ export function renderEquation(eq, opts = {}) {
     showImplicitDen = false,
   } = opts;
 
+  const memberOpts = { ...opts, eq };
   if (!interactive) {
-    const left = renderNode(eq.left, 'left', opts);
-    const right = renderNode(eq.right, 'right', opts);
+    const left = renderNode(eq.left, 'left', memberOpts);
+    const right = renderNode(eq.right, 'right', memberOpts);
     return `<span class="math-eq">${left}<span class="eq-sign" aria-label="uguale">=</span>${right}</span>`;
   }
 
   // Modalità interattiva con Drag and Drop e zone di rilascio
-  const leftMember = renderMember(eq.left, 'left', opts);
-  const rightMember = renderMember(eq.right, 'right', opts);
+  const leftMember = renderMember(eq.left, 'left', memberOpts);
+  const rightMember = renderMember(eq.right, 'right', memberOpts);
 
   return (
     `<div class="math-eq interactive-math-eq ${showImplicitDen ? 'show-implicit-denominators' : ''}">` +
@@ -90,22 +91,67 @@ function renderMember(node, side, opts) {
   );
 }
 
+function hasFraction(n) {
+  if (!n) return false;
+  const u = unwrap(n);
+  if (u.type === 'Div') return true;
+  if (u.args) return u.args.some(hasFraction);
+  if (u.arg) return hasFraction(u.arg);
+  if (u.base && hasFraction(u.base)) return true;
+  if (u.exp && hasFraction(u.exp)) return true;
+  if (u.num && hasFraction(u.num)) return true;
+  if (u.den && hasFraction(u.den)) return true;
+  return false;
+}
+
 // Renderizza un nodo AST. `id` è il percorso usato per la selezione.
-function renderNode(node, id, opts) {
+export function renderNode(node, id, opts) {
   const raw = node;
   // Le parentesi esplicite scritte dall'utente (Group) vanno mostrate:
   // se le togliessimo, (a + b) diventerebbe a + b, cambiando il significato.
   if (raw && raw.type === 'Group') {
-    const inner = renderNode(raw.arg, id, { ...opts, hideSign: false });
-    return `<span class="node-group-parens"><span class="group-paren">(</span>${inner}<span class="group-paren">)</span></span>`;
+    const u = unwrap(raw.arg);
+    // In notazione 2D con barra orizzontale, una frazione autonoma (es. (1/2) in (1/2)*k*x^2)
+    // non necessita di parentesi a meno che non sia la base di una potenza (es. (1/2)^2).
+    if (u.type === 'Div' && !opts.isPowBase) {
+      return renderNode(raw.arg, id, opts);
+    }
+    // Una singola variabile o numero racchiuso da parentesi superflue es. (x) o (2)
+    if ((u.type === 'Num' || u.type === 'Var') && !opts.isPowBase) {
+      return renderNode(raw.arg, id, opts);
+    }
+    // Parentesi che racchiudono l'intero numeratore o denominatore di una frazione
+    // (create per la sintassi lineare 1D, es. (2*v0)/g o (m1*v1+m2*v2)/(m1+m2)):
+    // nella frazione 2D la linea di frazione definisce già il raggruppamento visivo.
+    if ((id.endsWith('/num') || id.endsWith('/den')) && !opts.isPowBase) {
+      return renderNode(raw.arg, id, opts);
+    }
+    const side = id.startsWith('left') ? 'left' : 'right';
+    const isDen = id.includes('/den');
+    const slot = isDen ? 'den' : 'num';
+    const hasFrac = hasFraction(raw.arg);
+    const isDraggable = !!opts.interactive;
+    const groupSyntax = toPretty(u, 0);
+    const groupPretty = prettyVar(groupSyntax);
+    const dragAttrs = isDraggable
+      ? ` draggable="true" data-var-name="${escapeHtml(groupSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="${u.type}" title="Trascina l'intero blocco (${escapeHtml(groupPretty)})"`
+      : '';
+    const dragCls = isDraggable ? ' draggable-token math-term-group math-factor-group' : '';
+    const inner = renderNode(raw.arg, id, { ...opts, interactive: false, hideSign: false, isPowBase: false });
+    const cls = 'node-group-parens' + (hasFrac ? ' has-frac' : '') + dragCls;
+    return `<span class="${cls}" data-id="${id}"${dragAttrs}><span class="group-paren">(</span>${inner}<span class="group-paren">)</span></span>`;
   }
   node = unwrap(node);
   const selected = opts.selectedId === id ? ' selected' : '';
   const isTarget = opts.targetVar && node.type === 'Var' && node.name === opts.targetVar;
   const dim = opts.dimIds && opts.dimIds.has(id) ? ' dimmed' : '';
 
-  const span = (inner, extraClass, extraId, extraAttrs = '') =>
-    `<span class="math-node ${extraClass || ''}${selected}${dim}" data-id="${extraId || id}"${extraAttrs}>${inner}</span>`;
+  const span = (inner, extraClass, extraId, extraAttrs = '') => {
+    const baseClass = opts.isInsideCompound
+      ? (extraClass || '')
+      : `math-node ${extraClass || ''}${selected}${dim}`;
+    return `<span class="${baseClass}" data-id="${extraId || id}"${extraAttrs}>${inner}</span>`;
+  };
 
   const side = id.startsWith('left') ? 'left' : 'right';
   const isDen = id.includes('/den');
@@ -147,27 +193,60 @@ function renderNode(node, id, opts) {
           );
         }
       }
+      const isWholeDen = isDen && (id.endsWith('/den') || !id.includes('/Mul'));
+      const isWholeFracNum = id.endsWith('/num') && !id.includes('/Mul') && !id.includes('/Add') && !id.includes('/Sub');
+      const isDraggableDenOrNum = !!opts.interactive && (isWholeDen || isWholeFracNum);
+      const childOpts = isDraggableDenOrNum ? { ...opts, interactive: false } : opts;
+
       const inner = node.args.map((a, i) => {
-        const neg = unwrap(a).type === 'Neg';
+        const u = unwrap(a);
+        const isNeg = u.type === 'Neg' || (u.type === 'Num' && u.value < 0);
+        const bodyNode = u.type === 'Neg' ? u.arg : (u.type === 'Num' && u.value < 0 ? { type: 'Num', value: -u.value } : a);
         const path = id + '/' + node.type + i;
-        if (i === 0) return renderNode(a, path, opts);
-        const minus = isSub ? !neg : neg;
-        const child = neg ? renderNode(a, path, { ...opts, hideSign: true }) : renderNode(a, path, opts);
-        return `<span class="op">${minus ? '−' : '+'}</span>` + child;
+        if (i === 0) {
+          if (isNeg) return `<span class="op">−</span>` + renderNode(bodyNode, path, childOpts);
+          if (u.type === 'Num' && u.value === 0 && node.args.length > 1) {
+            return `<span class="neutral-fade-wrap">${renderNode(a, path, childOpts)}<span class="op neutral-fade-op">+</span></span>`;
+          }
+          return renderNode(a, path, childOpts);
+        }
+        const minus = isSub ? !isNeg : isNeg;
+        const child = renderNode(bodyNode, path, childOpts);
+        const opSymbol = minus ? '−' : '+';
+        if (u.type === 'Num' && u.value === 0 && node.args.length > 1) {
+          return `<span class="neutral-fade-wrap"><span class="op neutral-fade-op">${opSymbol}</span>${child}</span>`;
+        }
+        return `<span class="op">${opSymbol}</span>` + child;
       }).join('');
-      return span(inner, isSub ? 'node-sub' : 'node-add');
+
+      let dragAttrs = '';
+      let dragCls = '';
+      if (isDraggableDenOrNum) {
+        const syntax = toPretty(node, 0);
+        const pretty = prettyVar(syntax);
+        dragAttrs = ` draggable="true" data-var-name="${escapeHtml(syntax)}" data-side="${side}" data-slot="${slot}" data-node-type="${node.type}" title="${isWholeDen ? `Trascina il denominatore (${escapeHtml(pretty)}) al numeratore dell'altro membro` : `Trascina il numeratore (${escapeHtml(pretty)}) al denominatore dell'altro membro`}"`;
+        dragCls = ' draggable-token math-term-group math-factor-group';
+      }
+
+      return span(inner, (isSub ? 'node-sub' : 'node-add') + dragCls, id, dragAttrs);
     }
     case 'Mul': {
       const isDraggable = !!opts.interactive;
-      const mulSyntax = node.args.map((a) => toPretty(unwrap(a), 0)).join('*');
+      const mulSyntax = node.args.map((a) => {
+        const u = unwrap(a);
+        if (u.type === 'Add' || u.type === 'Sub') return `(${toPretty(u, 0)})`;
+        return toPretty(u, 0);
+      }).join('*');
       const mulPretty = prettyVar(mulSyntax);
-      const isParentAddOrSub = id.includes('/Add') || id.includes('/Sub') || id === 'left' || id === 'right';
-      const dragAttrs = (isDraggable && isParentAddOrSub)
-        ? ` draggable="true" data-var-name="${escapeHtml(mulSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="Mul" title="Trascina l'intero termine ${escapeHtml(mulPretty)}"`
+      const isParentAddOrSub = id.includes('/Add') || id.includes('/Sub');
+      const isWholeMember = id === side || id === `${side}/num` || id === `${side}/den`;
+      const canDragGroup = isDraggable && (isParentAddOrSub || isWholeMember);
+      const dragAttrs = canDragGroup
+        ? ` draggable="true" data-var-name="${escapeHtml(mulSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="Mul" title="Trascina l'intero blocco ${escapeHtml(mulPretty)}"`
         : '';
-      const dragCls = (isDraggable && isParentAddOrSub) ? ' draggable-token math-term-group' : '';
+      const dragCls = canDragGroup ? ' draggable-token math-term-group' : '';
       return span(
-        (isDraggable && isParentAddOrSub ? `<span class="term-group-tag" title="Termine composto: trascina per spostarlo tutto insieme">📦</span>` : '') +
+        (canDragGroup ? `<span class="term-group-tag" title="Termine composto: trascina per spostarlo tutto insieme">📦</span>` : '') +
         renderMulArgs(node.args, id, opts),
         'node-mul' + dragCls,
         id,
@@ -192,7 +271,13 @@ function renderNode(node, id, opts) {
       const dragCls = isDraggable ? ' draggable-token draggable-pow' : '';
       const targetCls = isTarget ? ' node-target' : '';
 
-      const baseHtml = renderNode(node.base, id + '/base', { ...opts, interactive: false });
+      let baseHtml = renderNode(node.base, id + '/base', { ...opts, interactive: false, isPowBase: true });
+      const uBase = unwrap(node.base);
+      if (node.base.type !== 'Group' && (uBase.type === 'Add' || uBase.type === 'Sub' || uBase.type === 'Mul' || uBase.type === 'Div')) {
+        const hasFrac = hasFraction(uBase);
+        const cls = 'node-group-parens' + (hasFrac ? ' has-frac' : '');
+        baseHtml = `<span class="${cls}"><span class="group-paren">(</span>${baseHtml}<span class="group-paren">)</span></span>`;
+      }
       const expText = node.exp.type === 'Num' ? escapeHtml(String(node.exp.value)) : toPretty(node.exp, 0);
       return span(
         `<span class="pow-base">${baseHtml}</span><sup class="node-exp">${escapeHtml(expText)}</sup>`,
@@ -202,7 +287,13 @@ function renderNode(node, id, opts) {
       );
     }
     case 'Sqrt': {
-      const bodyContent = renderNode(node.arg, id + '/arg', opts);
+      const isDraggable = !!opts.interactive;
+      const sqrtSyntax = toPretty(node, 0);
+      const dragAttrs = isDraggable
+        ? ` draggable="true" data-var-name="${escapeHtml(sqrtSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="Sqrt" title="Trascina la radice ${escapeHtml(prettyVar(sqrtSyntax))}"`
+        : '';
+      const dragCls = isDraggable ? ' draggable-token' : '';
+      const bodyContent = renderNode(node.arg, id + '/arg', { ...opts, interactive: false });
       return span(
         `<span class="math-radical">` +
         `<svg class="radical-surd" viewBox="0 0 16 36" preserveAspectRatio="none" aria-hidden="true">` +
@@ -210,16 +301,27 @@ function renderNode(node, id, opts) {
         `</svg>` +
         `<span class="radical-body">${bodyContent}</span>` +
         `</span>`,
-        'node-sqrt'
+        'node-sqrt' + dragCls,
+        id,
+        dragAttrs
       );
     }
     case 'Sin': case 'Cos': case 'Tan': case 'Ln':
-    case 'Asin': case 'Acos': case 'Atan': case 'Exp':
+    case 'Asin': case 'Acos': case 'Atan': case 'Exp': {
+      const isDraggable = !!opts.interactive;
+      const fnSyntax = toPretty(node, 0);
+      const dragAttrs = isDraggable
+        ? ` draggable="true" data-var-name="${escapeHtml(fnSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="${node.type}" title="Trascina la funzione ${escapeHtml(prettyVar(fnSyntax))}"`
+        : '';
+      const dragCls = isDraggable ? ' draggable-token' : '';
       return span(
         `<span class="fn-name">${escapeHtml(FUNC_PRETTY[node.type])}</span>` +
-        `<span class="fn-args">(${renderNode(node.arg, id + '/arg', opts)})</span>`,
-        'node-fn node-' + node.type.toLowerCase()
+        `<span class="fn-args">(${renderNode(node.arg, id + '/arg', { ...opts, interactive: false })})</span>`,
+        'node-fn node-' + node.type.toLowerCase() + dragCls,
+        id,
+        dragAttrs
       );
+    }
     case 'Neg': {
       const u = unwrap(node.arg);
       const body = renderNode(node.arg, id + '/arg', { ...opts, hideSign: false });
@@ -241,9 +343,51 @@ function renderNode(node, id, opts) {
 
 // Prodotto: usa il punto mediano, oppure giustapposizione per le variabili.
 function renderMulArgs(args, id, opts) {
-  return args
-    .map((a, i) => renderNode(a, id + '/Mul' + i, opts))
-    .join('<span class="op">·</span>');
+  const hasMultiple = args.length > 1;
+  const side = id.startsWith('left') ? 'left' : 'right';
+  const isDen = id.includes('/den');
+  const slot = isDen ? 'den' : 'num';
+  const rendered = args.map((a, i) => {
+    const u = unwrap(a);
+    const isNeutralOne = hasMultiple && u.type === 'Num' && u.value === 1;
+    const isCompoundFactor = u.type === 'Add' || u.type === 'Sub';
+    let nodeHtml = renderNode(isCompoundFactor ? u : a, id + '/Mul' + i, isCompoundFactor ? { ...opts, interactive: false, isInsideCompound: true } : opts);
+    if (isCompoundFactor) {
+      const hasFrac = hasFraction(u);
+      const isDraggable = !!opts.interactive;
+      const factorSyntax = toPretty(u, 0);
+      const factorPretty = prettyVar(factorSyntax);
+      const dragAttrs = isDraggable
+        ? ` draggable="true" data-var-name="${escapeHtml(factorSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="${u.type}" title="Trascina l'intero blocco (${escapeHtml(factorPretty)})"`
+        : '';
+      const dragCls = isDraggable ? ' draggable-token math-term-group math-factor-group' : '';
+      const isSelected = opts.selectedId === (id + '/Mul' + i) ? ' selected' : '';
+      const cls = `math-node node-group-parens${isSelected}` + (hasFrac ? ' has-frac' : '') + dragCls;
+      nodeHtml = `<span class="${cls}" data-id="${id + '/Mul' + i}"${dragAttrs} tabindex="0" role="button" aria-label="Blocco (${escapeHtml(factorPretty)})"><span class="group-paren">(</span>${nodeHtml}<span class="group-paren">)</span></span>`;
+    }
+    return {
+      html: nodeHtml,
+      isNeutralOne,
+    };
+  });
+
+  let html = '';
+  for (let i = 0; i < rendered.length; i++) {
+    const item = rendered[i];
+    if (item.isNeutralOne) {
+      if (i === 0 && rendered.length > 1) {
+        html += `<span class="neutral-fade-wrap">${item.html}<span class="op neutral-fade-op">·</span></span>`;
+      } else {
+        html += `<span class="neutral-fade-wrap"><span class="op neutral-fade-op">·</span>${item.html}</span>`;
+      }
+    } else {
+      if (i > 0 && !rendered[i - 1].isNeutralOne) {
+        html += '<span class="op">·</span>';
+      }
+      html += item.html;
+    }
+  }
+  return html;
 }
 
 const SUB_DIGITS = {
@@ -274,6 +418,7 @@ const SPECIAL_PRETTY_VARS = {
   PhiB: 'Φ_B', PhiE: 'Φ_E',
   Icm: 'I_cm', xcm: 'x_cm',
   Req: 'R_eq', Ceq: 'C_eq',
+  Ec: 'E_c', Ep: 'E_p',
   Vmax: 'V_max', Veff: 'V_eff', Ieff: 'I_eff',
   rho_corpo: 'ρ_corpo', rho_fluido: 'ρ_fluido',
   V_imm: 'V_imm', V_tot: 'V_tot',
@@ -306,6 +451,7 @@ export function renderVarHtml(name) {
     Icm: ['I', 'cm'], xcm: ['x', 'cm'],
     PhiB: ['Φ', 'B'], PhiE: ['Φ', 'E'],
     at: ['a', 't'], ac: ['a', 'c'],
+    Ec: ['E', 'c'], Ep: ['E', 'p'],
     Ec1: ['E', 'c1'], Ec2: ['E', 'c2'],
     Ep1: ['E', 'p1'], Ep2: ['E', 'p2'],
     v0x: ['v', '0x'], v0y: ['v', '0y'],

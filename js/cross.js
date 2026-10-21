@@ -9,10 +9,10 @@
 // esattamente sugli elementi che l'allievo vede.
 
 import {
-  Eq, Num, Add, Neg, Mul, Div, Pow, Group,
+  Eq, Num, Add, Sub, Neg, Mul, Div, Pow, Group,
   unwrap, canonical, equivalentExpr, toPretty,
 } from './ast.js';
-import { additiveTerms, rebuildSum } from './rules.js';
+import { additiveTerms, rebuildSum, cancelFractionFactor } from './rules.js';
 
 // ---------------------------------------------------------------------------
 // Navigazione per percorso
@@ -147,7 +147,14 @@ export function analyseElementId(id) {
   for (let i = 0; i < segments.length; i++) {
     if (segments[i] === 'num' || segments[i] === 'den') { k = i; break; }
   }
-  if (k === -1) return null;
+  if (k === -1) {
+    // Se non c'è num/den esplicito ma sono fattori di un prodotto o potenze:
+    // allora l'elemento è un fattore al NUMERATORE (denominatore sottinteso = 1)
+    if (segments.every((s) => /^Mul\d+$/.test(s) || s === 'base')) {
+      return { side, segments, slot: 'num' };
+    }
+    return null;
+  }
 
   const prefix = segments.slice(0, k);
   const suffix = segments.slice(k + 1);
@@ -225,8 +232,8 @@ function removeAdditiveDeep(member, segs) {
     newParent = Num(0);
   } else if (keep.length === 1 && parent.type === 'Add') {
     newParent = keep[0];
-  } else if (keep.length === 1 && parent.type === 'Sub' && idx === 0) {
-    newParent = Neg(keep[0]);
+  } else if (parent.type === 'Sub' && idx === 0) {
+    newParent = keep.length === 1 ? Neg(keep[0]) : Sub(Num(0), ...keep);
   } else if (keep.length === 1) {
     newParent = keep[0];
   } else {
@@ -357,12 +364,28 @@ export function crossCancel(eq, idA, idB) {
   const numEntry = slotA === 'num' ? a : b;
   const denEntry = slotA === 'den' ? a : b;
 
+  let simplifiedNode = null;
   const afterNum = removeAt(member, numEntry.segments);
-  if (!afterNum.ok) return { ok: false, error: afterNum.error };
-  const afterBoth = removeAt(afterNum.node, denEntry.segments);
-  if (!afterBoth.ok) return { ok: false, error: afterBoth.error };
+  if (afterNum.ok) {
+    const afterBoth = removeAt(afterNum.node, denEntry.segments);
+    if (afterBoth.ok) simplifiedNode = afterBoth.node;
+  }
+  if (!simplifiedNode) {
+    const afterDen = removeAt(member, denEntry.segments);
+    if (afterDen.ok) {
+      const afterBoth2 = removeAt(afterDen.node, numEntry.segments);
+      if (afterBoth2.ok) simplifiedNode = afterBoth2.node;
+    }
+  }
+  if (!simplifiedNode) {
+    const viaFraction = cancelFractionFactor(member, nodeA);
+    if (viaFraction) simplifiedNode = viaFraction;
+  }
+  if (!simplifiedNode) {
+    return { ok: false, error: 'Impossibile completare la semplificazione di questi elementi.' };
+  }
 
-  const simplified = canonical(afterBoth.node);
+  const simplified = canonical(simplifiedNode);
   const newEq = canonical(a.side === 'left'
     ? Eq(simplified, eq.right)
     : Eq(eq.left, simplified));

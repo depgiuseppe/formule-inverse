@@ -87,6 +87,7 @@
     return out;
   }
   var isNum = (n) => n && n.type === "Num";
+  var isVar = (n) => n && n.type === "Var";
   function evalConst(node) {
     switch (node.type) {
       case "Num":
@@ -179,6 +180,132 @@
         return NaN;
     }
   }
+  function evalWithEnv(node, env = {}) {
+    if (!node) return { ok: false, error: "Nodo vuoto" };
+    switch (node.type) {
+      case "Num":
+        return { ok: true, value: node.value };
+      case "Var": {
+        if (node.name === "pi" || node.name === "\u03C0") return { ok: true, value: Math.PI };
+        if (node.name === "e") return { ok: true, value: Math.E };
+        if (env[node.name] !== void 0 && env[node.name] !== null && env[node.name] !== "") {
+          const val = Number(env[node.name]);
+          if (Number.isFinite(val)) return { ok: true, value: val };
+        }
+        return { ok: false, missing: node.name };
+      }
+      case "Add": {
+        const vals = node.args.map((a) => evalWithEnv(a, env));
+        const failed = vals.find((v) => !v.ok);
+        if (failed) return failed;
+        return { ok: true, value: vals.reduce((s, v) => s + v.value, 0) };
+      }
+      case "Sub": {
+        const vals = node.args.map((a) => evalWithEnv(a, env));
+        const failed = vals.find((v) => !v.ok);
+        if (failed) return failed;
+        let acc = vals[0].value;
+        for (let i = 1; i < vals.length; i++) acc -= vals[i].value;
+        return { ok: true, value: acc };
+      }
+      case "Mul": {
+        const vals = node.args.map((a) => evalWithEnv(a, env));
+        const failed = vals.find((v) => !v.ok);
+        if (failed) return failed;
+        return { ok: true, value: vals.reduce((s, v) => s * v.value, 1) };
+      }
+      case "Div": {
+        const a = evalWithEnv(node.num, env);
+        if (!a.ok) return a;
+        const b = evalWithEnv(node.den, env);
+        if (!b.ok) return b;
+        if (b.value === 0) return { ok: false, error: "Divisione per zero (denominatore nullo)" };
+        const val = a.value / b.value;
+        if (!Number.isFinite(val)) return { ok: false, error: "Risultato non finito" };
+        return { ok: true, value: val };
+      }
+      case "Pow": {
+        const a = evalWithEnv(node.base, env);
+        if (!a.ok) return a;
+        const b = evalWithEnv(node.exp, env);
+        if (!b.ok) return b;
+        const val = Math.pow(a.value, b.value);
+        if (!Number.isFinite(val) || isNaN(val)) return { ok: false, error: "Potenza non calcolabile nei reali" };
+        return { ok: true, value: val };
+      }
+      case "Sqrt": {
+        const a = evalWithEnv(node.arg, env);
+        if (!a.ok) return a;
+        if (a.value < 0) return { ok: false, error: "Radice quadrata di numero negativo" };
+        return { ok: true, value: Math.sqrt(a.value) };
+      }
+      case "Sin":
+      case "Cos":
+      case "Tan":
+      case "Ln":
+      case "Asin":
+      case "Acos":
+      case "Atan":
+      case "Exp": {
+        const a = evalWithEnv(node.arg, env);
+        if (!a.ok) return a;
+        const val = evalFunc(node.type, a.value);
+        if (!Number.isFinite(val) || isNaN(val)) return { ok: false, error: `Errore nel calcolo di ${node.type}` };
+        return { ok: true, value: val };
+      }
+      case "Neg": {
+        const a = evalWithEnv(node.arg, env);
+        if (!a.ok) return a;
+        return { ok: true, value: -a.value };
+      }
+      case "Group":
+        return evalWithEnv(node.arg, env);
+      default:
+        return { ok: false, error: "Nodo non supportato per la valutazione" };
+    }
+  }
+  function substituteVarsInAst(node, env = {}) {
+    if (!node) return node;
+    switch (node.type) {
+      case "Num":
+        return node;
+      case "Var": {
+        if (node.name === "pi" || node.name === "\u03C0" || node.name === "e") return node;
+        if (env[node.name] !== void 0 && env[node.name] !== null && env[node.name] !== "") {
+          const val = Number(env[node.name]);
+          if (Number.isFinite(val)) return { type: "Num", value: val };
+        }
+        return node;
+      }
+      case "Add":
+        return { type: "Add", args: node.args.map((a) => substituteVarsInAst(a, env)) };
+      case "Sub":
+        return { type: "Sub", args: node.args.map((a) => substituteVarsInAst(a, env)) };
+      case "Mul":
+        return { type: "Mul", args: node.args.map((a) => substituteVarsInAst(a, env)) };
+      case "Div":
+        return { type: "Div", num: substituteVarsInAst(node.num, env), den: substituteVarsInAst(node.den, env) };
+      case "Pow":
+        return { type: "Pow", base: substituteVarsInAst(node.base, env), exp: substituteVarsInAst(node.exp, env) };
+      case "Sqrt":
+        return { type: "Sqrt", arg: substituteVarsInAst(node.arg, env) };
+      case "Sin":
+      case "Cos":
+      case "Tan":
+      case "Ln":
+      case "Asin":
+      case "Acos":
+      case "Atan":
+      case "Exp":
+        return { type: node.type, arg: substituteVarsInAst(node.arg, env) };
+      case "Neg":
+        return { type: "Neg", arg: substituteVarsInAst(node.arg, env) };
+      case "Group":
+        return { type: "Group", arg: substituteVarsInAst(node.arg, env) };
+      default:
+        return node;
+    }
+  }
   function toText(node) {
     switch (node.type) {
       case "Num":
@@ -235,12 +362,13 @@
         let s = "";
         node.args.forEach((a, i) => {
           const u = unwrap(a);
-          const neg = u.type === "Neg";
-          const body = toPretty(neg ? u.arg : a, neg ? 2 : 1);
+          const isNeg = u.type === "Neg" || u.type === "Num" && u.value < 0;
+          const bodyNode = u.type === "Neg" ? u.arg : u.type === "Num" && u.value < 0 ? Num(-u.value) : a;
+          const body = toPretty(bodyNode, isNeg ? 2 : 1);
           if (i === 0) {
-            s += (neg ? "\u2212" : "") + body;
+            s += (isNeg ? "\u2212" : "") + body;
           } else {
-            const minus = isSub ? !neg : neg;
+            const minus = isSub ? !isNeg : isNeg;
             s += (minus ? " \u2212 " : " + ") + body;
           }
         });
@@ -333,6 +461,8 @@
           PhiE: "\\Phi_E",
           at: "a_t",
           ac: "a_c",
+          Ec: "E_c",
+          Ep: "E_p",
           Ec1: "E_{c1}",
           Ec2: "E_{c2}",
           Ep1: "E_{p1}",
@@ -378,12 +508,13 @@
         let s = "";
         node.args.forEach((a, i) => {
           const u = unwrap(a);
-          const neg = u.type === "Neg";
-          const body = toLatex(neg ? u.arg : a, neg ? 2 : 1);
+          const isNeg = u.type === "Neg" || u.type === "Num" && u.value < 0;
+          const bodyNode = u.type === "Neg" ? u.arg : u.type === "Num" && u.value < 0 ? Num(-u.value) : a;
+          const body = toLatex(bodyNode, isNeg ? 2 : 1);
           if (i === 0) {
-            s += (neg ? "-" : "") + body;
+            s += (isNeg ? "-" : "") + body;
           } else {
-            const minus = isSub ? !neg : neg;
+            const minus = isSub ? !isNeg : isNeg;
             s += (minus ? " - " : " + ") + body;
           }
         });
@@ -432,6 +563,80 @@
   }
   function unwrap(node) {
     return node && node.type === "Group" ? unwrap(node.arg) : node;
+  }
+  function unwrapNeutrals(node) {
+    let u = unwrap(node);
+    if (!u) return u;
+    if (u.type === "Mul") {
+      const nonOne = u.args.filter((a) => !(unwrap(a).type === "Num" && unwrap(a).value === 1));
+      if (nonOne.length === 0) return Num(1);
+      if (nonOne.length === 1) return unwrapNeutrals(nonOne[0]);
+      if (nonOne.length < u.args.length) return unwrapNeutrals(Mul(...nonOne));
+    }
+    if (u.type === "Add") {
+      const nonZero = u.args.filter((a) => !(unwrap(a).type === "Num" && unwrap(a).value === 0));
+      if (nonZero.length === 0) return Num(0);
+      if (nonZero.length === 1) return unwrapNeutrals(nonZero[0]);
+      if (nonZero.length < u.args.length) return unwrapNeutrals(Add(...nonZero));
+    }
+    if (u.type === "Sub") {
+      if (u.args.length === 2 && unwrap(u.args[1]).type === "Num" && unwrap(u.args[1]).value === 0) {
+        return unwrapNeutrals(u.args[0]);
+      }
+    }
+    if (u.type === "Div" && unwrap(u.den).type === "Num" && unwrap(u.den).value === 1) {
+      return unwrapNeutrals(u.num);
+    }
+    return u;
+  }
+  function stripNeutrals(node) {
+    if (!node) return node;
+    const raw = node;
+    if (raw.type === "Group") {
+      return { type: "Group", arg: stripNeutrals(raw.arg) };
+    }
+    const u = { ...node };
+    switch (u.type) {
+      case "Mul": {
+        const strippedArgs = u.args.map(stripNeutrals);
+        const nonOnes = strippedArgs.filter((a) => !(unwrap(a).type === "Num" && unwrap(a).value === 1));
+        if (nonOnes.length === 0) return Num(1);
+        if (nonOnes.length === 1) return nonOnes[0];
+        return { ...u, args: nonOnes };
+      }
+      case "Add": {
+        const strippedArgs = u.args.map(stripNeutrals);
+        const nonZeros = strippedArgs.filter((a) => !(unwrap(a).type === "Num" && unwrap(a).value === 0));
+        if (nonZeros.length === 0) return Num(0);
+        if (nonZeros.length === 1) return nonZeros[0];
+        return { ...u, args: nonZeros };
+      }
+      case "Sub": {
+        const strippedArgs = u.args.map(stripNeutrals);
+        if (strippedArgs.length === 2 && unwrap(strippedArgs[1]).type === "Num" && unwrap(strippedArgs[1]).value === 0) {
+          return strippedArgs[0];
+        }
+        if (strippedArgs.length === 2 && unwrap(strippedArgs[0]).type === "Num" && unwrap(strippedArgs[0]).value === 0) {
+          return { type: "Neg", arg: strippedArgs[1] };
+        }
+        return { ...u, args: strippedArgs };
+      }
+      case "Div": {
+        const num = stripNeutrals(u.num);
+        const den = stripNeutrals(u.den);
+        if (unwrap(den).type === "Num" && unwrap(den).value === 1) return num;
+        return { ...u, num, den };
+      }
+      case "Neg":
+        return { ...u, arg: stripNeutrals(u.arg) };
+      case "Pow":
+        return { ...u, base: stripNeutrals(u.base), exp: stripNeutrals(u.exp) };
+      case "Eq":
+        return { ...u, left: stripNeutrals(u.left), right: stripNeutrals(u.right) };
+      default:
+        if (u.arg) return { ...u, arg: stripNeutrals(u.arg) };
+        return u;
+    }
   }
   function structurallyEqual(a, b) {
     a = unwrap(a);
@@ -671,6 +876,7 @@
   }
   function sortCategory(node) {
     const u = unwrap(node);
+    if (u.type === "Num" && u.value < 0) return 9;
     switch (u.type) {
       case "Num":
         return 0;
@@ -753,6 +959,7 @@
     return JSON.parse(JSON.stringify(node));
   }
   function isIdenticallyZero(node) {
+    if (!node) return false;
     const e = evalConst(canonical(node));
     return e.ok && e.value === 0;
   }
@@ -1004,13 +1211,15 @@
   }
   function assertNoZeroDenominator(node) {
     switch (node.type) {
-      case "Div":
-        if (node.den.type === "Num" && node.den.value === 0) {
+      case "Div": {
+        const denUnwrapped = unwrap(node.den);
+        if (denUnwrapped.type === "Num" && denUnwrapped.value === 0 || isIdenticallyZero(node.den)) {
           throw new ParseError("La formula contiene una divisione per zero (denominatore = 0).");
         }
         assertNoZeroDenominator(node.num);
         assertNoZeroDenominator(node.den);
         break;
+      }
       case "Add":
       case "Sub":
       case "Mul":
@@ -1097,6 +1306,13 @@
   function reciprocalEquation(eq2) {
     if (!eq2 || eq2.type !== "Eq") {
       return { ok: false, error: "Nessuna equazione valida da invertire." };
+    }
+    if (isIdenticallyZero(eq2.left) || isIdenticallyZero(eq2.right)) {
+      return {
+        ok: false,
+        error: "Non si pu\xF2 calcolare il reciproco di un membro identicamente nullo: la divisione per zero non \xE8 definita.",
+        hint: "Assicurati che entrambi i membri siano diversi da zero prima di applicare la regola dei reciproci."
+      };
     }
     if (memberIsFractionSum(eq2.left) || memberIsFractionSum(eq2.right)) {
       return {
@@ -1246,8 +1462,15 @@
       const from = side === "left" ? eq2.left : eq2.right;
       const fact = unwrap(factor);
       const factList = factorsOf(from);
-      const idx = factList.findIndex((f) => equivalentExpr(f, fact));
+      let idx = factList.findIndex((f) => equivalentExpr(f, fact));
       if (idx < 0) {
+        idx = factList.findIndex((f) => {
+          const u = unwrap(f);
+          return u.type === "Neg" && equivalentExpr(u.arg, fact);
+        });
+      }
+      const isWhole = equivalentExpr(from, fact);
+      if (idx < 0 && !isWhole) {
         throw new RuleError(
           "Il fattore selezionato non \xE8 un fattore moltiplicativo di quel membro.",
           "Puoi trasportare solo elementi che moltiplicano l'intero membro, non termini di una somma."
@@ -1330,6 +1553,52 @@
       };
     }
   };
+  function negateExpr(node) {
+    node = unwrap(node);
+    if (!node) return node;
+    if (node.type === "Num") {
+      return Num(-node.value);
+    }
+    if (node.type === "Neg") {
+      return unwrap(node.arg);
+    }
+    if (node.type === "Add" || node.type === "Sub") {
+      const terms = additiveTerms(node);
+      const flipped = terms.map((t) => ({
+        sign: t.sign === "-" ? "+" : "-",
+        node: t.node
+      }));
+      return canonical(rebuildSum(flipped));
+    }
+    if (node.type === "Div") {
+      const newNum = negateExpr(node.num);
+      return canonical(Div(newNum, node.den));
+    }
+    if (node.type === "Mul") {
+      const first = unwrap(node.args[0]);
+      if (first.type === "Num") {
+        const newFirst = Num(-first.value);
+        return canonical(Mul(newFirst, ...node.args.slice(1)));
+      }
+      return canonical(Neg(node));
+    }
+    return canonical(Neg(node));
+  }
+  var ruleChangeSign = {
+    id: "change-sign",
+    name: "Regola del cambio di segno (moltiplicazione per \u22121)",
+    principle: "Secondo principio di equivalenza: moltiplicando entrambi i membri per \u22121, tutti i segni si invertono (+ \u2194 \u2212).",
+    explanation: "change-sign",
+    apply(eq2) {
+      const newLeft = negateExpr(eq2.left);
+      const newRight = negateExpr(eq2.right);
+      return {
+        equation: Eq(newLeft, newRight),
+        conditions: [],
+        steps: ["Moltiplico entrambi i membri per \u22121 (inversione di segno di tutti i termini)."]
+      };
+    }
+  };
   var ruleInvertProportion = {
     id: "invert-proportion",
     name: "Inversione di una proporzione (reciproco di entrambi i membri frazionari)",
@@ -1342,6 +1611,12 @@
         throw new RuleError(
           "L'inversione si applica solo quando entrambi i membri sono rapporti frazionari; non si inverte mai un solo membro.",
           "Porta entrambi i membri in forma frazionaria oppure usa il reciproco di entrambi i membri."
+        );
+      }
+      if (isIdenticallyZero(L.num) || isIdenticallyZero(R.num) || isIdenticallyZero(L.den) || isIdenticallyZero(R.den)) {
+        throw new RuleError(
+          "Non si pu\xF2 invertire una frazione con numeratore o denominatore nullo: la divisione per zero non \xE8 definita.",
+          "Tutti i termini della proporzione devono essere diversi da zero."
         );
       }
       return { ok: true };
@@ -1376,6 +1651,13 @@
         throw new RuleError(
           "La radice di indice pari si applica direttamente solo quando un membro \xE8 una potenza con esponente pari (x\xB2, x\u2074, \u2026).",
           "Isola prima la potenza a esponente pari su un membro."
+        );
+      }
+      const constOther = evalConst(other);
+      if (constOther.ok && constOther.value < 0) {
+        throw new RuleError(
+          "Non si pu\xF2 estrarre una radice di indice pari da un radicando strettamente negativo nel campo reale.",
+          "L'equazione non ammette soluzioni reali."
         );
       }
       const n = found.exp;
@@ -1427,6 +1709,12 @@
     explanation: "pow-both",
     apply(eq2, ctx) {
       const n = ctx.value;
+      if (isIdenticallyZero(n)) {
+        throw new RuleError(
+          "Elevare entrambi i membri alla potenza 0 distrugge l'informazione dell'equazione (1 = 1): non \xE8 una trasformazione utile.",
+          "Scegli un esponente diverso da zero."
+        );
+      }
       const newEq = Eq(simplify(Pow(eq2.left, n)), simplify(Pow(eq2.right, n)));
       return {
         equation: newEq,
@@ -1506,9 +1794,9 @@
     explanation: "invert-function",
     apply(eq2, ctx) {
       const { side } = ctx;
-      const withFn = unwrap(side === "left" ? eq2.left : eq2.right);
-      const other = unwrap(side === "left" ? eq2.right : eq2.left);
-      const fnNode = ctx.fnNode ? unwrap(ctx.fnNode) : extractFunc(withFn);
+      const withFn = unwrapNeutrals(side === "left" ? eq2.left : eq2.right);
+      const other = unwrapNeutrals(side === "left" ? eq2.right : eq2.left);
+      const fnNode = ctx.fnNode ? unwrapNeutrals(ctx.fnNode) : extractFunc(withFn);
       if (!fnNode) {
         throw new RuleError(
           "Nessuna funzione invertibile selezionata.",
@@ -1519,6 +1807,15 @@
       const info = FUNC_INFO[key];
       if (!info || !info.inverse) {
         throw new RuleError(`La funzione "${key}" non \xE8 invertibile in questo modo.`);
+      }
+      if (key === "sin" || key === "cos") {
+        const ev = evalConst(other);
+        if (ev.ok && (ev.value < -1 || ev.value > 1)) {
+          throw new RuleError(
+            `Non si pu\xF2 applicare l'inversa ${info.inverse}: il valore ${ev.value} \xE8 fuori dall'intervallo [\u22121, 1], quindi l'equazione non ammette soluzioni reali.`,
+            "Le funzioni seno e coseno assumono solo valori compresi tra \u22121 e 1."
+          );
+        }
       }
       const invCtor = { asin: Asin, acos: Acos, atan: Atan, exp: Exp }[info.inverse];
       const argFn = fnNode.arg;
@@ -1558,7 +1855,7 @@
     return null;
   }
   function extractFunc(node, targetVar) {
-    node = unwrap(node);
+    node = unwrapNeutrals(node);
     if (["Sin", "Cos", "Tan", "Ln"].includes(node.type)) return node;
     if (node.type === "Group") return extractFunc(node.arg, targetVar);
     return null;
@@ -1584,13 +1881,19 @@
   function additiveTerms(node) {
     node = unwrap(node);
     if (node.type === "Add") {
-      return node.args.map((a) => ({ node: unwrap(a), sign: "+" }));
+      return node.args.map((a) => {
+        const u = unwrap(a);
+        if (u.type === "Neg") return { node: unwrap(u.arg), sign: "-" };
+        if (u.type === "Num" && u.value < 0) return { node: Num(-u.value), sign: "-" };
+        return { node: u, sign: "+" };
+      });
     }
     if (node.type === "Sub") {
       const out = [{ node: unwrap(node.args[0]), sign: "+" }];
       for (let i = 1; i < node.args.length; i++) {
         const arg = unwrap(node.args[i]);
-        if (arg.type === "Neg") out.push({ node: arg.arg, sign: "-" });
+        if (arg.type === "Neg") out.push({ node: unwrap(arg.arg), sign: "-" });
+        else if (arg.type === "Num" && arg.value < 0) out.push({ node: Num(-arg.value), sign: "-" });
         else out.push({ node: arg, sign: "-" });
       }
       return out;
@@ -1701,6 +2004,28 @@
         return node;
     }
   }
+  function canDistribute(node) {
+    if (!node) return false;
+    const u = unwrap(node);
+    if (u.type === "Mul") {
+      const hasSumArg = u.args.some((a) => {
+        const w = unwrap(a);
+        return w.type === "Add" || w.type === "Sub";
+      });
+      if (hasSumArg) return true;
+      return u.args.some(canDistribute);
+    }
+    if (u.type === "Add" || u.type === "Sub") {
+      return (u.args || []).some(canDistribute);
+    }
+    if (u.type === "Div") {
+      return canDistribute(u.num) || canDistribute(u.den);
+    }
+    if (u.type === "Neg" || u.type === "Group") {
+      return canDistribute(u.arg);
+    }
+    return false;
+  }
   function factorOut(node, common) {
     node = unwrap(node);
     if (node.type !== "Add" && node.type !== "Sub") return null;
@@ -1713,6 +2038,56 @@
     }
     const inner = rebuildSum(others);
     return Mul(common, Group(inner));
+  }
+  function findCommonFactor(expr2, preferredVar = null) {
+    expr2 = unwrap(expr2);
+    if (!expr2 || expr2.type !== "Add" && expr2.type !== "Sub") return null;
+    const terms = additiveTerms(expr2);
+    if (terms.length < 2) return null;
+    if (preferredVar) {
+      const prefNode = Var(preferredVar);
+      if (factorOut(expr2, prefNode)) return prefNode;
+    }
+    const firstFactors = getFactorsOfTerm(terms[0].node);
+    for (const f of firstFactors) {
+      if (factorOut(expr2, f)) return f;
+    }
+    return null;
+  }
+  function getFactorsOfTerm(term) {
+    term = unwrap(term);
+    if (term.type === "Neg") term = unwrap(term.arg);
+    if (term.type === "Var" || term.type === "Num") return [term];
+    if (term.type === "Mul") {
+      return term.args.map((a) => unwrap(a)).filter((a) => a.type === "Var" || a.type === "Num");
+    }
+    if (term.type === "Div") {
+      return getFactorsOfTerm(term.num);
+    }
+    return [];
+  }
+  function hasTrigConflict(member, target) {
+    if (!member || !target) return false;
+    const vars = collectVars(member);
+    if (!vars.has(target)) return false;
+    let hasSin = false;
+    let hasCos = false;
+    function walk2(n) {
+      if (!n) return;
+      const u = unwrap(n);
+      if (u.type === "Sin" && collectVars(u.arg).has(target)) hasSin = true;
+      if (u.type === "Cos" && collectVars(u.arg).has(target)) hasCos = true;
+      if (u.type === "Add" || u.type === "Sub" || u.type === "Mul") {
+        (u.args || [u.left, u.right]).forEach(walk2);
+      } else if (u.type === "Div") {
+        walk2(u.num);
+        walk2(u.den);
+      } else if (u.type === "Neg" || u.type === "Group") {
+        walk2(u.arg);
+      }
+    }
+    walk2(member);
+    return hasSin && hasCos;
   }
   function removeCommonFactor(expr2, common) {
     expr2 = unwrap(expr2);
@@ -1749,6 +2124,7 @@
     crossMultiply: ruleCrossMultiply,
     swapSides: ruleSwapSides,
     reciprocalBoth: ruleReciprocalBothSides,
+    changeSign: ruleChangeSign,
     invertProportion: ruleInvertProportion,
     sqrtBoth: ruleSqrtBothSides,
     rootOddBoth: ruleRootOddBothSides,
@@ -1784,18 +2160,33 @@
 
   // js/algebra.js
   function isGoalReached(eq2, target) {
-    return isolatedSide(eq2.left, target) || isolatedSide(eq2.right, target);
+    if (!eq2 || eq2.type !== "Eq" || !target) return false;
+    const inL = collectVars(eq2.left).has(target);
+    const inR = collectVars(eq2.right).has(target);
+    if (inL && inR) return false;
+    const leftIso = isolatedSide(eq2.left, target);
+    const rightIso = isolatedSide(eq2.right, target);
+    return leftIso && !inR || rightIso && !inL;
+  }
+  function ensureTargetOnFirstMember(eq2, target) {
+    if (!eq2 || eq2.type !== "Eq" || !target) return eq2;
+    const inL = collectVars(eq2.left).has(target);
+    const inR = collectVars(eq2.right).has(target);
+    if (inL && inR) return eq2;
+    if (isolatedSide(eq2.right, target) && !inL) {
+      return Eq(eq2.right, eq2.left);
+    }
+    return eq2;
   }
   function isolatedSide(node, target) {
-    node = unwrap(node);
+    node = unwrapNeutrals(node);
     if (node.type === "Var" && node.name === target) return true;
-    if (node.type === "Neg") return isolatedSide(node.arg, target);
     if (node.type === "Mul" && node.args.length === 2) {
       const [a, b] = node.args;
       const aC = isNum(unwrap(a)) ? unwrap(a).value : null;
       const bC = isNum(unwrap(b)) ? unwrap(b).value : null;
-      if (aC === -1) return isolatedSide(b, target);
-      if (bC === -1) return isolatedSide(a, target);
+      if (aC === 1) return isolatedSide(b, target);
+      if (bC === 1) return isolatedSide(a, target);
     }
     return false;
   }
@@ -1861,7 +2252,8 @@
         break;
       }
       case "Neg": {
-        walk(node.arg, side, out, id + "/arg", childCtx("argomento"));
+        const innerRole = ctx.role === "fattore" || ctx.role === "termine" ? ctx.role : "argomento";
+        walk(node.arg, side, out, id + "/arg", childCtx(innerRole));
         break;
       }
       case "Group": {
@@ -1901,12 +2293,17 @@
       const member2 = side === "left" ? eq2.left : eq2.right;
       const memberU = unwrap(member2);
       if (memberU.type === "Mul" && memberU.args.length >= 2) {
-        const found = memberU.args.some((f) => equivalentExpr(f, node));
-        if (found) {
+        const isSubFactor = memberU.args.some((f) => {
+          if (equivalentExpr(f, node)) return true;
+          const u = unwrap(f);
+          return u.type === "Neg" && equivalentExpr(u.arg, node);
+        });
+        const isWhole = equivalentExpr(memberU, node);
+        if (isSubFactor || isWhole) {
           actions.push({
             id: "move-factor",
-            label: `Trasporta il fattore "${nodeText}" come divisore`,
-            description: "Dividi entrambi i membri per il fattore (secondo principio, richiede " + nodeText + " \u2260 0).",
+            label: `Trasporta "${nodeText}" al denominatore opposto (divisione in croce)`,
+            description: "Dividi entrambi i membri per " + nodeText + " (secondo principio, richiede " + nodeText + " \u2260 0).",
             ruleKey: "moveFactor",
             build: () => ({ factor: node, side, factorText: nodeText })
           });
@@ -2001,6 +2398,26 @@
         });
       }
     }
+    if (canDistribute(member)) {
+      actions.push({
+        id: "distribute",
+        label: `Sviluppa le parentesi al ${side === "left" ? "primo" : "secondo"} membro (propriet\xE0 distributiva)`,
+        description: "Moltiplica il fattore per ciascun termine nella parentesi: a(b \xB1 c) = ab \xB1 ac.",
+        ruleKey: "distribute",
+        build: () => ({ side })
+      });
+    }
+    const memberCommon = findCommonFactor(member, target) || findCommonFactor(member, null);
+    if (memberCommon) {
+      const cText = toPretty(memberCommon, 0);
+      actions.push({
+        id: "factor-common",
+        label: `Raccogli "${cText}" a fattor comune al ${side === "left" ? "primo" : "secondo"} membro`,
+        description: `Mette in evidenza il fattore comune ${cText}: ax + ab = a(x + b).`,
+        ruleKey: "factorCommon",
+        build: () => ({ side, common: memberCommon, commonText: cText })
+      });
+    }
     return actions;
   }
   function globalActions(eq2, target) {
@@ -2037,6 +2454,30 @@
       ruleKey: "reciprocalBoth",
       build: () => ({})
     });
+    const distSide = canDistribute(eq2.right) ? "right" : canDistribute(eq2.left) ? "left" : null;
+    if (distSide) {
+      actions.push({
+        id: "distribute",
+        label: `Sviluppa le parentesi al ${distSide === "left" ? "primo" : "secondo"} membro`,
+        description: "Applica la propriet\xE0 distributiva a(b \xB1 c) = ab \xB1 ac.",
+        ruleKey: "distribute",
+        build: () => ({ side: distSide })
+      });
+    }
+    const commonFactorLeft = findCommonFactor(eq2.left, target) || findCommonFactor(eq2.left, null);
+    const commonFactorRight = findCommonFactor(eq2.right, target) || findCommonFactor(eq2.right, null);
+    const factorSide = commonFactorLeft ? "left" : commonFactorRight ? "right" : null;
+    const commonNode = commonFactorLeft || commonFactorRight;
+    if (factorSide && commonNode) {
+      const commonText = toPretty(commonNode, 0);
+      actions.push({
+        id: "factor-common",
+        label: `Raccogli "${commonText}" a fattor comune al ${factorSide === "left" ? "primo" : "secondo"} membro`,
+        description: `Mette in evidenza il fattore comune: ax + ab = a(x + b).`,
+        ruleKey: "factorCommon",
+        build: () => ({ side: factorSide, common: commonNode, commonText })
+      });
+    }
     return actions;
   }
   function performAction(eq2, action, extraCtx = {}) {
@@ -2259,6 +2700,12 @@
     const member = side === "left" ? eq2.left : eq2.right;
     const other = side === "left" ? eq2.right : eq2.left;
     const mU = unwrap(member);
+    if (hasTrigConflict(member, target)) {
+      return {
+        found: false,
+        message: `La grandezza ${target} compare sia all'interno di sin(${target}) sia di cos(${target}). Non \xE8 possibile raccoglierla a fattor comune perch\xE9 ${target} \xE8 l'argomento delle funzioni trigonometriche (sin(${target}) \u2260 sin \xB7 ${target}) e l'equazione non \xE8 isolabile con i soli principi di equivalenza elementari.`
+      };
+    }
     if (mU.type === "Neg" && collectVars(mU.arg).has(target)) {
       const inner = toPretty(mU.arg, 0);
       return {
@@ -2436,7 +2883,10 @@
     { id: "mul", label: "\xD7", title: "Moltiplica entrambi i membri per la stessa grandezza o numero", needsOperand: true },
     { id: "div", label: "\xF7", title: "Dividi entrambi i membri per la stessa grandezza o numero (\u2260 0)", needsOperand: true },
     { id: "pow", label: "^", title: "Eleva entrambi i membri alla stessa potenza", needsOperand: true },
-    { id: "sqrt", label: "\u221A", title: "Estrai la radice quadrata di entrambi i membri", needsOperand: false }
+    { id: "sqrt", label: "\u221A", title: "Estrai la radice quadrata di entrambi i membri", needsOperand: false },
+    { id: "asin", label: "arcsin", title: "Applica l'arcoseno (sin\u207B\xB9) a entrambi i membri per liberare l'argomento del seno", needsOperand: false },
+    { id: "acos", label: "arccos", title: "Applica l'arcocoseno (cos\u207B\xB9) a entrambi i membri per liberare l'argomento del coseno", needsOperand: false },
+    { id: "atan", label: "arctan", title: "Applica l'arcotangente (tan\u207B\xB9) a entrambi i membri per liberare l'argomento della tangente", needsOperand: false }
   ];
   var RULE_BY_OP = {
     add: "addBoth",
@@ -2511,6 +2961,16 @@
       }
     }
     for (const member of [eq2.left, eq2.right]) {
+      const constM = evalConst(member);
+      if (constM.ok && constM.value < 0) {
+        return {
+          ok: false,
+          error: "Non si pu\xF2 estrarre una radice di indice pari da un radicando strettamente negativo nel campo reale.",
+          hint: "L'equazione non ammette soluzioni reali."
+        };
+      }
+    }
+    for (const member of [eq2.left, eq2.right]) {
       if (evenPowerOf(member) !== null) {
         return {
           ok: false,
@@ -2528,11 +2988,104 @@
       note: "La radice di un quadrato \xE8 un valore assoluto: \u221A(x\xB2) = |x|. Perch\xE9 la radice di entrambi i membri abbia senso, entrambi devono essere \u2265 0."
     };
   }
+  function nodeContainsType(node, type) {
+    if (!node) return false;
+    const u = unwrap(node);
+    if (u.type === type) return true;
+    switch (u.type) {
+      case "Add":
+      case "Sub":
+      case "Mul":
+        return u.args.some((arg) => nodeContainsType(arg, type));
+      case "Div":
+        return nodeContainsType(u.num, type) || nodeContainsType(u.den, type);
+      case "Pow":
+        return nodeContainsType(u.base, type) || nodeContainsType(u.exp, type);
+      case "Eq":
+        return nodeContainsType(u.left, type) || nodeContainsType(u.right, type);
+      default:
+        return u.arg ? nodeContainsType(u.arg, type) : false;
+    }
+  }
+  var TRIG_OPS = {
+    asin: {
+      trigType: "Sin",
+      fnName: "seno (sin)",
+      invName: "arcoseno (arcsin)",
+      notation: "sin(...)"
+    },
+    acos: {
+      trigType: "Cos",
+      fnName: "coseno (cos)",
+      invName: "arcocoseno (arccos)",
+      notation: "cos(...)"
+    },
+    atan: {
+      trigType: "Tan",
+      fnName: "tangente (tan)",
+      invName: "arcotangente (arctan)",
+      notation: "tan(...)"
+    }
+  };
+  function applyInverseTrigBothSides(eq2, opId, targetVar) {
+    const info = TRIG_OPS[opId];
+    if (!info) return { ok: false, error: `Operazione trigonometrica sconosciuta: ${opId}.` };
+    const leftU = unwrapNeutrals(eq2.left);
+    const rightU = unwrapNeutrals(eq2.right);
+    const leftIsTrig = leftU.type === info.trigType;
+    const rightIsTrig = rightU.type === info.trigType;
+    let side = null;
+    let fnNode = null;
+    if (leftIsTrig && rightIsTrig) {
+      const sideHas = targetVar ? whichSideHas(eq2, targetVar) : null;
+      side = sideHas === "right" ? "right" : "left";
+      fnNode = side === "left" ? leftU : rightU;
+    } else if (leftIsTrig) {
+      side = "left";
+      fnNode = leftU;
+    } else if (rightIsTrig) {
+      side = "right";
+      fnNode = rightU;
+    }
+    if (side && fnNode) {
+      const res = applyRule(RULES.invertFunction, eq2, { side, fnNode });
+      if (!res.ok) {
+        return { ok: false, error: res.error, hint: res.hint };
+      }
+      let newEq = res.equation;
+      if (targetVar && whichSideHas(newEq, targetVar) === "right") {
+        newEq = Eq(newEq.right, newEq.left);
+      }
+      return {
+        ok: true,
+        equation: newEq,
+        conditions: res.conditions || [],
+        steps: res.steps || [],
+        note: res.note || null
+      };
+    }
+    const containsInEq = nodeContainsType(eq2.left, info.trigType) || nodeContainsType(eq2.right, info.trigType);
+    if (containsInEq) {
+      return {
+        ok: false,
+        error: `Per applicare l'${info.invName} devi prima isolare la funzione ${info.fnName} su uno dei due membri!`,
+        hint: `Sposta o dividi prima per i coefficienti o termini che la moltiplicano o la sommano fino ad avere ${info.notation} = ...`
+      };
+    }
+    return {
+      ok: false,
+      error: `Nessuna funzione ${info.fnName} presente nell'equazione da invertire.`,
+      hint: `L'operazione ${info.invName} si applica per liberare l'argomento quando un membro \xE8 costituito da ${info.notation}.`
+    };
+  }
   function applyKeypadOperation(eq2, opId, operandNode, operandText, targetVar) {
     if (!eq2 || eq2.type !== "Eq") {
       return { ok: false, error: "Nessuna equazione su cui operare." };
     }
     if (opId === "sqrt") return applySqrtBothSides(eq2, targetVar);
+    if (opId === "asin" || opId === "acos" || opId === "atan") {
+      return applyInverseTrigBothSides(eq2, opId, targetVar);
+    }
     const ruleKey = RULE_BY_OP[opId];
     if (!ruleKey) return { ok: false, error: `Operazione sconosciuta: ${opId}.` };
     if (!operandNode) return { ok: false, error: "Scegli prima una grandezza o un numero." };
@@ -2664,7 +3217,12 @@
         break;
       }
     }
-    if (k === -1) return null;
+    if (k === -1) {
+      if (segments.every((s) => /^Mul\d+$/.test(s) || s === "base")) {
+        return { side, segments, slot: "num" };
+      }
+      return null;
+    }
     const prefix = segments.slice(0, k);
     const suffix = segments.slice(k + 1);
     if (prefix.some((s) => !(/^Mul\d+$/.test(s) || /^Add\d+$/.test(s)))) return null;
@@ -2712,8 +3270,8 @@
       newParent = Num(0);
     } else if (keep.length === 1 && parent.type === "Add") {
       newParent = keep[0];
-    } else if (keep.length === 1 && parent.type === "Sub" && idx === 0) {
-      newParent = Neg(keep[0]);
+    } else if (parent.type === "Sub" && idx === 0) {
+      newParent = keep.length === 1 ? Neg(keep[0]) : Sub(Num(0), ...keep);
     } else if (keep.length === 1) {
       newParent = keep[0];
     } else {
@@ -2821,11 +3379,27 @@
     }
     const numEntry = slotA === "num" ? a : b;
     const denEntry = slotA === "den" ? a : b;
+    let simplifiedNode = null;
     const afterNum = removeAt(member, numEntry.segments);
-    if (!afterNum.ok) return { ok: false, error: afterNum.error };
-    const afterBoth = removeAt(afterNum.node, denEntry.segments);
-    if (!afterBoth.ok) return { ok: false, error: afterBoth.error };
-    const simplified = canonical(afterBoth.node);
+    if (afterNum.ok) {
+      const afterBoth = removeAt(afterNum.node, denEntry.segments);
+      if (afterBoth.ok) simplifiedNode = afterBoth.node;
+    }
+    if (!simplifiedNode) {
+      const afterDen = removeAt(member, denEntry.segments);
+      if (afterDen.ok) {
+        const afterBoth2 = removeAt(afterDen.node, numEntry.segments);
+        if (afterBoth2.ok) simplifiedNode = afterBoth2.node;
+      }
+    }
+    if (!simplifiedNode) {
+      const viaFraction = cancelFractionFactor(member, nodeA);
+      if (viaFraction) simplifiedNode = viaFraction;
+    }
+    if (!simplifiedNode) {
+      return { ok: false, error: "Impossibile completare la semplificazione di questi elementi." };
+    }
+    const simplified = canonical(simplifiedNode);
     const newEq = canonical(a.side === "left" ? Eq(simplified, eq2.right) : Eq(eq2.left, simplified));
     const cancelled = toPretty(nodeA, 0);
     return {
@@ -2835,6 +3409,129 @@
       ruleName: `Semplificazione di ${cancelled} tra numeratore e denominatore`,
       rulePrinciple: `${cancelled}/${cancelled} = 1, purch\xE9 ${cancelled} \u2260 0: un fattore uguale al numeratore e al denominatore si pu\xF2 eliminare.`,
       conditions: [`${cancelled} \u2260 0`]
+    };
+  }
+
+  // js/compound-fraction.js
+  function getFractionParts(node) {
+    let sign = 1;
+    let curr = unwrap(node);
+    while (curr && curr.type === "Neg") {
+      sign = -sign;
+      curr = unwrap(curr.arg);
+    }
+    if (curr && curr.type === "Div") {
+      return { isDiv: true, sign, num: curr.num, den: curr.den };
+    }
+    return { isDiv: false, sign, node: curr };
+  }
+  function hasCompoundFraction(node) {
+    if (!node) return false;
+    const u = unwrap(node);
+    if (u.type === "Div") {
+      const pNum = getFractionParts(u.num);
+      const pDen = getFractionParts(u.den);
+      if (pNum.isDiv || pDen.isDiv) return true;
+    }
+    if (u.args) return u.args.some(hasCompoundFraction);
+    if (u.arg) return hasCompoundFraction(u.arg);
+    if (u.base && hasCompoundFraction(u.base)) return true;
+    if (u.exp && hasCompoundFraction(u.exp)) return true;
+    if (u.num && hasCompoundFraction(u.num)) return true;
+    if (u.den && hasCompoundFraction(u.den)) return true;
+    return false;
+  }
+  function transformToReciprocalMul(node) {
+    if (!node) return node;
+    const u = unwrap(node);
+    if (u.type === "Div") {
+      const pNum = getFractionParts(u.num);
+      const pDen = getFractionParts(u.den);
+      if (pNum.isDiv && pDen.isDiv) {
+        const totalSign = pNum.sign * pDen.sign;
+        const numFrac = Div(pNum.num, pNum.den);
+        const denReciprocal = Div(pDen.den, pDen.num);
+        const prod = Mul(numFrac, denReciprocal);
+        return totalSign < 0 ? Neg(prod) : prod;
+      }
+      if (pDen.isDiv) {
+        const denReciprocal = Div(pDen.den, pDen.num);
+        let numNode = u.num;
+        if (pDen.sign < 0) {
+          numNode = Neg(numNode);
+        }
+        return Mul(numNode, denReciprocal);
+      }
+      if (pNum.isDiv) {
+        let numFrac = Div(pNum.num, pNum.den);
+        if (pNum.sign < 0) {
+          numFrac = Neg(numFrac);
+        }
+        const denInv = Div(Num(1), u.den);
+        return Mul(numFrac, denInv);
+      }
+      return Div(transformToReciprocalMul(u.num), transformToReciprocalMul(u.den));
+    }
+    if (node.type === "Neg") {
+      return Neg(transformToReciprocalMul(node.arg));
+    }
+    if (node.type === "Group") {
+      return { ...node, arg: transformToReciprocalMul(node.arg) };
+    }
+    if (node.type === "Mul") {
+      return Mul(...node.args.map(transformToReciprocalMul));
+    }
+    if (node.type === "Add") {
+      return { ...node, args: node.args.map(transformToReciprocalMul) };
+    }
+    if (node.type === "Sub") {
+      return { ...node, args: node.args.map(transformToReciprocalMul) };
+    }
+    if (node.type === "Pow") {
+      return { ...node, base: transformToReciprocalMul(node.base), exp: transformToReciprocalMul(node.exp) };
+    }
+    if (node.type === "Sqrt") {
+      return { ...node, arg: transformToReciprocalMul(node.arg) };
+    }
+    return node;
+  }
+  function getCompoundFractionSteps(eq2, targetVar) {
+    if (!eq2 || eq2.type !== "Eq" || !targetVar) return null;
+    let targetSide = null;
+    let resultSide = null;
+    const inL = collectVars(eq2.left).has(targetVar);
+    const inR = collectVars(eq2.right).has(targetVar);
+    if (inL && inR) return null;
+    if (isolatedSide(eq2.left, targetVar) && !inR) {
+      targetSide = "left";
+      resultSide = "right";
+    } else if (isolatedSide(eq2.right, targetVar) && !inL) {
+      targetSide = "right";
+      resultSide = "left";
+    } else {
+      return null;
+    }
+    const resNode = eq2[resultSide];
+    if (!hasCompoundFraction(resNode)) return null;
+    const step1Eq = clone(eq2);
+    const step2ResNode = transformToReciprocalMul(clone(resNode));
+    const step2Eq = targetSide === "left" ? Eq(eq2.left, step2ResNode) : Eq(step2ResNode, eq2.right);
+    let step3ResNode = canonical(clone(step2ResNode));
+    while (hasCompoundFraction(step3ResNode)) {
+      step3ResNode = canonical(transformToReciprocalMul(step3ResNode));
+    }
+    const targetNode = targetSide === "left" ? eq2.left : eq2.right;
+    const step3Eq = Eq(targetNode, step3ResNode);
+    return {
+      targetSide,
+      resultSide,
+      targetVar,
+      step1Eq,
+      step2Eq,
+      step3Eq,
+      step1Pretty: toPretty(step1Eq, 0),
+      step2Pretty: toPretty(step2Eq, 0),
+      step3Pretty: toPretty(step3Eq, 0)
     };
   }
 
@@ -2855,7 +3552,7 @@
       id: "s-vt-half-at2",
       topic: "cinematica",
       name: "legge oraria (moto accelerato)",
-      formula: "x = x0 + v0*t + (1/2)*a*t^2",
+      formula: "x = x0 + v0*t + 1/2*a*t^2",
       isolate: ["x", "x0", "v0", "a", "t"],
       difficulty: 4,
       conditions: [],
@@ -2875,7 +3572,7 @@
       id: "s-vmedia",
       topic: "cinematica",
       name: "spazio medio (velocit\xE0 media)",
-      formula: "s = ((v0 + v)/2)*t",
+      formula: "s = (v0 + v)/2*t",
       isolate: ["s", "v0", "v", "t"],
       difficulty: 3,
       conditions: [],
@@ -3036,7 +3733,7 @@
       id: "theta-legge-oraria",
       topic: "cinematica",
       name: "legge oraria angolare",
-      formula: "theta = theta0 + omega0*t + (1/2)*alpha*t^2",
+      formula: "theta = theta0 + omega0*t + 1/2*alpha*t^2",
       isolate: ["theta", "theta0", "omega0", "alpha", "t"],
       difficulty: 5,
       conditions: [],
@@ -3147,16 +3844,6 @@
       difficulty: 3,
       conditions: []
     },
-    {
-      id: "piano-accel-attrito",
-      topic: "dinamica",
-      name: "accelerazione in discesa (con attrito)",
-      formula: "a = g*(sin(theta) - mu*cos(theta))",
-      isolate: ["a", "g", "theta", "mu"],
-      difficulty: 4,
-      conditions: [],
-      hypotheses: "Piano inclinato con attrito dinamico."
-    },
     // ================= LAVORO, ENERGIA E POTENZA =================
     {
       id: "L-do-dp",
@@ -3180,7 +3867,7 @@
       id: "teorema-ec",
       topic: "lavoro, energia e potenza",
       name: "teorema dell'energia cinetica",
-      formula: "W = (1/2)*m*v^2 - (1/2)*m*v0^2",
+      formula: "W = 1/2*m*v^2 - 1/2*m*v0^2",
       isolate: ["W", "m", "v", "v0"],
       difficulty: 4,
       conditions: []
@@ -3189,7 +3876,7 @@
       id: "Uel",
       topic: "lavoro, energia e potenza",
       name: "energia potenziale elastica",
-      formula: "U = (1/2)*k*x^2",
+      formula: "U = 1/2*k*x^2",
       isolate: ["U", "k", "x"],
       difficulty: 3,
       conditions: []
@@ -3301,7 +3988,7 @@
       id: "Ec-rot",
       topic: "corpo rigido e gravitazione",
       name: "energia cinetica rotazionale",
-      formula: "Ec = (1/2)*I*omega^2",
+      formula: "Ec = 1/2*I*omega^2",
       isolate: ["Ec", "I", "omega"],
       difficulty: 3,
       conditions: []
@@ -3374,11 +4061,13 @@
     {
       id: "stevino",
       topic: "pressione e fluidostatica",
-      name: "legge di Stevino",
+      name: "legge di Stevino (pressione totale)",
       formula: "p = p0 + rho*g*h",
       isolate: ["p", "p0", "rho", "g", "h"],
       difficulty: 3,
-      conditions: []
+      conditions: [],
+      hypotheses: "Legge di Stevino con pressione atmosferica superficiale p0.",
+      tags: ["stevino", "stevin", "pressione atmosferica", "idrostatica", "profondita", "sub", "fondale"]
     },
     {
       id: "pascal",
@@ -3387,16 +4076,19 @@
       formula: "F1/A1 = F2/A2",
       isolate: ["F1", "A1", "F2", "A2"],
       difficulty: 3,
-      conditions: ["A1 \u2260 0", "A2 \u2260 0"]
+      conditions: ["A1 \u2260 0", "A2 \u2260 0"],
+      tags: ["pascal", "torchio idraulico", "freni", "pistone", "pressione"]
     },
     {
       id: "galleggia",
       topic: "pressione e fluidostatica",
-      name: "condizione di galleggiamento",
+      name: "condizione di galleggiamento (Archimede)",
       formula: "rho_corpo/rho_fluido = V_imm/V_tot",
       isolate: ["rho_corpo", "rho_fluido", "V_imm", "V_tot"],
       difficulty: 4,
-      conditions: ["rho_fluido \u2260 0", "V_tot \u2260 0"]
+      conditions: ["rho_fluido \u2260 0", "V_tot \u2260 0"],
+      hypotheses: "Principio di Archimede applicato all'equilibrio di galleggiamento.",
+      tags: ["archimede", "galleggiamento", "galleggia", "iceberg", "volume immerso", "spinta"]
     },
     // ============================ IDRODINAMICA ============================
     {
@@ -3422,7 +4114,7 @@
       id: "bernoulli",
       topic: "idrodinamica",
       name: "teorema di Bernoulli",
-      formula: "p + (1/2)*rho*v^2 + rho*g*z = cost",
+      formula: "p + 1/2*rho*v^2 + rho*g*z = cost",
       isolate: ["p", "rho", "v", "g", "z", "cost"],
       difficulty: 5,
       conditions: [],
@@ -3448,6 +4140,17 @@
       hypotheses: "Regime laminare, fluido viscoso."
     },
     // ============================ TERMOLOGIA ============================
+    {
+      id: "dilatazione-lineare-completa",
+      topic: "termologia",
+      name: "dilatazione termica lineare",
+      formula: "l = l0 + lam*L0*(T - T0)",
+      isolate: ["l", "l0", "lam", "L0", "T", "T0"],
+      difficulty: 3,
+      conditions: [],
+      hypotheses: "Solido isotropo; l0 (o L0) lunghezza iniziale, lam coeff. di dilatazione termica.",
+      notes: "Dilatazione termica lineare: l = l\u2080 + \u03BB\xB7L\u2080\xB7(T \u2212 T\u2080)."
+    },
     {
       id: "dilatazione-vol",
       topic: "termologia",
@@ -3517,7 +4220,7 @@
       id: "equipartizione",
       topic: "termodinamica",
       name: "energia interna (equipartizione)",
-      formula: "U = (f/2)*n*R*T",
+      formula: "U = f/2*n*R*T",
       isolate: ["U", "f", "n", "R", "T"],
       difficulty: 4,
       conditions: []
@@ -3567,6 +4270,139 @@
       isolate: ["W", "n", "R", "T", "V2", "V1"],
       difficulty: 5,
       conditions: ["V1 \u2260 0"]
+    },
+    // ============================ ONDE E ACUSTICA ============================
+    {
+      id: "onda-v-lam-f",
+      topic: "onde e acustica",
+      name: "velocit\xE0 di propagazione dell'onda (suono e luce)",
+      formula: "v = lam*f",
+      isolate: ["v", "lam", "f"],
+      difficulty: 2,
+      conditions: [],
+      hypotheses: "Relazione fondamentale tra velocit\xE0 dell'onda sonora o elettromagnetica, lunghezza d'onda e frequenza.",
+      tags: ["suono", "onda", "acustica", "velocita del suono", "lunghezza d onda", "frequenza"]
+    },
+    {
+      id: "onda-periodo-frequenza",
+      topic: "onde e acustica",
+      name: "relazione frequenza-periodo sonoro",
+      formula: "f = 1/T",
+      isolate: ["f", "T"],
+      difficulty: 1,
+      conditions: ["T \u2260 0"],
+      hypotheses: "Frequenza sonora come inverso del periodo di oscillazione T.",
+      tags: ["suono", "onda", "acustica", "frequenza", "periodo", "tempo"]
+    },
+    {
+      id: "onda-v-lam-T",
+      topic: "onde e acustica",
+      name: "velocit\xE0 d'onda in funzione del periodo",
+      formula: "v = lam/T",
+      isolate: ["v", "lam", "T"],
+      difficulty: 2,
+      conditions: ["T \u2260 0"],
+      hypotheses: "Velocit\xE0 di propagazione del suono calcolata a partire dal periodo T.",
+      tags: ["suono", "onda", "acustica", "velocita", "periodo", "lunghezza d onda"]
+    },
+    {
+      id: "doppler-avvicinamento-sorgente",
+      topic: "onde e acustica",
+      name: "effetto Doppler (sorgente sonora in avvicinamento)",
+      formula: "fp = (f*v)/(v - vs)",
+      isolate: ["fp", "f", "v", "vs"],
+      difficulty: 4,
+      conditions: ["v - vs \u2260 0"],
+      hypotheses: "Sorgente sonora in avvicinamento verso osservatore fermo. v = velocit\xE0 del suono nell'aria, vs = velocit\xE0 sorgente, f = frequenza emessa, fp = frequenza percepita.",
+      tags: ["doppler", "suono", "effetto doppler", "acustica", "sorgente in moto", "ambulanza", "avvicinamento", "frequenza"]
+    },
+    {
+      id: "doppler-allontanamento-sorgente",
+      topic: "onde e acustica",
+      name: "effetto Doppler (sorgente sonora in allontanamento)",
+      formula: "fp = (f*v)/(v + vs)",
+      isolate: ["fp", "f", "v", "vs"],
+      difficulty: 4,
+      conditions: [],
+      hypotheses: "Sorgente sonora che si allontana dall'osservatore fermo. La frequenza percepita fp diminuisce rispetto alla frequenza emessa f.",
+      tags: ["doppler", "suono", "effetto doppler", "acustica", "sorgente in moto", "sirena", "allontanamento", "frequenza"]
+    },
+    {
+      id: "doppler-avvicinamento-osservatore",
+      topic: "onde e acustica",
+      name: "effetto Doppler (osservatore in avvicinamento)",
+      formula: "fp = f*(v + vo)/v",
+      isolate: ["fp", "f", "v", "vo"],
+      difficulty: 3,
+      conditions: ["v \u2260 0"],
+      hypotheses: "Osservatore in moto con velocit\xE0 vo verso una sorgente sonora ferma.",
+      tags: ["doppler", "suono", "effetto doppler", "acustica", "osservatore in moto", "avvicinamento"]
+    },
+    {
+      id: "doppler-allontanamento-osservatore",
+      topic: "onde e acustica",
+      name: "effetto Doppler (osservatore in allontanamento)",
+      formula: "fp = f*(v - vo)/v",
+      isolate: ["fp", "f", "v", "vo"],
+      difficulty: 3,
+      conditions: ["v \u2260 0"],
+      hypotheses: "Osservatore in allontanamento con velocit\xE0 vo dalla sorgente sonora ferma.",
+      tags: ["doppler", "suono", "effetto doppler", "acustica", "osservatore in moto", "allontanamento"]
+    },
+    {
+      id: "eco-suono",
+      topic: "onde e acustica",
+      name: "eco e sonar (riflessione del suono)",
+      formula: "2*d = v*t",
+      isolate: ["d", "v", "t"],
+      difficulty: 2,
+      conditions: [],
+      hypotheses: "Onda sonora che compie il percorso di andata e ritorno (2*d) a velocit\xE0 v nel tempo totale t.",
+      tags: ["suono", "eco", "sonar", "acustica", "riflessione", "distanza ostacolo", "tempo di ritorno"]
+    },
+    {
+      id: "intensita-sonora",
+      topic: "onde e acustica",
+      name: "intensit\xE0 sonora (onda sferica)",
+      formula: "I = P/(4*pi*r^2)",
+      isolate: ["I", "P", "r"],
+      difficulty: 4,
+      conditions: ["r \u2260 0"],
+      hypotheses: "Intensit\xE0 I dell'onda sonora a distanza r da sorgente puntiforme isotropa di potenza acustica P.",
+      tags: ["suono", "intensita sonora", "acustica", "decibel", "potenza acustica", "propagazione", "sfera"]
+    },
+    {
+      id: "battimenti-sonori",
+      topic: "onde e acustica",
+      name: "frequenza dei battimenti sonori",
+      formula: "fb = f1 - f2",
+      isolate: ["fb", "f1", "f2"],
+      difficulty: 1,
+      conditions: [],
+      hypotheses: "Battimenti sonori percepiti per sovrapposizione di due onde di frequenze vicine f1 > f2.",
+      tags: ["suono", "battimenti", "acustica", "interferenza", "accordatore", "frequenze"]
+    },
+    {
+      id: "canne-organo-aperte",
+      topic: "onde e acustica",
+      name: "frequenza fondamentale di una canna d'organo aperta",
+      formula: "f = v/(2*L)",
+      isolate: ["f", "v", "L"],
+      difficulty: 2,
+      conditions: ["L \u2260 0"],
+      hypotheses: "Tubo o canna sonora aperta a entrambe le estremit\xE0 di lunghezza L. v = velocit\xE0 del suono nell'aria.",
+      tags: ["suono", "canne d organo", "tubo sonoro", "acustica", "musica", "risonanza"]
+    },
+    {
+      id: "corda-armonica",
+      topic: "onde e acustica",
+      name: "legge di Mersenne (corda vibrante)",
+      formula: "f = (1/(2*L))*sqrt(T/mu)",
+      isolate: ["f", "L", "T", "mu"],
+      difficulty: 5,
+      conditions: ["L \u2260 0", "mu \u2260 0"],
+      hypotheses: "Frequenza della nota fondamentale emessa da una corda di lunghezza L tesa con forza T e densit\xE0 lineare mu.",
+      tags: ["suono", "mersenne", "corda vibrante", "chitarra", "musica", "acustica", "tensione"]
     },
     // ============================ ELETTROSTATICA ============================
     {
@@ -3645,7 +4481,7 @@
       id: "energia-condensatore",
       topic: "elettrostatica",
       name: "energia immagazzinata in un condensatore",
-      formula: "U = (1/2)*C*V^2",
+      formula: "U = 1/2*C*V^2",
       isolate: ["U", "C", "V"],
       difficulty: 4,
       conditions: []
@@ -3884,7 +4720,7 @@
       id: "energia-induttanza",
       topic: "elettromagnetismo",
       name: "energia immagazzinata in un'induttanza",
-      formula: "U = (1/2)*L*I^2",
+      formula: "U = 1/2*L*I^2",
       isolate: ["U", "L", "I"],
       difficulty: 3,
       conditions: []
@@ -3893,7 +4729,7 @@
       id: "densita-energia",
       topic: "elettromagnetismo",
       name: "densit\xE0 di energia del campo elettrico",
-      formula: "u = (1/2)*eps0*E^2",
+      formula: "u = 1/2*eps0*E^2",
       isolate: ["u", "eps0", "E"],
       difficulty: 4,
       conditions: []
@@ -4124,6 +4960,7 @@
     "idrodinamica",
     "termologia",
     "termodinamica",
+    "onde e acustica",
     "elettricit\xE0",
     "elettrostatica",
     "magnetostatica",
@@ -4182,7 +5019,7 @@
       id: "s-half-at2",
       topic: "cinematica",
       name: "spazio (moto accelerato, da fermo)",
-      formula: "s = (1/2)*a*t^2",
+      formula: "s = 1/2*a*t^2",
       isolate: ["s", "a", "t"],
       difficulty: 3,
       conditions: [],
@@ -4251,7 +5088,7 @@
       id: "Ec",
       topic: "lavoro, energia e potenza",
       name: "energia cinetica",
-      formula: "Ec = (1/2)*m*v^2",
+      formula: "Ec = 1/2*m*v^2",
       isolate: ["Ec", "m", "v"],
       difficulty: 3,
       conditions: [],
@@ -4297,21 +5134,26 @@
     {
       id: "ph-rhoghh",
       topic: "pressione e fluidostatica",
-      name: "pressione idrostatica",
+      name: "pressione idrostatica (legge di Stevino)",
       formula: "p = rho*g*h",
       isolate: ["p", "rho", "g", "h"],
       difficulty: 2,
       conditions: [],
-      hypotheses: "Legge di Stevino."
+      hypotheses: "Legge di Stevino: la pressione idrostatica dipende dalla densit\xE0 del fluido, da g e dalla profondit\xE0 h.",
+      notes: "Legge di Stevino per fluidi incomprimibili.",
+      tags: ["stevino", "stevin", "idrostatica", "pressione", "fluido", "liquido", "profondita", "colonna"]
     },
     {
       id: "legge-archimede",
       topic: "pressione e fluidostatica",
-      name: "spinta di Archimede",
+      name: "spinta di Archimede (principio di Archimede)",
       formula: "S = rho*g*V",
       isolate: ["S", "rho", "g", "V"],
       difficulty: 3,
-      conditions: []
+      conditions: [],
+      hypotheses: "Principio di Archimede: la spinta verso l'alto \xE8 pari al peso del volume di fluido spostato.",
+      notes: "Principio di Archimede per corpi immersi in un fluido.",
+      tags: ["archimede", "spinta", "galleggiamento", "idrostatica", "peso apparente", "volume immerso", "fluido", "densita"]
     },
     // --- ELETTRICITÀ ---
     {
@@ -4530,17 +5372,132 @@
   function getFormulaById(id) {
     return BY_ID[id] || null;
   }
+  var SEARCH_SYNONYMS = {
+    stevino: ["stevino", "stevin", "idrostatica", "pressione idrostatica", "profondita", "liquido", "fluido", "p0"],
+    archimede: ["archimede", "spinta", "galleggiamento", "galleggia", "galleggiare", "peso apparente", "volume immerso", "fluido"],
+    suono: ["suono", "acustica", "sonoro", "sonora", "sonori", "sonore", "acustico", "acustici", "acustiche", "doppler", "eco", "sonar", "rumore", "decibel", "battimenti", "canna d organo", "canne d organo", "corda vibrante", "mersenne", "frequenza", "lunghezza d onda", "onda sonora", "onde sonore", "velocita del suono"],
+    acustica: ["suono", "acustica", "sonoro", "sonora", "doppler", "eco", "sonar", "frequenza sonora", "decibel"],
+    doppler: ["doppler", "effetto doppler", "suono", "sorgente in moto", "osservatore in moto", "ambulanza", "sirena", "frequenza percepita"],
+    eco: ["eco", "sonar", "riflessione", "suono", "acustica", "distanza ostacolo"],
+    newton: ["newton", "seconda legge", "terza legge", "dinamica", "forza", "gravitazione"],
+    hooke: ["hooke", "molla", "elastica", "elasticita", "allungamento"],
+    ohm: ["ohm", "resistenza", "resistivita", "circuiti", "differenza di potenziale"],
+    coulomb: ["coulomb", "elettrostatica", "carica elettrica"],
+    joule: ["joule", "effetto joule", "calore"],
+    torricelli: ["torricelli", "efflusso", "caduta libera"],
+    keplero: ["keplero", "orbita", "periodo orbitale", "pianeti"],
+    snell: ["snell", "rifrazione", "ottica", "indice di rifrazione"],
+    bernoulli: ["bernoulli", "idrodinamica", "fluido in moto"],
+    pascal: ["pascal", "torchio idraulico", "pistone"],
+    lorentz: ["lorentz", "relativita", "forza di lorentz"],
+    faraday: ["faraday", "neumann", "lenz", "induzione", "flusso magnetico"],
+    ampere: ["ampere", "biot savart", "campo magnetico"],
+    carnot: ["carnot", "rendimento", "macchina termica"],
+    onda: ["onda", "onde", "propagazione", "lunghezza d onda", "frequenza", "periodo", "suono"],
+    onde: ["onda", "onde", "propagazione", "lunghezza d onda", "frequenza", "periodo", "suono"]
+  };
+  var STOP_WORDS = /* @__PURE__ */ new Set([
+    "di",
+    "del",
+    "dello",
+    "della",
+    "dei",
+    "degli",
+    "delle",
+    "da",
+    "dal",
+    "dallo",
+    "dalla",
+    "dai",
+    "dagli",
+    "dalle",
+    "in",
+    "nel",
+    "nello",
+    "nella",
+    "nei",
+    "negli",
+    "nelle",
+    "con",
+    "su",
+    "sul",
+    "sullo",
+    "sulla",
+    "sui",
+    "sugli",
+    "sulle",
+    "per",
+    "tra",
+    "fra",
+    "il",
+    "lo",
+    "la",
+    "i",
+    "gli",
+    "le",
+    "un",
+    "uno",
+    "una",
+    "d",
+    "l"
+  ]);
+  function normalizeText(str) {
+    if (!str) return "";
+    return String(str).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9_\s]/g, " ").replace(/\s+/g, " ").trim();
+  }
+  function buildSearchCorpus(f) {
+    const parts = [
+      f.id || "",
+      f.name || "",
+      f.formula || "",
+      f.topic || "",
+      ...f.isolate || [],
+      f.hypotheses || "",
+      f.notes || "",
+      ...f.tags || [],
+      ...f.aliases || [],
+      ...f.keywords || []
+    ];
+    return normalizeText(parts.join(" "));
+  }
   function filterFormulas({ topic, search, difficulty } = {}) {
-    return FORMULAS.filter((f) => {
-      if (topic && f.topic !== topic) return false;
+    const normSearch = normalizeText(search);
+    const rawTokens = normSearch ? normSearch.split(" ").filter(Boolean) : [];
+    const filteredTokens = rawTokens.filter((t) => !STOP_WORDS.has(t));
+    const searchTokens = filteredTokens.length > 0 ? filteredTokens : rawTokens;
+    const matchesFormula = (f) => {
       if (difficulty && String(f.difficulty) !== String(difficulty)) return false;
-      if (search) {
-        const s = search.toLowerCase();
-        const hay = (f.name + " " + f.formula + " " + f.topic + " " + f.isolate.join(" ")).toLowerCase();
-        if (!hay.includes(s)) return false;
+      if (searchTokens.length > 0) {
+        const corpus = buildSearchCorpus(f);
+        const allTokensMatch = searchTokens.every((token) => {
+          if (corpus.includes(token)) return true;
+          const synonyms = SEARCH_SYNONYMS[token];
+          if (synonyms && synonyms.some((syn) => corpus.includes(normalizeText(syn)))) {
+            return true;
+          }
+          if (token === "suono" && (f.topic === "onde e acustica" || f.topic === "onde e suono" || corpus.includes("suono") || corpus.includes("acustic") || corpus.includes("doppler"))) {
+            return true;
+          }
+          if (token === "acustica" && (f.topic === "onde e acustica" || f.topic === "onde e suono" || corpus.includes("suono") || corpus.includes("acustic"))) {
+            return true;
+          }
+          return false;
+        });
+        if (!allTokensMatch) return false;
       }
       return true;
-    });
+    };
+    if (topic) {
+      const inTopicList = FORMULAS.filter((f) => f.topic === topic && matchesFormula(f));
+      if (inTopicList.length === 0 && searchTokens.length > 0) {
+        const globalList = FORMULAS.filter(matchesFormula);
+        if (globalList.length > 0) {
+          return globalList;
+        }
+      }
+      return inTopicList;
+    }
+    return FORMULAS.filter(matchesFormula);
   }
   function randomExercise() {
     const f = FORMULAS[Math.floor(Math.random() * FORMULAS.length)];
@@ -4731,13 +5688,14 @@
       interactive = false,
       showImplicitDen = false
     } = opts;
+    const memberOpts = { ...opts, eq: eq2 };
     if (!interactive) {
-      const left = renderNode(eq2.left, "left", opts);
-      const right = renderNode(eq2.right, "right", opts);
+      const left = renderNode(eq2.left, "left", memberOpts);
+      const right = renderNode(eq2.right, "right", memberOpts);
       return `<span class="math-eq">${left}<span class="eq-sign" aria-label="uguale">=</span>${right}</span>`;
     }
-    const leftMember = renderMember(eq2.left, "left", opts);
-    const rightMember = renderMember(eq2.right, "right", opts);
+    const leftMember = renderMember(eq2.left, "left", memberOpts);
+    const rightMember = renderMember(eq2.right, "right", memberOpts);
     return `<div class="math-eq interactive-math-eq ${showImplicitDen ? "show-implicit-denominators" : ""}">  <div class="math-member-wrap math-member-left">${leftMember}</div>  <div class="eq-sign-wrap"><span class="eq-sign" aria-label="uguale">=</span></div>  <div class="math-member-wrap math-member-right">${rightMember}</div></div>`;
   }
   function insertionSlot(side, slot) {
@@ -4758,17 +5716,52 @@
     const numContent = renderNode(node, side, opts);
     return `<div class="math-member-content member-no-frac" data-side="${side}">  ${adjacentDropzone}  <div class="member-num dropzone" data-side="${side}" data-slot="num" title="Membro di ${side === "left" ? "sinistra" : "destra"}">${numContent}${numSlot}</div>  <div class="dynamic-fraction-wrapper" data-side="${side}">    <div class="dynamic-frac-bar"></div>    <div class="dynamic-frac-den dropzone" data-side="${side}" data-slot="den" title="Rilascia qui al denominatore per dividere">      <span class="dropzone-label"><span class="dropzone-icon">\xF7</span> rilascia al denominatore</span>${denSlot}    </div>  </div></div>`;
   }
+  function hasFraction(n) {
+    if (!n) return false;
+    const u = unwrap(n);
+    if (u.type === "Div") return true;
+    if (u.args) return u.args.some(hasFraction);
+    if (u.arg) return hasFraction(u.arg);
+    if (u.base && hasFraction(u.base)) return true;
+    if (u.exp && hasFraction(u.exp)) return true;
+    if (u.num && hasFraction(u.num)) return true;
+    if (u.den && hasFraction(u.den)) return true;
+    return false;
+  }
   function renderNode(node, id, opts) {
     const raw = node;
     if (raw && raw.type === "Group") {
-      const inner = renderNode(raw.arg, id, { ...opts, hideSign: false });
-      return `<span class="node-group-parens"><span class="group-paren">(</span>${inner}<span class="group-paren">)</span></span>`;
+      const u = unwrap(raw.arg);
+      if (u.type === "Div" && !opts.isPowBase) {
+        return renderNode(raw.arg, id, opts);
+      }
+      if ((u.type === "Num" || u.type === "Var") && !opts.isPowBase) {
+        return renderNode(raw.arg, id, opts);
+      }
+      if ((id.endsWith("/num") || id.endsWith("/den")) && !opts.isPowBase) {
+        return renderNode(raw.arg, id, opts);
+      }
+      const side2 = id.startsWith("left") ? "left" : "right";
+      const isDen2 = id.includes("/den");
+      const slot2 = isDen2 ? "den" : "num";
+      const hasFrac = hasFraction(raw.arg);
+      const isDraggable = !!opts.interactive;
+      const groupSyntax = toPretty(u, 0);
+      const groupPretty = prettyVar(groupSyntax);
+      const dragAttrs = isDraggable ? ` draggable="true" data-var-name="${escapeHtml(groupSyntax)}" data-side="${side2}" data-slot="${slot2}" data-node-type="${u.type}" title="Trascina l'intero blocco (${escapeHtml(groupPretty)})"` : "";
+      const dragCls = isDraggable ? " draggable-token math-term-group math-factor-group" : "";
+      const inner = renderNode(raw.arg, id, { ...opts, interactive: false, hideSign: false, isPowBase: false });
+      const cls = "node-group-parens" + (hasFrac ? " has-frac" : "") + dragCls;
+      return `<span class="${cls}" data-id="${id}"${dragAttrs}><span class="group-paren">(</span>${inner}<span class="group-paren">)</span></span>`;
     }
     node = unwrap(node);
     const selected = opts.selectedId === id ? " selected" : "";
     const isTarget = opts.targetVar && node.type === "Var" && node.name === opts.targetVar;
     const dim = opts.dimIds && opts.dimIds.has(id) ? " dimmed" : "";
-    const span = (inner, extraClass, extraId, extraAttrs = "") => `<span class="math-node ${extraClass || ""}${selected}${dim}" data-id="${extraId || id}"${extraAttrs}>${inner}</span>`;
+    const span = (inner, extraClass, extraId, extraAttrs = "") => {
+      const baseClass = opts.isInsideCompound ? extraClass || "" : `math-node ${extraClass || ""}${selected}${dim}`;
+      return `<span class="${baseClass}" data-id="${extraId || id}"${extraAttrs}>${inner}</span>`;
+    };
     const side = id.startsWith("left") ? "left" : "right";
     const isDen = id.includes("/den");
     const slot = isDen ? "den" : "num";
@@ -4802,25 +5795,55 @@
             );
           }
         }
+        const isWholeDen = isDen && (id.endsWith("/den") || !id.includes("/Mul"));
+        const isWholeFracNum = id.endsWith("/num") && !id.includes("/Mul") && !id.includes("/Add") && !id.includes("/Sub");
+        const isDraggableDenOrNum = !!opts.interactive && (isWholeDen || isWholeFracNum);
+        const childOpts = isDraggableDenOrNum ? { ...opts, interactive: false } : opts;
         const inner = node.args.map((a, i) => {
-          const neg = unwrap(a).type === "Neg";
+          const u = unwrap(a);
+          const isNeg = u.type === "Neg" || u.type === "Num" && u.value < 0;
+          const bodyNode = u.type === "Neg" ? u.arg : u.type === "Num" && u.value < 0 ? { type: "Num", value: -u.value } : a;
           const path = id + "/" + node.type + i;
-          if (i === 0) return renderNode(a, path, opts);
-          const minus = isSub ? !neg : neg;
-          const child = neg ? renderNode(a, path, { ...opts, hideSign: true }) : renderNode(a, path, opts);
-          return `<span class="op">${minus ? "\u2212" : "+"}</span>` + child;
+          if (i === 0) {
+            if (isNeg) return `<span class="op">\u2212</span>` + renderNode(bodyNode, path, childOpts);
+            if (u.type === "Num" && u.value === 0 && node.args.length > 1) {
+              return `<span class="neutral-fade-wrap">${renderNode(a, path, childOpts)}<span class="op neutral-fade-op">+</span></span>`;
+            }
+            return renderNode(a, path, childOpts);
+          }
+          const minus = isSub ? !isNeg : isNeg;
+          const child = renderNode(bodyNode, path, childOpts);
+          const opSymbol = minus ? "\u2212" : "+";
+          if (u.type === "Num" && u.value === 0 && node.args.length > 1) {
+            return `<span class="neutral-fade-wrap"><span class="op neutral-fade-op">${opSymbol}</span>${child}</span>`;
+          }
+          return `<span class="op">${opSymbol}</span>` + child;
         }).join("");
-        return span(inner, isSub ? "node-sub" : "node-add");
+        let dragAttrs = "";
+        let dragCls = "";
+        if (isDraggableDenOrNum) {
+          const syntax = toPretty(node, 0);
+          const pretty = prettyVar(syntax);
+          dragAttrs = ` draggable="true" data-var-name="${escapeHtml(syntax)}" data-side="${side}" data-slot="${slot}" data-node-type="${node.type}" title="${isWholeDen ? `Trascina il denominatore (${escapeHtml(pretty)}) al numeratore dell'altro membro` : `Trascina il numeratore (${escapeHtml(pretty)}) al denominatore dell'altro membro`}"`;
+          dragCls = " draggable-token math-term-group math-factor-group";
+        }
+        return span(inner, (isSub ? "node-sub" : "node-add") + dragCls, id, dragAttrs);
       }
       case "Mul": {
         const isDraggable = !!opts.interactive;
-        const mulSyntax = node.args.map((a) => toPretty(unwrap(a), 0)).join("*");
+        const mulSyntax = node.args.map((a) => {
+          const u = unwrap(a);
+          if (u.type === "Add" || u.type === "Sub") return `(${toPretty(u, 0)})`;
+          return toPretty(u, 0);
+        }).join("*");
         const mulPretty = prettyVar(mulSyntax);
-        const isParentAddOrSub = id.includes("/Add") || id.includes("/Sub") || id === "left" || id === "right";
-        const dragAttrs = isDraggable && isParentAddOrSub ? ` draggable="true" data-var-name="${escapeHtml(mulSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="Mul" title="Trascina l'intero termine ${escapeHtml(mulPretty)}"` : "";
-        const dragCls = isDraggable && isParentAddOrSub ? " draggable-token math-term-group" : "";
+        const isParentAddOrSub = id.includes("/Add") || id.includes("/Sub");
+        const isWholeMember = id === side || id === `${side}/num` || id === `${side}/den`;
+        const canDragGroup = isDraggable && (isParentAddOrSub || isWholeMember);
+        const dragAttrs = canDragGroup ? ` draggable="true" data-var-name="${escapeHtml(mulSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="Mul" title="Trascina l'intero blocco ${escapeHtml(mulPretty)}"` : "";
+        const dragCls = canDragGroup ? " draggable-token math-term-group" : "";
         return span(
-          (isDraggable && isParentAddOrSub ? `<span class="term-group-tag" title="Termine composto: trascina per spostarlo tutto insieme">\u{1F4E6}</span>` : "") + renderMulArgs(node.args, id, opts),
+          (canDragGroup ? `<span class="term-group-tag" title="Termine composto: trascina per spostarlo tutto insieme">\u{1F4E6}</span>` : "") + renderMulArgs(node.args, id, opts),
           "node-mul" + dragCls,
           id,
           dragAttrs
@@ -4839,7 +5862,13 @@
         const dragAttrs = isDraggable ? ` draggable="true" data-var-name="${escapeHtml(powText)}" data-side="${side}" data-slot="${slot}" data-node-type="Pow" title="Trascina l'intera potenza ${escapeHtml(prettyVar(powText))}"` : "";
         const dragCls = isDraggable ? " draggable-token draggable-pow" : "";
         const targetCls = isTarget2 ? " node-target" : "";
-        const baseHtml = renderNode(node.base, id + "/base", { ...opts, interactive: false });
+        let baseHtml = renderNode(node.base, id + "/base", { ...opts, interactive: false, isPowBase: true });
+        const uBase = unwrap(node.base);
+        if (node.base.type !== "Group" && (uBase.type === "Add" || uBase.type === "Sub" || uBase.type === "Mul" || uBase.type === "Div")) {
+          const hasFrac = hasFraction(uBase);
+          const cls = "node-group-parens" + (hasFrac ? " has-frac" : "");
+          baseHtml = `<span class="${cls}"><span class="group-paren">(</span>${baseHtml}<span class="group-paren">)</span></span>`;
+        }
         const expText = node.exp.type === "Num" ? escapeHtml(String(node.exp.value)) : toPretty(node.exp, 0);
         return span(
           `<span class="pow-base">${baseHtml}</span><sup class="node-exp">${escapeHtml(expText)}</sup>`,
@@ -4849,10 +5878,16 @@
         );
       }
       case "Sqrt": {
-        const bodyContent = renderNode(node.arg, id + "/arg", opts);
+        const isDraggable = !!opts.interactive;
+        const sqrtSyntax = toPretty(node, 0);
+        const dragAttrs = isDraggable ? ` draggable="true" data-var-name="${escapeHtml(sqrtSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="Sqrt" title="Trascina la radice ${escapeHtml(prettyVar(sqrtSyntax))}"` : "";
+        const dragCls = isDraggable ? " draggable-token" : "";
+        const bodyContent = renderNode(node.arg, id + "/arg", { ...opts, interactive: false });
         return span(
           `<span class="math-radical"><svg class="radical-surd" viewBox="0 0 16 36" preserveAspectRatio="none" aria-hidden="true"><path d="M 2 20 L 5.5 17.5 L 9 32 L 15 2 L 16 2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg><span class="radical-body">${bodyContent}</span></span>`,
-          "node-sqrt"
+          "node-sqrt" + dragCls,
+          id,
+          dragAttrs
         );
       }
       case "Sin":
@@ -4862,11 +5897,18 @@
       case "Asin":
       case "Acos":
       case "Atan":
-      case "Exp":
+      case "Exp": {
+        const isDraggable = !!opts.interactive;
+        const fnSyntax = toPretty(node, 0);
+        const dragAttrs = isDraggable ? ` draggable="true" data-var-name="${escapeHtml(fnSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="${node.type}" title="Trascina la funzione ${escapeHtml(prettyVar(fnSyntax))}"` : "";
+        const dragCls = isDraggable ? " draggable-token" : "";
         return span(
-          `<span class="fn-name">${escapeHtml(FUNC_PRETTY[node.type])}</span><span class="fn-args">(${renderNode(node.arg, id + "/arg", opts)})</span>`,
-          "node-fn node-" + node.type.toLowerCase()
+          `<span class="fn-name">${escapeHtml(FUNC_PRETTY[node.type])}</span><span class="fn-args">(${renderNode(node.arg, id + "/arg", { ...opts, interactive: false })})</span>`,
+          "node-fn node-" + node.type.toLowerCase() + dragCls,
+          id,
+          dragAttrs
         );
+      }
       case "Neg": {
         const u = unwrap(node.arg);
         const body = renderNode(node.arg, id + "/arg", { ...opts, hideSign: false });
@@ -4884,7 +5926,48 @@
     }
   }
   function renderMulArgs(args, id, opts) {
-    return args.map((a, i) => renderNode(a, id + "/Mul" + i, opts)).join('<span class="op">\xB7</span>');
+    const hasMultiple = args.length > 1;
+    const side = id.startsWith("left") ? "left" : "right";
+    const isDen = id.includes("/den");
+    const slot = isDen ? "den" : "num";
+    const rendered = args.map((a, i) => {
+      const u = unwrap(a);
+      const isNeutralOne = hasMultiple && u.type === "Num" && u.value === 1;
+      const isCompoundFactor = u.type === "Add" || u.type === "Sub";
+      let nodeHtml = renderNode(isCompoundFactor ? u : a, id + "/Mul" + i, isCompoundFactor ? { ...opts, interactive: false, isInsideCompound: true } : opts);
+      if (isCompoundFactor) {
+        const hasFrac = hasFraction(u);
+        const isDraggable = !!opts.interactive;
+        const factorSyntax = toPretty(u, 0);
+        const factorPretty = prettyVar(factorSyntax);
+        const dragAttrs = isDraggable ? ` draggable="true" data-var-name="${escapeHtml(factorSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="${u.type}" title="Trascina l'intero blocco (${escapeHtml(factorPretty)})"` : "";
+        const dragCls = isDraggable ? " draggable-token math-term-group math-factor-group" : "";
+        const isSelected = opts.selectedId === id + "/Mul" + i ? " selected" : "";
+        const cls = `math-node node-group-parens${isSelected}` + (hasFrac ? " has-frac" : "") + dragCls;
+        nodeHtml = `<span class="${cls}" data-id="${id + "/Mul" + i}"${dragAttrs} tabindex="0" role="button" aria-label="Blocco (${escapeHtml(factorPretty)})"><span class="group-paren">(</span>${nodeHtml}<span class="group-paren">)</span></span>`;
+      }
+      return {
+        html: nodeHtml,
+        isNeutralOne
+      };
+    });
+    let html = "";
+    for (let i = 0; i < rendered.length; i++) {
+      const item = rendered[i];
+      if (item.isNeutralOne) {
+        if (i === 0 && rendered.length > 1) {
+          html += `<span class="neutral-fade-wrap">${item.html}<span class="op neutral-fade-op">\xB7</span></span>`;
+        } else {
+          html += `<span class="neutral-fade-wrap"><span class="op neutral-fade-op">\xB7</span>${item.html}</span>`;
+        }
+      } else {
+        if (i > 0 && !rendered[i - 1].isNeutralOne) {
+          html += '<span class="op">\xB7</span>';
+        }
+        html += item.html;
+      }
+    }
+    return html;
   }
   var SUB_DIGITS = {
     "0": "\u2080",
@@ -4968,6 +6051,8 @@
     xcm: "x_cm",
     Req: "R_eq",
     Ceq: "C_eq",
+    Ec: "E_c",
+    Ep: "E_p",
     Vmax: "V_max",
     Veff: "V_eff",
     Ieff: "I_eff",
@@ -5002,6 +6087,8 @@
       PhiE: ["\u03A6", "E"],
       at: ["a", "t"],
       ac: ["a", "c"],
+      Ec: ["E", "c"],
+      Ep: ["E", "p"],
       Ec1: ["E", "c1"],
       Ec2: ["E", "c2"],
       Ep1: ["E", "p1"],
@@ -5076,8 +6163,13 @@
     if (u.type === "Num" && String(u.value) === String(targetVarName)) return true;
     if (toPretty(u, 0) === targetVarName) return true;
     if (u.type === "Mul") {
-      const s1 = u.args.map((x) => toPretty(unwrap(x), 0)).join("*");
-      const s2 = u.args.map((x) => toPretty(unwrap(x), 0)).join("\xB7");
+      const mapArg = (x) => {
+        const ux = unwrap(x);
+        if (ux.type === "Add" || ux.type === "Sub") return `(${toPretty(ux, 0)})`;
+        return toPretty(ux, 0);
+      };
+      const s1 = u.args.map(mapArg).join("*");
+      const s2 = u.args.map(mapArg).join("\xB7");
       if (s1 === targetVarName || s2 === targetVarName) return true;
     }
     if (u.type === "Pow") {
@@ -5086,7 +6178,8 @@
       if (p1 === targetVarName || p2 === targetVarName) return true;
     }
     try {
-      const parsed = parseExpression(targetVarName);
+      const normalized = targetVarName.replace(/[₀-₉]/g, (c) => ({ "\u2080": "0", "\u2081": "1", "\u2082": "2", "\u2083": "3", "\u2084": "4", "\u2085": "5", "\u2086": "6", "\u2087": "7", "\u2088": "8", "\u2089": "9" })[c] || c).replace(/·/g, "*").replace(/θ/g, "theta").replace(/−/g, "-");
+      const parsed = parseExpression(normalized);
       if (parsed && structurallyEqual(u, parsed)) return true;
     } catch {
     }
@@ -5099,7 +6192,8 @@
     }
     if (expr2.type === "Neg") {
       const inner = removeFactorFromExpr(expr2.arg, targetVarName);
-      if (inner === expr2.arg) return expr2;
+      if (structurallyEqual(inner, expr2.arg)) return expr2;
+      if (inner.type === "Num" && inner.value === 1) return Num(-1);
       return { type: "Neg", arg: inner };
     }
     if (expr2.type === "Mul") {
@@ -5110,6 +6204,19 @@
         if (remaining.length === 1) return remaining[0];
         return Mul(...remaining);
       }
+      const negIdx = expr2.args.findIndex((a) => {
+        const u = unwrap(a);
+        if (u.type !== "Neg") return false;
+        const inner = removeFactorFromExpr(u.arg, targetVarName);
+        return !structurallyEqual(inner, u.arg);
+      });
+      if (negIdx !== -1) {
+        const u = unwrap(expr2.args[negIdx]);
+        const newInner = removeFactorFromExpr(u.arg, targetVarName);
+        const newArg = newInner.type === "Num" && newInner.value === 1 ? Num(-1) : { type: "Neg", arg: newInner };
+        const newArgs = expr2.args.map((a, i) => i === negIdx ? newArg : a);
+        return Mul(...newArgs);
+      }
       idx = expr2.args.findIndex((a) => {
         const u = unwrap(a);
         return u.type === "Num" && u.value < 0 && String(-u.value) === String(targetVarName);
@@ -5117,6 +6224,19 @@
       if (idx !== -1) {
         const newArgs = expr2.args.map((a, i) => i === idx ? Num(-1) : a);
         if (newArgs.length === 1) return newArgs[0];
+        return Mul(...newArgs);
+      }
+      const divIdx = expr2.args.findIndex((a) => {
+        const u = unwrap(a);
+        if (u.type !== "Div") return false;
+        const res = removeFactorFromExpr(u.num, targetVarName);
+        return !structurallyEqual(res, u.num);
+      });
+      if (divIdx !== -1) {
+        const u = unwrap(expr2.args[divIdx]);
+        const newNum = removeFactorFromExpr(u.num, targetVarName);
+        const newDiv = Div(newNum, u.den);
+        const newArgs = expr2.args.map((a, i) => i === divIdx ? newDiv : a);
         return Mul(...newArgs);
       }
     }
@@ -5128,6 +6248,9 @@
   }
   function addFactorToDenominator(expr2, factorNode) {
     expr2 = unwrap(expr2);
+    if (expr2.type === "Neg") {
+      return { type: "Neg", arg: addFactorToDenominator(expr2.arg, factorNode) };
+    }
     if (expr2.type === "Div") {
       const curDen = unwrap(expr2.den);
       let newDen;
@@ -5142,10 +6265,23 @@
   }
   function removeFactorFromDenominator(expr2, targetVarName) {
     expr2 = unwrap(expr2);
+    if (expr2.type === "Neg") {
+      const inner = removeFactorFromDenominator(expr2.arg, targetVarName);
+      return structurallyEqual(inner, expr2.arg) ? expr2 : { type: "Neg", arg: inner };
+    }
     if (expr2.type === "Div") {
       const den = unwrap(expr2.den);
       if (isMatch(den, targetVarName)) {
         return expr2.num;
+      }
+      if (den.type === "Neg") {
+        const inner = removeFactorFromExpr(den.arg, targetVarName);
+        if (!structurallyEqual(inner, den.arg)) {
+          if (inner.type === "Num" && inner.value === 1) {
+            return { type: "Neg", arg: expr2.num };
+          }
+          return Div(expr2.num, { type: "Neg", arg: inner });
+        }
       }
       if (den.type === "Mul") {
         const idx = den.args.findIndex((a) => isMatch(a, targetVarName));
@@ -5153,6 +6289,19 @@
           const remaining = den.args.filter((_, i) => i !== idx);
           const newDen = remaining.length === 1 ? remaining[0] : Mul(...remaining);
           return Div(expr2.num, newDen);
+        }
+        const negIdx = den.args.findIndex((a) => {
+          const u = unwrap(a);
+          if (u.type !== "Neg") return false;
+          const inner = removeFactorFromExpr(u.arg, targetVarName);
+          return !structurallyEqual(inner, u.arg);
+        });
+        if (negIdx !== -1) {
+          const u = unwrap(den.args[negIdx]);
+          const newInner = removeFactorFromExpr(u.arg, targetVarName);
+          const newArg = newInner.type === "Num" && newInner.value === 1 ? Num(-1) : { type: "Neg", arg: newInner };
+          const newArgs = den.args.map((a, i) => i === negIdx ? newArg : a);
+          return Div(expr2.num, Mul(...newArgs));
         }
       }
     }
@@ -5186,6 +6335,9 @@
   }
   function addFactorToNumerator(expr2, factorNode) {
     expr2 = unwrap(expr2);
+    if (expr2.type === "Neg") {
+      return { type: "Neg", arg: addFactorToNumerator(expr2.arg, factorNode) };
+    }
     if (expr2.type === "Num" && expr2.value === 1) {
       return factorNode;
     }
@@ -5214,14 +6366,196 @@
     const remaining = terms.filter((_, i) => i !== idx);
     const newFrom = remaining.length === 0 ? Num(0) : rebuildSum(remaining);
     const movedNode = matched.node;
-    const newTo = matched.sign === "-" ? Add(toExpr, movedNode) : Sub(toExpr, movedNode);
-    return { newFrom: canonical(newFrom), newTo, sign: matched.sign };
+    let newTo;
+    const isToZero = isNum(unwrap(toExpr)) && unwrap(toExpr).value === 0;
+    if (isToZero) {
+      newTo = matched.sign === "-" ? movedNode : Neg(movedNode);
+    } else {
+      newTo = matched.sign === "-" ? Add(toExpr, movedNode) : Sub(toExpr, movedNode);
+    }
+    return { newFrom: canonical(newFrom), newTo: canonical(newTo), sign: matched.sign };
+  }
+  function treeContainsTarget(node, targetVarName) {
+    if (!node) return false;
+    const u = unwrap(node);
+    if (isMatch(u, targetVarName)) return true;
+    if (u.type === "Var" && u.name === targetVarName) return true;
+    if (u.type === "Num" && String(u.value) === String(targetVarName)) return true;
+    if (toPretty(u, 0) === targetVarName) return true;
+    if (u.args) return u.args.some((a) => treeContainsTarget(a, targetVarName));
+    if (u.arg) return treeContainsTarget(u.arg, targetVarName);
+    if (u.num && treeContainsTarget(u.num, targetVarName)) return true;
+    if (u.den && treeContainsTarget(u.den, targetVarName)) return true;
+    if (u.base && treeContainsTarget(u.base, targetVarName)) return true;
+    if (u.exp && treeContainsTarget(u.exp, targetVarName)) return true;
+    return false;
+  }
+  function findMulSum(node, varName, prettyName) {
+    const un = unwrap(node);
+    if (!un) return null;
+    if (un.type === "Mul") {
+      for (let i = 0; i < un.args.length; i++) {
+        const a = unwrap(un.args[i]);
+        if ((a.type === "Add" || a.type === "Sub") && treeContainsTarget(a, varName)) {
+          const others = un.args.filter((_, idx) => idx !== i);
+          const multText = others.map((f) => prettyVar(toPretty(f, 0))).join(" \xB7 ") || "un altro fattore";
+          const sumText = prettyVar(toPretty(a, 0));
+          return {
+            error: `Non puoi spostare "${prettyName}" con la regola del trasporto perch\xE9 si trova all'interno della parentesi (${sumText}) moltiplicata per ${multText}! Devi prima dividere entrambi i membri per ${multText} per liberare la parentesi, oppure puoi trascinare l'intero blocco (${sumText}) al denominatore dell'altro membro.`,
+            hint: `Trascina prima ${multText} al denominatore dell'altro membro per dividere per ${multText}, oppure trascina l'intera parentesi (${sumText}) al denominatore!`
+          };
+        }
+      }
+    }
+    if (un.args) {
+      for (const a of un.args) {
+        const r = findMulSum(a, varName, prettyName);
+        if (r) return r;
+      }
+    }
+    if (un.arg) return findMulSum(un.arg, varName, prettyName);
+    if (un.num) return findMulSum(un.num, varName, prettyName);
+    if (un.den) return findMulSum(un.den, varName, prettyName);
+    return null;
+  }
+  function findDivSum(node, varName, prettyName) {
+    const un = unwrap(node);
+    if (!un) return null;
+    if (un.type === "Div") {
+      const num = unwrap(un.num);
+      if ((num.type === "Add" || num.type === "Sub") && treeContainsTarget(num, varName)) {
+        const denText = prettyVar(toPretty(un.den, 0));
+        return {
+          error: `Non puoi trasportare "${prettyName}" con cambio di segno finch\xE9 si trova al numeratore della frazione con denominatore ${denText}! Devi prima moltiplicare entrambi i membri per ${denText} per eliminare la frazione.`,
+          hint: `Trascina prima ${denText} al numeratore dell'altro membro per moltiplicare per ${denText}.`
+        };
+      }
+    }
+    if (un.args) {
+      for (const a of un.args) {
+        const r = findDivSum(a, varName, prettyName);
+        if (r) return r;
+      }
+    }
+    if (un.arg) return findDivSum(un.arg, varName, prettyName);
+    if (un.num) return findDivSum(un.num, varName, prettyName);
+    if (un.den) return findDivSum(un.den, varName, prettyName);
+    return null;
+  }
+  function findFunctionArg(node, varName, prettyName) {
+    const un = unwrap(node);
+    if (!un) return null;
+    if (["Sin", "Cos", "Tan", "Ln", "Exp", "Asin", "Acos", "Atan", "Sqrt"].includes(un.type)) {
+      if (treeContainsTarget(un.arg, varName)) {
+        const fnName = un.type === "Sqrt" ? "radice quadrata" : `funzione ${un.type.toLowerCase()}`;
+        return {
+          error: `"${prettyName}" si trova all'interno dell'argomento di una ${fnName}! Non puoi trasportarlo con il 1\xB0 principio finch\xE9 non applichi l'operazione inversa per liberare l'argomento.`,
+          hint: `Isola prima la ${fnName} ed applica l'operazione inversa dal tastierino.`
+        };
+      }
+    }
+    if (un.args) {
+      for (const a of un.args) {
+        const r = findFunctionArg(a, varName, prettyName);
+        if (r) return r;
+      }
+    }
+    if (un.arg) return findFunctionArg(un.arg, varName, prettyName);
+    if (un.num) return findFunctionArg(un.num, varName, prettyName);
+    if (un.den) return findFunctionArg(un.den, varName, prettyName);
+    return null;
+  }
+  function findPow(node, varName, prettyName) {
+    const un = unwrap(node);
+    if (!un) return null;
+    if (un.type === "Pow") {
+      if (treeContainsTarget(un.base, varName) || treeContainsTarget(un.exp, varName)) {
+        const powText = prettyVar(toPretty(un, 0));
+        return {
+          error: `"${prettyName}" fa parte della potenza ${powText}! Non puoi trasportarlo singolarmente con il 1\xB0 principio.`,
+          hint: `Trascina l'intera potenza oppure isolala ed estrai la radice.`
+        };
+      }
+    }
+    if (un.args) {
+      for (const a of un.args) {
+        const r = findPow(a, varName, prettyName);
+        if (r) return r;
+      }
+    }
+    if (un.arg) return findPow(un.arg, varName, prettyName);
+    if (un.num) return findPow(un.num, varName, prettyName);
+    if (un.den) return findPow(un.den, varName, prettyName);
+    return null;
+  }
+  function diagnoseInvalidAdditiveMove(fromExpr, varName, prettyName) {
+    const u = unwrap(fromExpr);
+    const mulSumRes = findMulSum(u, varName, prettyName);
+    if (mulSumRes) return mulSumRes;
+    const divSumRes = findDivSum(u, varName, prettyName);
+    if (divSumRes) return divSumRes;
+    const fnRes = findFunctionArg(u, varName, prettyName);
+    if (fnRes) return fnRes;
+    const powRes = findPow(u, varName, prettyName);
+    if (powRes) return powRes;
+    if (u.type === "Add" || u.type === "Sub") {
+      for (const term of u.args) {
+        const uTerm = unwrap(term);
+        if (uTerm.type === "Mul" && treeContainsTarget(uTerm, varName)) {
+          const termText = prettyVar(toPretty(uTerm, 0));
+          return {
+            error: `Non puoi trasportare solo "${prettyName}": fa parte del termine moltiplicativo composto "${termText}". Trascina l'intero blocco del termine per trasportarlo con cambio di segno!`,
+            hint: `Trascina l'intero termine "${termText}" oppure isolalo prima dagli altri addendi.`
+          };
+        }
+      }
+    }
+    const testFactor = removeFactorFromExpr(fromExpr, varName);
+    if (!structurallyEqual(testFactor, fromExpr)) {
+      return {
+        error: `"${prettyName}" \xE8 un fattore che moltiplica l'intero membro, non un termine additivo! Per il 2\xB0 principio di equivalenza (divisione), per trasportarlo rilascialo sotto la linea di frazione (nello slot denominatore).`,
+        hint: `Trascina "${prettyName}" sotto la linea di frazione del membro opposto per dividere.`
+      };
+    }
+    return {
+      error: `Operazione non valida: "${prettyName}" non pu\xF2 essere spostato con il 1\xB0 principio di equivalenza perch\xE9 non \xE8 un addendo isolato dell'intero membro.`,
+      hint: `Verifica le precedenze delle operazioni: parentesi, moltiplicazioni o frazioni bloccano il trasporto diretto dell'addendo.`
+    };
+  }
+  function diagnoseInvalidDivision(fromExpr, varName, prettyName) {
+    const u = unwrap(fromExpr);
+    const mulSumRes = findMulSum(u, varName, prettyName);
+    if (mulSumRes) return mulSumRes;
+    const divSumRes = findDivSum(u, varName, prettyName);
+    if (divSumRes) return divSumRes;
+    const fnRes = findFunctionArg(u, varName, prettyName);
+    if (fnRes) return fnRes;
+    const powRes = findPow(u, varName, prettyName);
+    if (powRes) return powRes;
+    if (u.type === "Add" || u.type === "Sub") {
+      return {
+        error: `Non puoi dividere per "${prettyName}" finch\xE9 fa parte di una somma con altri termini! Trascinalo accanto al membro opposto per trasportarlo con cambio di segno (1\xB0 principio).`,
+        hint: `Trascina "${prettyName}" nello slot \xB1 accanto al membro opposto per trasportarlo.`
+      };
+    }
+    return {
+      error: `"${prettyName}" non \xE8 un fattore moltiplicativo dell'intero membro: non puoi dividere per esso.`,
+      hint: `Puoi dividere solo per fattori che moltiplicano l'intero membro o l'intero numeratore.`
+    };
   }
   function applyDragMove({ currentEq, varName, nodeType, fromSide, fromSlot, targetSide, targetSlot }) {
     if (!currentEq || !varName) {
       return { ok: false, error: "Dati trascinamento non validi." };
     }
     if (fromSide === targetSide) {
+      if (fromSlot === "num" && targetSlot === "den") {
+        const oppMember = fromSide === "right" ? "primo membro (sotto la linea di frazione a sinistra)" : "secondo membro (sotto la linea di frazione a destra)";
+        return {
+          ok: false,
+          error: `Non puoi spostare ${prettyVar(varName)} al denominatore dello stesso membro! Per il 2\xB0 principio di equivalenza, se dividi per ${prettyVar(varName)}, esso va al denominatore del membro OPPOSTO (${oppMember}).`,
+          hint: `Trascina ${prettyVar(varName)} sotto la linea di frazione del membro opposto!`
+        };
+      }
       return {
         ok: false,
         error: "Trascina la variabile dall'altra parte dell'uguale per applicare la regola del trasporto!"
@@ -5230,24 +6564,31 @@
     let factorNode;
     if (nodeType === "Num") {
       factorNode = Num(Number(varName));
-    } else if (nodeType === "Pow" || nodeType === "Mul") {
+    } else {
       try {
-        factorNode = parseExpression(varName);
+        const cleanVar = varName.replace(/[₀-₉]/g, (c) => ({ "\u2080": "0", "\u2081": "1", "\u2082": "2", "\u2083": "3", "\u2084": "4", "\u2085": "5", "\u2086": "6", "\u2087": "7", "\u2088": "8", "\u2089": "9" })[c] || c).replace(/−/g, "-").replace(/·/g, "*");
+        factorNode = parseExpression(cleanVar);
       } catch {
         factorNode = Var(varName);
       }
-    } else {
-      factorNode = Var(varName);
     }
     const prettyName = prettyVar(varName);
     let leftExpr = currentEq.left;
     let rightExpr = currentEq.right;
     if (fromSlot === "den" && targetSlot === "num") {
+      const fromExpr = fromSide === "left" ? leftExpr : rightExpr;
+      const updatedFrom = removeFactorFromDenominator(fromExpr, varName);
+      if (structurallyEqual(updatedFrom, fromExpr)) {
+        return {
+          ok: false,
+          error: `"${prettyName}" non \xE8 un fattore dell'intero denominatore: non puoi moltiplicare per esso finch\xE9 fa parte di una somma.`
+        };
+      }
       if (fromSide === "right") {
-        rightExpr = removeFactorFromDenominator(rightExpr, varName);
+        rightExpr = updatedFrom;
         leftExpr = addFactorToNumerator(leftExpr, factorNode);
       } else {
-        leftExpr = removeFactorFromDenominator(leftExpr, varName);
+        leftExpr = updatedFrom;
         rightExpr = addFactorToNumerator(rightExpr, factorNode);
       }
       const newEq = Eq(canonical(leftExpr), canonical(rightExpr));
@@ -5264,17 +6605,27 @@
     if (fromSlot === "num" && targetSlot === "den") {
       const fromExpr = fromSide === "left" ? leftExpr : rightExpr;
       const uFrom = unwrap(fromExpr);
-      if ((uFrom.type === "Add" || uFrom.type === "Sub") && !isMatch(uFrom, varName)) {
+      const rawFrom = uFrom.type === "Neg" ? unwrap(uFrom.arg) : uFrom;
+      if (rawFrom.type === "Add" || rawFrom.type === "Sub") {
         return {
           ok: false,
           error: `Non puoi dividere per "${prettyName}" finch\xE9 fa parte di una somma con altri termini! Trascinalo accanto al membro opposto per trasportarlo con cambio di segno.`
         };
       }
+      const updatedFrom = removeFactorFromExpr(fromExpr, varName);
+      if (structurallyEqual(updatedFrom, fromExpr)) {
+        const diag = diagnoseInvalidDivision(fromExpr, varName, prettyName);
+        return {
+          ok: false,
+          error: diag.error,
+          hint: diag.hint
+        };
+      }
       if (fromSide === "left") {
-        leftExpr = removeFactorFromExpr(leftExpr, varName);
+        leftExpr = updatedFrom;
         rightExpr = addFactorToDenominator(rightExpr, factorNode);
       } else {
-        rightExpr = removeFactorFromExpr(rightExpr, varName);
+        rightExpr = updatedFrom;
         leftExpr = addFactorToDenominator(leftExpr, factorNode);
       }
       const newEq = Eq(canonical(leftExpr), canonical(rightExpr));
@@ -5307,9 +6658,33 @@
           conditions: []
         };
       }
+      if (targetSlot === "num") {
+        const updatedFrom = removeFactorFromExpr(fromExpr, varName);
+        if (!structurallyEqual(updatedFrom, fromExpr)) {
+          if (fromSide === "left") {
+            leftExpr = updatedFrom;
+            rightExpr = addFactorToDenominator(rightExpr, factorNode);
+          } else {
+            rightExpr = updatedFrom;
+            leftExpr = addFactorToDenominator(leftExpr, factorNode);
+          }
+          const newEq = Eq(canonical(leftExpr), canonical(rightExpr));
+          return {
+            ok: true,
+            principle: "second",
+            newEq,
+            ruleName: `Trasporto di ${prettyName} al denominatore`,
+            rulePrinciple: `Secondo principio di equivalenza: dividendo entrambi i membri per ${prettyName}, compare la linea di frazione e ${prettyName} va al denominatore (${varName} \u2260 0).`,
+            steps: [`Trascino ${prettyName} all'altro membro: compare la linea di frazione e divido entrambi i membri per ${prettyName}.`],
+            conditions: [`${varName} \u2260 0`]
+          };
+        }
+      }
+      const diag = diagnoseInvalidAdditiveMove(fromExpr, varName, prettyName);
       return {
         ok: false,
-        error: `"${prettyName}" \xE8 un fattore moltiplicativo, non un termine additivo! Per dividerlo rilascialo sotto la linea di frazione (nello slot denominatore).`
+        error: diag.error,
+        hint: diag.hint
       };
     }
     return {
@@ -5317,6 +6692,7 @@
       error: `Mossa non valida per ${prettyName}. Rilascia sul denominatore per dividere o nello slot accanto per trasportare il termine.`
     };
   }
+  var _arrowSvg = null;
   var _arrowContainer = null;
   var _arrowPath = null;
   var _arrowHideTimer = null;
@@ -5371,15 +6747,15 @@
     const shorten = Math.min(14, len * 0.12);
     const ex = x2 - (x2 - x1) / len * shorten;
     const ey = y2 - (y2 - y1) / len * shorten;
+    const slot = targetEl.dataset.slot || targetEl.closest("[data-slot]") && targetEl.closest("[data-slot]").dataset.slot;
+    const isTransport = slot === "add" || targetEl.classList.contains("dropzone-adjacent") || !!targetEl.closest(".dropzone-adjacent");
     let d;
-    if (!crossesMember) {
-      const dx = (ex - x1) / 3;
-      const dy = (ey - y1) / 3;
-      d = `M ${x1} ${y1} C ${x1 + dx} ${y1 + dy} ${x1 + 2 * dx} ${y1 + 2 * dy} ${ex} ${ey}`;
-    } else {
+    if (isTransport) {
       const midX = (x1 + ex) / 2;
       const topY = Math.min(y1, ey) - 72;
       d = `M ${x1} ${y1} C ${midX} ${topY} ${midX} ${topY} ${ex} ${ey}`;
+    } else {
+      d = `M ${x1} ${y1} L ${ex} ${ey}`;
     }
     try {
       _arrowPath.style.d = `path("${d}")`;
@@ -5609,6 +6985,163 @@
     });
   }
 
+  // js/physics-units.js
+  var PHYSICAL_QUANTITIES = {
+    // --- Cinematica e Geometria ---
+    s: { name: "Spazio / Distanza percorsa", unit: "m", sample: 100 },
+    s0: { name: "Posizione iniziale", unit: "m", sample: 0 },
+    x: { name: "Posizione / Coordinata", unit: "m", sample: 50 },
+    x0: { name: "Posizione iniziale", unit: "m", sample: 0 },
+    y: { name: "Altezza / Ordinata", unit: "m", sample: 20 },
+    y0: { name: "Altezza iniziale", unit: "m", sample: 0 },
+    h: { name: "Altezza", unit: "m", sample: 25 },
+    d: { name: "Distanza / Spessore", unit: "m", sample: 10 },
+    r: { name: "Raggio", unit: "m", sample: 5 },
+    R: { name: "Raggio / Resistenza", unit: "m", sample: 10 },
+    // overridden by topic
+    l: { name: "Lunghezza", unit: "m", sample: 2 },
+    L: { name: "Lunghezza / Lavoro", unit: "m", sample: 4 },
+    Delta_s: { name: "Spostamento", unit: "m", sample: 80 },
+    Delta_x: { name: "Spostamento", unit: "m", sample: 60 },
+    // --- Tempo ---
+    t: { name: "Tempo / Istante", unit: "s", sample: 4 },
+    t0: { name: "Istante iniziale", unit: "s", sample: 0 },
+    Delta_t: { name: "Intervallo di tempo", unit: "s", sample: 5 },
+    T: { name: "Periodo / Temperatura", unit: "s", sample: 2 },
+    // --- Velocità e Accelerazione ---
+    v: { name: "Velocit\xE0", unit: "m/s", sample: 20 },
+    v0: { name: "Velocit\xE0 iniziale", unit: "m/s", sample: 15 },
+    v_f: { name: "Velocit\xE0 finale", unit: "m/s", sample: 30 },
+    v0x: { name: "Componente orizzontale velocit\xE0", unit: "m/s", sample: 12 },
+    v0y: { name: "Componente verticale velocit\xE0", unit: "m/s", sample: 16 },
+    vm: { name: "Velocit\xE0 media", unit: "m/s", sample: 25 },
+    a: { name: "Accelerazione", unit: "m/s\xB2", sample: 2 },
+    ac: { name: "Accelerazione centripeta", unit: "m/s\xB2", sample: 4 },
+    at: { name: "Accelerazione tangenziale", unit: "m/s\xB2", sample: 1.5 },
+    g: { name: "Accelerazione di gravit\xE0", unit: "m/s\xB2", sample: 9.81 },
+    // --- Dinamica e Forze ---
+    m: { name: "Massa", unit: "kg", sample: 5 },
+    M: { name: "Massa maggiore", unit: "kg", sample: 50 },
+    m1: { name: "Massa 1", unit: "kg", sample: 2 },
+    m2: { name: "Massa 2", unit: "kg", sample: 8 },
+    F: { name: "Forza", unit: "N", sample: 40 },
+    Fp: { name: "Forza peso", unit: "N", sample: 49.05 },
+    Fe: { name: "Forza elastica", unit: "N", sample: 30 },
+    Fa: { name: "Forza di attrito", unit: "N", sample: 10 },
+    Fc: { name: "Forza centripeta", unit: "N", sample: 25 },
+    k: { name: "Costante elastica", unit: "N/m", sample: 250 },
+    mu: { name: "Coefficiente di attrito", unit: "adimensionale", sample: 0.25 },
+    p: { name: "Pressione / Quantit\xE0 di moto", unit: "Pa", sample: 101325 },
+    // --- Lavoro, Energia, Potenza ---
+    E: { name: "Energia totale", unit: "J", sample: 600 },
+    Ek: { name: "Energia cinetica", unit: "J", sample: 400 },
+    Ep: { name: "Energia potenziale", unit: "J", sample: 200 },
+    U: { name: "Energia potenziale / interna", unit: "J", sample: 350 },
+    W: { name: "Lavoro", unit: "J", sample: 240 },
+    Q: { name: "Calore / Carica", unit: "J", sample: 1200 },
+    P: { name: "Potenza", unit: "W", sample: 1500 },
+    // --- Termodinamica e Fluidi ---
+    V: { name: "Volume / Tensione", unit: "m\xB3", sample: 0.05 },
+    rho: { name: "Densit\xE0", unit: "kg/m\xB3", sample: 1e3 },
+    c: { name: "Calore specifico", unit: "J/(kg\xB7K)", sample: 4186 },
+    cs: { name: "Calore specifico", unit: "J/(kg\xB7K)", sample: 900 },
+    lambda: { name: "Calore latente / Lunghezza d'onda", unit: "J/kg", sample: 333500 },
+    lam: { name: "Lunghezza d'onda", unit: "m", sample: 0.02 },
+    n: { name: "Numero di moli", unit: "mol", sample: 2 },
+    Delta_T: { name: "Variazione di temperatura", unit: "K", sample: 15 },
+    // --- Onde, Suono e Acustica ---
+    f: { name: "Frequenza", unit: "Hz", sample: 440 },
+    fp: { name: "Frequenza percepita (Doppler)", unit: "Hz", sample: 480 },
+    vs: { name: "Velocit\xE0 della sorgente sonora", unit: "m/s", sample: 25 },
+    vo: { name: "Velocit\xE0 dell'osservatore", unit: "m/s", sample: 15 },
+    fb: { name: "Frequenza di battimento", unit: "Hz", sample: 4 },
+    f1: { name: "Frequenza sorgente 1", unit: "Hz", sample: 440 },
+    f2: { name: "Frequenza sorgente 2", unit: "Hz", sample: 444 },
+    omega: { name: "Velocit\xE0 angolare", unit: "rad/s", sample: 6.28 },
+    theta: { name: "Angolo", unit: "rad", sample: 0.5236 },
+    alpha: { name: "Accelerazione angolare / Angolo", unit: "rad/s\xB2", sample: 1.5 },
+    phi: { name: "Fase / Angolo", unit: "rad", sample: 0 },
+    // --- Elettromagnetismo ---
+    I: { name: "Intensit\xE0 di corrente", unit: "A", sample: 2.5 },
+    i: { name: "Intensit\xE0 di corrente", unit: "A", sample: 1.2 },
+    q: { name: "Carica elettrica", unit: "C", sample: 5e-3 },
+    q1: { name: "Carica 1", unit: "C", sample: 2e-3 },
+    q2: { name: "Carica 2", unit: "C", sample: 4e-3 },
+    B: { name: "Induzione magnetica (campo B)", unit: "T", sample: 0.5 },
+    C: { name: "Capacit\xE0 elettrica", unit: "F", sample: 1e-4 },
+    Delta_V: { name: "Differenza di potenziale", unit: "V", sample: 12 },
+    Req: { name: "Resistenza equivalente", unit: "\u03A9", sample: 20 },
+    R1: { name: "Resistenza 1", unit: "\u03A9", sample: 30 },
+    R2: { name: "Resistenza 2", unit: "\u03A9", sample: 60 }
+  };
+  function getQuantityInfo(symbol, formulaEntry = null) {
+    const topic = formulaEntry && formulaEntry.topic ? formulaEntry.topic.toLowerCase() : "";
+    const formulaId = formulaEntry && formulaEntry.id ? formulaEntry.id.toLowerCase() : "";
+    if (symbol === "R" || symbol === "Req" || symbol === "R1" || symbol === "R2") {
+      if (topic.includes("elettricita") || topic.includes("circuito") || topic.includes("elettromagnetismo") || formulaId.includes("ohm")) {
+        return { name: "Resistenza elettrica", unit: "\u03A9", sample: 10 };
+      }
+    }
+    if (symbol === "V" || symbol === "Delta_V") {
+      if (topic.includes("elettricita") || topic.includes("circuito") || topic.includes("elettromagnetismo") || formulaId.includes("ohm")) {
+        return { name: "Differenza di potenziale (tensione)", unit: "V", sample: 12 };
+      }
+      if (topic.includes("termo") || topic.includes("fluid") || formulaId.includes("gas") || formulaId.includes("boyle")) {
+        return { name: "Volume", unit: "m\xB3", sample: 0.04 };
+      }
+    }
+    if (symbol === "T") {
+      if (topic.includes("termo") || formulaId.includes("gas") || formulaId.includes("calor")) {
+        return { name: "Temperatura assoluta", unit: "K", sample: 300 };
+      }
+      return { name: "Periodo di oscillazione", unit: "s", sample: 2 };
+    }
+    if (symbol === "Q") {
+      if (topic.includes("elettr") || formulaId.includes("coulomb") || formulaId.includes("condensatore")) {
+        return { name: "Carica elettrica", unit: "C", sample: 0.02 };
+      }
+      return { name: "Quantit\xE0 di calore", unit: "J", sample: 1e3 };
+    }
+    if (symbol === "p") {
+      if (formulaId.includes("quantita-di-moto") || topic.includes("urti")) {
+        return { name: "Quantit\xE0 di moto", unit: "kg\xB7m/s", sample: 25 };
+      }
+      return { name: "Pressione", unit: "Pa", sample: 101325 };
+    }
+    if (symbol === "k") {
+      if (topic.includes("elettr") || formulaId.includes("coulomb")) {
+        return { name: "Costante di Coulomb", unit: "N\xB7m\xB2/C\xB2", sample: 899e7 };
+      }
+      return { name: "Costante elastica", unit: "N/m", sample: 200 };
+    }
+    if (symbol === "I") {
+      if (topic.includes("suono") || topic.includes("onde") || topic.includes("acust")) {
+        return { name: "Intensit\xE0 sonora", unit: "W/m\xB2", sample: 1e-3 };
+      }
+    }
+    if (PHYSICAL_QUANTITIES[symbol]) {
+      return { ...PHYSICAL_QUANTITIES[symbol] };
+    }
+    return {
+      name: `Grandezza ${prettyVar(symbol)}`,
+      unit: "u.m.",
+      sample: 5
+    };
+  }
+  function formatResultNumber(val) {
+    if (val === null || val === void 0 || !Number.isFinite(val)) return "\u2014";
+    if (Math.abs(val) === 0) return "0";
+    const absVal = Math.abs(val);
+    if (absVal >= 1e5 || absVal < 1e-3) {
+      return val.toExponential(3).replace("e+", " \xD7 10^").replace("e-", " \xD7 10^-");
+    }
+    if (Number.isInteger(val)) {
+      return String(val);
+    }
+    const rounded = parseFloat(val.toFixed(4));
+    return String(rounded);
+  }
+
   // js/tests.js
   var counter = 0;
   function test(name, fn) {
@@ -5676,6 +7209,14 @@
         return "nessun errore lanciato";
       } catch (e) {
         return e instanceof ParseError ? true : "tipo di errore errato";
+      }
+    }));
+    results.push(test('Parser: errore su "v = s/(0)" (divisione per zero con parentesi)', () => {
+      try {
+        eq("v = s/(0)");
+        return "nessun errore lanciato";
+      } catch (e) {
+        return e instanceof ParseError ? true : "tipo di errore errato: " + e.name;
       }
     }));
     results.push(test(
@@ -5964,6 +7505,18 @@
       const text = html.replace(/<[^>]+>/g, "");
       return text.includes("(a") && text.includes("b)") ? true : `reso come ${text}`;
     }));
+    results.push(test("Notazione: 1/2 in un prodotto non mostra parentesi (es. U = (1/2)*k*x^2)", () => {
+      const html = renderEquation(eq("U = (1/2)*k*x^2"), {});
+      return !html.includes("node-group-parens") ? true : `contiene ancora parentesi: ${html}`;
+    }));
+    results.push(test("Notazione: numeratore/denominatore intero non mostra parentesi superflue (es. (2*v0)/g)", () => {
+      const html = renderEquation(eq("t = (2*v0)/g"), {});
+      return !html.includes("node-group-parens") ? true : `contiene parentesi nel numeratore: ${html}`;
+    }));
+    results.push(test("Notazione: frazione elevata a potenza mantiene le parentesi centrate (has-frac)", () => {
+      const html = renderEquation(eq("y = (a/b)^2"), {});
+      return html.includes("node-group-parens") && html.includes("has-frac") ? true : `mancano parentesi has-frac: ${html}`;
+    }));
     results.push(test("Croce: (2\xB7L)/2 semplifica il 2 e resta L = b", () => {
       const r = crossCancel(eq("(2*L)/2 = b"), "left/num/Mul0", "left/den");
       if (!r.ok) return `rifiutata: ${r.error}`;
@@ -6062,6 +7615,22 @@
       if (!res.ok) return "rifiutata: " + res.error;
       return equivalentEq(res.equation, eq("m*(v - v0) = J")) ? true : "atteso m*(v-v0) = J, ottenuto " + toPretty(res.equation, 0);
     }));
+    results.push(test("Regola: propriet\xE0 distributiva Doppler fp*v = f*(v - vo) \u2192 fp*v = f*v - f*vo", () => {
+      const startEq = eq("fp * v = f * (v - vo)");
+      if (!canDistribute(startEq.right)) return "atteso canDistribute true per membro destro";
+      const res = applyRule(RULES.distribute, startEq, { side: "right" });
+      if (!res.ok) return "rifiutata: " + res.error;
+      return equivalentEq(res.equation, eq("fp * v = f * v - f * vo")) ? true : "atteso fp*v = f*v - f*vo, ottenuto " + toPretty(res.equation, 0);
+    }));
+    results.push(test("Regola: raccoglimento a fattori per Doppler fp*v - f*v = -f*vo \u2192 v*(fp - f) = -f*vo", () => {
+      const startEq = eq("fp * v - f * v = -f * vo");
+      const commonV = findCommonFactor(startEq.left, "v");
+      if (!commonV || commonV.name !== "v") return "atteso fattore comune v, trovato: " + JSON.stringify(commonV);
+      const res = applyRule(RULES.factorCommon, startEq, { side: "left", common: commonV, commonText: "v" });
+      if (!res.ok) return "rifiutata: " + res.error;
+      return equivalentEq(res.equation, eq("v * (fp - f) = -f * vo")) ? true : "atteso v*(fp - f) = -f*vo, ottenuto " + toPretty(res.equation, 0);
+    }));
+    results.push(test("Risoluzione: effetto Doppler fp = (f*(v - vo))/v isola v", () => autoResolve("fp = (f * (v - vo)) / v", "v")));
     results.push(test("Risoluzione: sin(theta) = F/G isola theta", () => autoResolve("sin(theta) = F/G", "theta")));
     results.push(test("Risoluzione: ln(x) = a isola x", () => autoResolve("ln(x) = a", "x")));
     results.push(test("Risoluzione: nessuna equazione va in ciclo infinito", () => {
@@ -6083,6 +7652,549 @@
             curr = res.equation;
           }
         }
+      }
+      return true;
+    }));
+    results.push(test("Reciproci: x = 0 rifiutato per divisione per zero", () => {
+      const res = reciprocalEquation(eq("x = 0"));
+      return !res.ok ? true : "accettata ma x=0 non deve essere invertibile";
+    }));
+    results.push(test("Regola: invertProportion rifiutata con numeratore o denominatore nullo", () => {
+      const res1 = applyRule(RULES.invertProportion, eq("0/b = c/d"), {});
+      if (res1.ok) return "accettata inversione con 0 al numeratore";
+      return true;
+    }));
+    results.push(test("Regola: powBoth con esponente 0 rifiutata", () => {
+      const res = applyRule(RULES.powBoth, eq("x = y"), { value: Num(0), valueText: "0" });
+      return !res.ok ? true : "accettata elevazione a potenza 0";
+    }));
+    results.push(test("Regola: sqrtBoth con radicando negativo x^2 = -9 rifiutata", () => {
+      const res = applyRule(RULES.sqrtBoth, eq("x^2 = -9"), { side: "left", insideVar: "x" });
+      return !res.ok ? true : "accettata radice di indice pari su radicando negativo";
+    }));
+    results.push(test("Tastierino: sqrt su membro negativo x = -4 rifiutata", () => {
+      const res = applyKeypadOperation(eq("x = -4"), "sqrt", null, null, "x");
+      return !res.ok ? true : "accettata radice del tastierino su membro negativo";
+    }));
+    results.push(test("Regola: invertFunction sin(x) = 2 rifiutata fuori dal dominio [-1, 1]", () => {
+      const res = applyRule(RULES.invertFunction, eq("sin(x) = 2"), { side: "left", fnNode: Sin(Var("x")) });
+      return !res.ok ? true : "accettata arcsin di valore > 1";
+    }));
+    results.push(test("Tastierino: arcsin su sin(theta) = F/G libera theta = asin(F/G)", () => {
+      const res = applyKeypadOperation(eq("sin(theta) = F/G"), "asin", null, null, "theta");
+      if (!res.ok) return "rifiutata: " + res.error;
+      return equivalentEq(res.equation, eq("theta = asin(F/G)")) ? true : "atteso theta = asin(F/G), ottenuto " + toPretty(res.equation, 0);
+    }));
+    results.push(test("Tastierino: arccos su cos(theta) = a/b libera theta = acos(a/b)", () => {
+      const res = applyKeypadOperation(eq("cos(theta) = a/b"), "acos", null, null, "theta");
+      if (!res.ok) return "rifiutata: " + res.error;
+      return equivalentEq(res.equation, eq("theta = acos(a/b)")) ? true : "atteso theta = acos(a/b), ottenuto " + toPretty(res.equation, 0);
+    }));
+    results.push(test("Tastierino: arctan su tan(theta) = mu libera theta = atan(mu)", () => {
+      const res = applyKeypadOperation(eq("tan(theta) = mu"), "atan", null, null, "theta");
+      if (!res.ok) return "rifiutata: " + res.error;
+      return equivalentEq(res.equation, eq("theta = atan(mu)")) ? true : "atteso theta = atan(mu), ottenuto " + toPretty(res.equation, 0);
+    }));
+    results.push(test("Tastierino: arcsin rifiutata con spiegazione se sin non e isolato", () => {
+      const res = applyKeypadOperation(eq("v = -A*omega*sin(omega*t)"), "asin", null, null, "t");
+      if (res.ok) return "accettata operazione arcsin con sin non isolato";
+      return res.error.includes("isolare la funzione") ? true : "messaggio inatteso: " + res.error;
+    }));
+    results.push(test("Tastierino: arcsin rifiutata se non c'e alcuna funzione seno nell'equazione", () => {
+      const res = applyKeypadOperation(eq("v = s/t"), "asin", null, null, "s");
+      if (res.ok) return "accettata arcsin su equazione senza seno";
+      return res.error.includes("Nessuna funzione") ? true : "messaggio inatteso: " + res.error;
+    }));
+    results.push(test("Croce additiva: a - b - c = a preserva segni negativi -b - c = 0", () => {
+      const e = eq("a - b - c = a");
+      const r = crossCancel(e, "left/Sub0", "right");
+      if (!r.ok) return "rifiutata: " + r.error;
+      return equivalentEq(r.newEq, eq("-b - c = 0")) ? true : "atteso -b - c = 0, ottenuto " + toPretty(r.newEq, 0);
+    }));
+    results.push(test("Croce: (s/t)*t = v semplifica t producendo s = v", () => {
+      const e = eq("(s/t)*t = v");
+      const r = crossCancel(e, "left/Mul0/den", "left/Mul1");
+      if (!r.ok) return "rifiutata: " + r.error;
+      return equivalentEq(r.newEq, eq("s = v")) ? true : "atteso s = v, ottenuto " + toPretty(r.newEq, 0);
+    }));
+    results.push(test("Notazione: differenze con costanti si presentano come x - 3 e non + -3 o -3 + x", () => {
+      const exprAst = canonical(eq("x - 3 = y").left);
+      const pretty = toPretty(exprAst, 0);
+      if (pretty.includes("+ -") || pretty.startsWith("-3 +")) {
+        return "notazione non ottimale: " + pretty;
+      }
+      return true;
+    }));
+    results.push(test("Notazione: Ec ed Ep vengono formattati con pedici corretti in LaTeX", () => {
+      const latex = toLatex(eq("Ec = Ep"));
+      if (!latex.includes("E_c") || !latex.includes("E_p")) {
+        return "LaTeX non contiene pedici corretti: " + latex;
+      }
+      return true;
+    }));
+    results.push(test("Drag: (3/2)*x = y trascinando 3 al denominatore opposto produce (1/2)*x", () => {
+      const res = applyDragMove({
+        currentEq: eq("(3/2)*x = y"),
+        varName: "3",
+        nodeType: "Num",
+        fromSide: "left",
+        fromSlot: "num",
+        targetSide: "right",
+        targetSlot: "den"
+      });
+      if (!res.ok) return "drag fallito: " + (res.error || "");
+      return equivalentEq(res.newEq, eq("(1/2)*x = y/3")) ? true : "atteso (1/2)*x = y/3, ottenuto " + toPretty(res.newEq, 0);
+    }));
+    results.push(test("Drag: addendo in numeratore di frazione (a+b)/c = y non puo essere trascinato", () => {
+      const res = applyDragMove({
+        currentEq: eq("(a+b)/c = y"),
+        varName: "a",
+        nodeType: "Var",
+        fromSide: "left",
+        fromSlot: "num",
+        targetSide: "right",
+        targetSlot: "den"
+      });
+      return !res.ok ? true : "accettato trascinamento addendo da numeratore a frazione!";
+    }));
+    results.push(test('Drag: fattore composto tra parentesi fp*v = f*(v + vo) trascinando "v + vo" al denominatore', () => {
+      const e = eq("fp*v = f*(v + vo)");
+      const res = applyDragMove({
+        currentEq: e,
+        varName: "v + vo",
+        nodeType: "Add",
+        fromSide: "right",
+        fromSlot: "num",
+        targetSide: "left",
+        targetSlot: "den"
+      });
+      if (!res.ok) return "drag fallito: " + (res.error || "");
+      if (res.newEq.right.type !== "Var" || res.newEq.right.name !== "f") {
+        return "destra non \xE8 f: " + toPretty(res.newEq.right, 0);
+      }
+      const den = unwrap(res.newEq.left.den);
+      if (den.type !== "Add" || den.args.length !== 2) {
+        return "denominatore non \xE8 Add(v, vo): " + JSON.stringify(den);
+      }
+      const html = renderEquation(e, { interactive: true });
+      if (!html.includes('data-var-name="v + vo"') || !html.includes("draggable-token")) {
+        return "HTML non rende (v + vo) come draggable-token: " + html;
+      }
+      return true;
+    }));
+    results.push(test('Drag: denominatore composto (fp*v)/(v + vo) = f trascinando "v + vo" al numeratore', () => {
+      const e = canonical(eq("(fp*v)/(v + vo) = f"));
+      const res = applyDragMove({
+        currentEq: e,
+        varName: "v + vo",
+        nodeType: "Add",
+        fromSide: "left",
+        fromSlot: "den",
+        targetSide: "right",
+        targetSlot: "num"
+      });
+      if (!res.ok) return "drag dal denominatore fallito: " + (res.error || "");
+      const right = unwrap(res.newEq.right);
+      if (right.type !== "Mul" || right.args.length !== 2) {
+        return "destra non \xE8 Mul(f, v + vo): " + toPretty(right, 0);
+      }
+      const denHtml = renderEquation(e, { interactive: true });
+      if (!denHtml.includes('data-var-name="v + vo"') || !denHtml.includes('data-slot="den"')) {
+        return "HTML denominatore non ha draggable-token per (v + vo): " + denHtml;
+      }
+      return true;
+    }));
+    results.push(test("Drag: termine intero al secondo membro f*v in fp*v - fp*vs = f*v \xE8 trascinabile come blocco \u{1F4E6}", () => {
+      const e = canonical(eq("fp*v - fp*vs = f*v"));
+      const html = renderEquation(e, { interactive: true });
+      if (!html.includes('data-var-name="f*v"') || !html.includes("math-term-group")) {
+        return 'f*v a secondo membro non ha data-var-name="f*v" o math-term-group: ' + html;
+      }
+      const res = applyDragMove({
+        currentEq: e,
+        varName: "f*v",
+        nodeType: "Mul",
+        fromSide: "right",
+        fromSlot: "num",
+        targetSide: "left",
+        targetSlot: "add"
+      });
+      if (!res.ok) return "spostamento f*v a primo membro fallito: " + (res.error || "");
+      const right = unwrap(res.newEq.right);
+      if (right.type !== "Num" || right.value !== 0) {
+        return "destra non \xE8 0: " + toPretty(right, 0);
+      }
+      return true;
+    }));
+    results.push(test("Calcolo Numerico: evalWithEnv calcola frazione s/v con valori numerici", () => {
+      const expr2 = parseExpression("s/v");
+      const res = evalWithEnv(expr2, { s: 100, v: 20 });
+      return res.ok && res.value === 5 ? true : `atteso 5, ottenuto: ${JSON.stringify(res)}`;
+    }));
+    results.push(test("Calcolo Numerico: divisione per zero intercettata correttamente", () => {
+      const expr2 = parseExpression("s/t");
+      const res = evalWithEnv(expr2, { s: 50, t: 0 });
+      return !res.ok && res.error.includes("zero") ? true : `non intercettata divisione per zero: ${JSON.stringify(res)}`;
+    }));
+    results.push(test("Calcolo Numerico: radice quadrata e potenze sqrt((2*E)/k)", () => {
+      const expr2 = parseExpression("sqrt((2*E)/k)");
+      const res = evalWithEnv(expr2, { E: 200, k: 4 });
+      return res.ok && res.value === 10 ? true : `atteso 10, ottenuto: ${JSON.stringify(res)}`;
+    }));
+    results.push(test("Calcolo Numerico: substituteVarsInAst sostituisce correttamente le variabili", () => {
+      const expr2 = parseExpression("a + b");
+      const sub = substituteVarsInAst(expr2, { a: 3, b: 7 });
+      return sub.args[0].value === 3 && sub.args[1].value === 7 ? true : "sostituzione fallita";
+    }));
+    results.push(test("Unita SI: risoluzione unita e quantita fisiche", () => {
+      const infoS = getQuantityInfo("s");
+      const infoV = getQuantityInfo("v");
+      const infoA = getQuantityInfo("a");
+      return infoS.unit === "m" && infoV.unit === "m/s" && infoA.unit === "m/s\xB2" ? true : "unita non corrispondenti";
+    }));
+    results.push(test("Unita SI: formattazione numeri decimali e scientifici", () => {
+      const f1 = formatResultNumber(4.5);
+      const f2 = formatResultNumber(12);
+      const f3 = formatResultNumber(25e5);
+      return f1 === "4.5" && f2 === "12" && f3.includes("10^") ? true : `formattazione inattesa: ${f1}, ${f2}, ${f3}`;
+    }));
+    results.push(test("Drag: trasporto fattore A da prodotto con segno meno -A*omega*sin(...) al denominatore", () => {
+      const eq2 = parseEquation("v = -A*omega*sin(omega*t + phi)");
+      const res = applyDragMove({
+        currentEq: eq2,
+        varName: "A",
+        nodeType: "Var",
+        fromSide: "right",
+        fromSlot: "num",
+        targetSide: "left",
+        targetSlot: "den"
+      });
+      if (!res.ok) return `mossa rifiutata: ${res.error}`;
+      const leftPretty = toPretty(res.newEq.left, 0);
+      const rightPretty = toPretty(res.newEq.right, 0);
+      return (leftPretty === "v/A" || leftPretty === "(v)/A") && rightPretty.startsWith("\u2212") ? true : `risultato inatteso: ${leftPretty} = ${rightPretty}`;
+    }));
+    results.push(test("Drag: trasporto fattore -A intero da prodotto al denominatore", () => {
+      const eq2 = parseEquation("v = -A*omega*sin(omega*t + phi)");
+      const res = applyDragMove({
+        currentEq: eq2,
+        varName: "-A",
+        nodeType: "Var",
+        fromSide: "right",
+        fromSlot: "num",
+        targetSide: "left",
+        targetSlot: "den"
+      });
+      if (!res.ok) return `mossa rifiutata: ${res.error}`;
+      return true;
+    }));
+    results.push(test("Elementi neutri: isGoalReached riconosce 1*x e x*1 come x isolata", () => {
+      const e1 = parseEquation("1*x = y");
+      const e2 = parseEquation("x*1 = y");
+      const e3 = parseEquation("x + 0 = y");
+      if (!isGoalReached(e1, "x")) return "1*x non riconosciuto come isolato";
+      if (!isGoalReached(e2, "x")) return "x*1 non riconosciuto come isolato";
+      if (!isGoalReached(e3, "x")) return "x+0 non riconosciuto come isolato";
+      return true;
+    }));
+    results.push(test("Elementi neutri: stripNeutrals elimina 1 moltiplicativo e +0 additivo", () => {
+      const e1 = parseEquation("1*x = y + 0");
+      const stripped = stripNeutrals(e1);
+      return equivalentEq(stripped, parseEquation("x = y")) ? true : "atteso x = y, ottenuto " + toPretty(stripped, 0);
+    }));
+    results.push(test("Elementi neutri: stripNeutrals preserva 1 nelle differenze come 1 - cos(theta)", () => {
+      const e = parseEquation("c*dlam*m = h*(1 - cos(theta))");
+      const stripped = stripNeutrals(e);
+      return toPretty(stripped.right, 0).includes("1") ? true : "il numero 1 in 1 - cos(theta) \xE8 stato rimosso erroneamente: " + toPretty(stripped, 0);
+    }));
+    results.push(test("Drag: trascinando un fattore su membro orizzontale applica il 2\xB0 principio (divisione)", () => {
+      const eq2 = parseEquation("c*dlam*m = h*(1 - cos(theta))");
+      const res = applyDragMove({
+        currentEq: eq2,
+        varName: "h",
+        nodeType: "Var",
+        fromSide: "right",
+        fromSlot: "num",
+        targetSide: "left",
+        targetSlot: "num"
+        // rilasciato sul membro di sinistra
+      });
+      if (!res.ok) return "mossa rifiutata: " + res.error;
+      if (res.newEq.left.type !== "Div") return "la divisione non \xE8 stata applicata: " + toPretty(res.newEq, 0);
+      return true;
+    }));
+    results.push(test("Tastierino: arccos con 1*cos(theta) libera theta senza bloccare", () => {
+      const eq2 = parseEquation("1*cos(theta) = k");
+      const res = applyKeypadOperation(eq2, "acos", null, null, "theta");
+      if (!res.ok) return "rifiutata: " + res.error;
+      return equivalentEq(res.equation, parseEquation("theta = acos(k)")) ? true : "atteso theta = acos(k), ottenuto " + toPretty(res.equation, 0);
+    }));
+    results.push(test("Regola: cambio segno inverte -x = 5 in x = -5", () => {
+      const res = applyRule(RULES.changeSign, eq("-x = 5"), {});
+      if (!res.ok) return "regola fallita: " + res.error;
+      const str = toPretty(res.equation, 0);
+      return str === "x = -5" ? true : "atteso x = -5, ottenuto " + str;
+    }));
+    results.push(test("Regola: cambio segno inverte somma algebrica -v = -v0 + a*t", () => {
+      const res = applyRule(RULES.changeSign, eq("-v = -v0 + a*t"), {});
+      if (!res.ok) return "regola fallita: " + res.error;
+      return equivalentEq(res.equation, eq("v = v0 - a*t")) ? true : "atteso v = v0 - a*t, ottenuto " + toPretty(res.equation, 0);
+    }));
+    results.push(test("Regola: cambio segno applicata due volte ritorna all'equazione originale", () => {
+      const orig = eq("v - v0 = a*t");
+      const step1 = applyRule(RULES.changeSign, orig, {});
+      const step2 = applyRule(RULES.changeSign, step1.equation, {});
+      return equivalentEq(step2.equation, orig) ? true : "atteso " + toPretty(orig, 0) + ", ottenuto " + toPretty(step2.equation, 0);
+    }));
+    results.push(test("Raccoglimento: findCommonFactor individua m in J = m*v - m*v0", () => {
+      const common = findCommonFactor(expr("m*v - m*v0"), "m");
+      return common && common.name === "m" ? true : "m non individuata come fattore comune";
+    }));
+    results.push(test("Trigonometria: hasTrigConflict individua il conflitto di theta in a = g*(sin(theta) - mu*cos(theta))", () => {
+      const hasConflict = hasTrigConflict(expr("g*(sin(theta) - mu*cos(theta))"), "theta");
+      return hasConflict ? true : "conflitto trigonometrico su theta non rilevato";
+    }));
+    results.push(test("Trigonometria: suggestNextStep fornisce spiegazione didattica su theta in combinazione lineare", () => {
+      const sug = suggestNextStep(eq("a = g*(sin(theta) - mu*cos(theta))"), "theta");
+      return !sug.found && sug.message.includes("sin") && sug.message.includes("cos") ? true : "messaggio didattico non corretto: " + JSON.stringify(sug);
+    }));
+    results.push(test("Risoluzione: mu in a = g*(sin(theta) - mu*cos(theta)) viene isolata correttamente", () => {
+      let curr = eq("a = g*(sin(theta) - mu*cos(theta))");
+      for (let i = 0; i < 8; i++) {
+        if (isGoalReached(curr, "mu")) break;
+        const sug = suggestNextStep(curr, "mu");
+        if (!sug.found) return "passo non trovato al tentativo " + i;
+        const res = performAction(curr, sug.action);
+        if (!res.ok) return "azione fallita: " + res.error;
+        curr = res.equation;
+      }
+      return isGoalReached(curr, "mu") ? true : "mu non isolata: " + toPretty(curr, 0);
+    }));
+    results.push(test('Ricerca: "stevino" trova tutte le formule della legge di Stevino', () => {
+      const list = filterFormulas({ search: "stevino" });
+      const ids = list.map((f) => f.id);
+      if (!ids.includes("ph-rhoghh") || !ids.includes("stevino")) {
+        return `formule stevino mancanti: trovate ${ids.join(", ")}`;
+      }
+      return true;
+    }));
+    results.push(test('Ricerca: "archimede" trova spinta di Archimede e condizione di galleggiamento', () => {
+      const list = filterFormulas({ search: "archimede" });
+      const ids = list.map((f) => f.id);
+      if (!ids.includes("legge-archimede") || !ids.includes("galleggia")) {
+        return `formule archimede mancanti: trovate ${ids.join(", ")}`;
+      }
+      return true;
+    }));
+    results.push(test('Ricerca: "suono" restituisce tutte le formule di acustica e onde sonore', () => {
+      const list = filterFormulas({ search: "suono" });
+      const ids = list.map((f) => f.id);
+      const expected = [
+        "onda-v-lam-f",
+        "onda-periodo-frequenza",
+        "onda-v-lam-T",
+        "doppler-avvicinamento-sorgente",
+        "doppler-allontanamento-sorgente",
+        "doppler-avvicinamento-osservatore",
+        "doppler-allontanamento-osservatore",
+        "eco-suono",
+        "intensita-sonora",
+        "battimenti-sonori",
+        "canne-organo-aperte",
+        "corda-armonica"
+      ];
+      for (const exp of expected) {
+        if (!ids.includes(exp)) return `formula suono '${exp}' non trovata per query 'suono'`;
+      }
+      return list.length >= 12 ? true : `trovate solo ${list.length} formule`;
+    }));
+    results.push(test(`Ricerca: "doppler" trova le formule dell'effetto Doppler`, () => {
+      const list = filterFormulas({ search: "doppler" });
+      const ids = list.map((f) => f.id);
+      if (!ids.includes("doppler-avvicinamento-sorgente") || !ids.includes("doppler-avvicinamento-osservatore")) {
+        return `formule doppler mancanti: ${ids.join(", ")}`;
+      }
+      return true;
+    }));
+    results.push(test('Ricerca: "eco" trova la formula di riflessione ed eco del suono', () => {
+      const list = filterFormulas({ search: "eco" });
+      const ids = list.map((f) => f.id);
+      if (!ids.includes("eco-suono")) return `formula eco mancante: ${ids.join(", ")}`;
+      return true;
+    }));
+    results.push(test('Ricerca: normalizzazione con accenti e maiuscole "velocit\xE0 del suono"', () => {
+      const list = filterFormulas({ search: "Velocit\xE0 del Suono" });
+      const ids = list.map((f) => f.id);
+      if (!ids.includes("onda-v-lam-f")) return `formula v=lam*f mancante con ricerca accentata: ${ids.join(", ")}`;
+      return true;
+    }));
+    results.push(test("Ricerca: fallback globale se argomento selezionato non contiene la formula cercata", () => {
+      const list = filterFormulas({ topic: "cinematica", search: "stevino" });
+      const ids = list.map((f) => f.id);
+      if (!ids.includes("ph-rhoghh") && !ids.includes("stevino")) {
+        return `fallback globale fallito: trovate ${ids.join(", ")}`;
+      }
+      return true;
+    }));
+    results.push(test("Frazione di frazione: hasCompoundFraction riconosce frazioni di frazione e frazioni normali", () => {
+      const normal = eq("v = s/t");
+      if (hasCompoundFraction(normal.right)) return "s/t scambiata per frazione di frazione";
+      const A = Sub(Mul(Var("fp"), Var("p")), Var("f"));
+      const B = Mul(Var("f"), Var("vo"));
+      const compoundDoppler = Neg(Div(Num(1), Div(A, B)));
+      if (!hasCompoundFraction(compoundDoppler)) return "Doppler -1 / ((fp - f)/(f*vo)) non riconosciuta come frazione di frazione";
+      const c2 = Div(Num(1), Div(Var("a"), Var("b")));
+      if (!hasCompoundFraction(c2)) return "1 / (a/b) non riconosciuta";
+      const c3 = Div(Div(Var("a"), Var("b")), Var("c"));
+      if (!hasCompoundFraction(c3)) return "(a/b) / c non riconosciuta";
+      const c4 = Div(Div(Var("a"), Var("b")), Div(Var("c"), Var("d")));
+      if (!hasCompoundFraction(c4)) return "(a/b) / (c/d) non riconosciuta";
+      return true;
+    }));
+    results.push(test("Frazione di frazione: transformToReciprocalMul inverte il denominatore in moltiplicazione per la reciproca", () => {
+      const c1 = Div(Num(1), Div(Var("a"), Var("b")));
+      const s1 = transformToReciprocalMul(c1);
+      if (toPretty(s1, 0) !== "1\xB7(b/a)") return `atteso 1\xB7(b/a), ottenuto ${toPretty(s1, 0)}`;
+      const A = Sub(Mul(Var("fp"), Var("p")), Var("f"));
+      const B = Mul(Var("f"), Var("vo"));
+      const compoundDoppler = Neg(Div(Num(1), Div(A, B)));
+      const s2 = transformToReciprocalMul(compoundDoppler);
+      if (toPretty(s2, 0) !== "\u22121\xB7(f\xB7vo/(fp\xB7p \u2212 f))") {
+        return `atteso \u22121\xB7(f\xB7vo/(fp\xB7p \u2212 f)), ottenuto ${toPretty(s2, 0)}`;
+      }
+      return true;
+    }));
+    results.push(test("Frazione di frazione: getCompoundFractionSteps genera la sequenza didattica lenta a 3 passaggi", () => {
+      const A = Sub(Mul(Var("fp"), Var("p")), Var("f"));
+      const B = Mul(Var("f"), Var("vo"));
+      const dopplerEq = Eq(Var("v"), Neg(Div(Num(1), Div(A, B))));
+      const steps = getCompoundFractionSteps(dopplerEq, "v");
+      if (!steps) return "getCompoundFractionSteps ha restituito null per formula Doppler con frazione di frazione";
+      if (steps.targetVar !== "v") return `targetVar errato: ${steps.targetVar}`;
+      if (steps.step1Pretty !== "v = \u22121/((fp\xB7p \u2212 f)/(f\xB7vo))") return `step 1 errato: ${steps.step1Pretty}`;
+      if (steps.step2Pretty !== "v = \u22121\xB7(f\xB7vo/(fp\xB7p \u2212 f))") return `step 2 errato: ${steps.step2Pretty}`;
+      if (steps.step3Pretty !== "v = \u2212f\xB7vo/(fp\xB7p \u2212 f)") return `step 3 errato: ${steps.step3Pretty}`;
+      const normalEq = eq("v = s/t");
+      const noSteps = getCompoundFractionSteps(normalEq, "v");
+      if (noSteps !== null) return "atteso null per formula normale v = s/t";
+      return true;
+    }));
+    results.push(test("Obiettivo: isGoalReached rifiuta variabile presente in entrambi i membri (es. vo + fp*v/f = v)", () => {
+      const dopplerEq = eq("vo + (fp*v)/f = v");
+      if (isGoalReached(dopplerEq, "v") !== false) {
+        return "vo + (fp*v)/f = v non deve essere considerata risolta per v!";
+      }
+      const sug = suggestNextStep(dopplerEq, "v");
+      if (!sug.found || sug.action.id === "swap") {
+        return "suggestNextStep non deve proporre lo swap su una formula non ancora risolta: " + JSON.stringify(sug);
+      }
+      return true;
+    }));
+    results.push(test("Obiettivo: isGoalReached rifiuta variabile con segno negativo (es. -v0 = a*t - v o -x = 5)", () => {
+      const negEq = eq("-v0 = a*t - v");
+      if (isGoalReached(negEq, "v0") !== false) {
+        return "-v0 = a*t - v non deve essere considerata risolta per v0!";
+      }
+      const negX = eq("-x = 5");
+      if (isGoalReached(negX, "x") !== false) {
+        return "-x = 5 non deve essere considerata risolta per x!";
+      }
+      const sug = suggestNextStep(negEq, "v0");
+      if (!sug.found || sug.action.ruleKey !== "mulBoth") {
+        return "suggestNextStep deve proporre di moltiplicare per -1: " + JSON.stringify(sug);
+      }
+      return true;
+    }));
+    results.push(test("Obiettivo: ensureTargetOnFirstMember isola sempre la grandezza al primo membro", () => {
+      const eRight = eq("s/t = v");
+      const flipped = ensureTargetOnFirstMember(eRight, "v");
+      if (toPretty(flipped, 0) !== "v = s/t") {
+        return "Atteso v = s/t, ottenuto: " + toPretty(flipped, 0);
+      }
+      const eBoth = eq("vo + (fp*v)/f = v");
+      const unchangedBoth = ensureTargetOnFirstMember(eBoth, "v");
+      if (toPretty(unchangedBoth, 0) !== toPretty(eBoth, 0)) {
+        return "Formula con v in ambo i membri non deve essere invertita!";
+      }
+      return true;
+    }));
+    results.push(test("Drag: fattore composto tra parentesi (fp - f) in v*(fp - f) = -fp*vs \xE8 trascinabile per dividere", () => {
+      const e = eq("v*(fp - f) = -fp*vs");
+      const html = renderEquation(e, { interactive: true });
+      if (!html.includes('data-var-name="fp \u2212 f"') && !html.includes('data-var-name="fp - f"')) {
+        return "HTML non rende (fp - f) come draggable: " + html;
+      }
+      if (html.includes('data-var-name="v*fp \u2212 f"') || html.includes('data-var-name="v*fp - f"')) {
+        return "HTML non deve generare la sintassi corrotta v*fp - f: " + html;
+      }
+      const res = applyDragMove({
+        currentEq: e,
+        varName: "fp - f",
+        nodeType: "Sub",
+        fromSide: "left",
+        fromSlot: "num",
+        targetSide: "right",
+        targetSlot: "den"
+      });
+      if (!res.ok) return "drag di fp - f fallito: " + (res.error || "");
+      if (toPretty(res.newEq, 0) !== "v = \u2212fp\xB7vs/(fp \u2212 f)") {
+        return "formula risultante errata: " + toPretty(res.newEq, 0);
+      }
+      if (!isGoalReached(res.newEq, "v")) {
+        return "l'equazione risultante v = ... deve raggiungere l'obiettivo!";
+      }
+      return true;
+    }));
+    results.push(test("Drag: fp*vs e (fp-f) possono essere mossi in croce in blocco", () => {
+      const e = eq("v*(fp - f) = fp*vs");
+      const html = renderEquation(e, { interactive: true });
+      if (!html.includes('data-var-name="fp \u2212 f"') && !html.includes('data-var-name="fp - f"')) {
+        return "HTML non rende (fp - f) come draggable: " + html;
+      }
+      if (!html.includes('data-var-name="fp*vs"') && !html.includes('data-var-name="fp\xB7vs"')) {
+        return "HTML non rende fp*vs come blocco draggable: " + html;
+      }
+      const r1 = applyDragMove({
+        currentEq: e,
+        varName: "fp - f",
+        nodeType: "Sub",
+        fromSide: "left",
+        fromSlot: "num",
+        targetSide: "right",
+        targetSlot: "den"
+      });
+      if (!r1.ok) return "spostamento in croce di (fp - f) fallito: " + (r1.error || "");
+      if (toPretty(r1.newEq, 0) !== "v = fp\xB7vs/(fp \u2212 f)") {
+        return "risultato errato per (fp - f): " + toPretty(r1.newEq, 0);
+      }
+      if (!isGoalReached(r1.newEq, "v")) {
+        return "v deve risultare isolata al primo membro dopo lo spostamento di (fp - f)!";
+      }
+      const r2 = applyDragMove({
+        currentEq: e,
+        varName: "fp*vs",
+        nodeType: "Mul",
+        fromSide: "right",
+        fromSlot: "num",
+        targetSide: "left",
+        targetSlot: "den"
+      });
+      if (!r2.ok) return "spostamento in croce di fp*vs fallito: " + (r2.error || "");
+      if (toPretty(r2.newEq, 0) !== "v\xB7(fp \u2212 f)/(fp\xB7vs) = 1") {
+        return "risultato errato per fp*vs: " + toPretty(r2.newEq, 0);
+      }
+      const r3 = applyDragMove({
+        currentEq: r2.newEq,
+        varName: "fp*vs",
+        nodeType: "Mul",
+        fromSide: "left",
+        fromSlot: "den",
+        targetSide: "right",
+        targetSlot: "num"
+      });
+      if (!r3.ok) return "ritorno in croce di fp*vs fallito: " + (r3.error || "");
+      if (toPretty(r3.newEq, 0) !== "v\xB7(fp \u2212 f) = fp\xB7vs") {
+        return "ritorno errato: " + toPretty(r3.newEq, 0);
       }
       return true;
     }));
@@ -6305,15 +8417,43 @@
     }
   }
   var HAS_LS = typeof window !== "undefined" && storageAvailable();
+  var CLEARED_KEY = "formuleInverse.userFormulas.cleared";
+  var PRELOADED_USER_FORMULAS = [
+    {
+      id: "usr-dilatazione-termica-lineare",
+      name: "Dilatazione termica lineare",
+      formula: "l = l0 + lam * L0 * ( T-T0)",
+      latex: "l = l_0 + \\lambda \\cdot L_0 \\cdot ( T-T_0)",
+      topic: "Le mie formule",
+      isolate: ["l", "l0", "lam", "L0", "T", "T0"],
+      conditions: [],
+      difficulty: 3,
+      notes: "Dilatazione termica lineare: l = l\u2080 + \u03BB\xB7L\u2080\xB7(T \u2212 T\u2080).",
+      createdAt: 17e11
+    }
+  ];
   function readRaw() {
-    if (!HAS_LS) return memoryStore ? memoryStore.slice() : [];
+    if (!HAS_LS) {
+      if (memoryStore === null) {
+        memoryStore = PRELOADED_USER_FORMULAS.slice();
+      }
+      return memoryStore.slice();
+    }
     try {
+      const cleared = window.localStorage.getItem(CLEARED_KEY);
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      let list = raw ? JSON.parse(raw) : null;
+      if (!Array.isArray(list)) list = raw ? [] : null;
+      if (list === null) {
+        list = cleared ? [] : PRELOADED_USER_FORMULAS.slice();
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      } else if (!cleared && !list.some((f) => f.id === "usr-dilatazione-termica-lineare" || f.name && f.name.toLowerCase() === "dilatazione termica lineare")) {
+        list.unshift(...PRELOADED_USER_FORMULAS);
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      }
+      return list;
     } catch (e) {
-      return [];
+      return memoryStore ? memoryStore.slice() : [];
     }
   }
   function writeRaw(list) {
@@ -6333,6 +8473,12 @@
     return readRaw();
   }
   function saveUserFormula(entry) {
+    if (HAS_LS) {
+      try {
+        window.localStorage.removeItem(CLEARED_KEY);
+      } catch (e) {
+      }
+    }
     if (!entry || !entry.formula) {
       throw new LatexError("Dati insufficienti per salvare la formula.");
     }
@@ -6363,6 +8509,12 @@
     return true;
   }
   function clearUserFormulas() {
+    if (HAS_LS) {
+      try {
+        window.localStorage.setItem(CLEARED_KEY, "1");
+      } catch (e) {
+      }
+    }
     writeRaw([]);
     memoryStore = [];
   }
@@ -6419,10 +8571,13 @@
     keypadOp: null,
     crossMode: false,
     crossPicked: [],
-    clickDragToken: null
+    clickDragToken: null,
+    isAnimatingCompoundFraction: false,
+    compoundAnimTimers: []
   };
   var $ = (sel) => document.querySelector(sel);
   var dom = {
+    btnInstallPwa: $("#btn-install-pwa"),
     libraryList: $("#library-list"),
     librarySearch: $("#library-search"),
     libraryTopic: $("#library-topic"),
@@ -6432,15 +8587,25 @@
     objectiveText: $("#objective-text"),
     objectiveStatus: $("#objective-status"),
     objectiveBox: $("#objective-box"),
-    btnCopyFormula: $("#btn-copy-formula"),
-    btnCopyLatex: $("#btn-copy-latex"),
+    btnRetryExercise: $("#btn-retry-exercise"),
+    completionBanner: $("#completion-banner"),
+    completionTitle: $("#completion-title"),
+    completionSubtitle: $("#completion-subtitle"),
+    btnCompletionRetry: $("#btn-completion-retry"),
+    btnCompletionNext: $("#btn-completion-next"),
     btnMirror: $("#btn-mirror"),
     btnReciprocal: $("#btn-reciprocal"),
+    btnDistribute: $("#btn-distribute"),
+    btnFactorCommon: $("#btn-factor-common"),
+    btnChangeSign: $("#btn-change-sign"),
     btnCross: $("#btn-cross"),
+    compoundFractionBanner: $("#compound-fraction-banner"),
+    compoundFractionTitle: $("#compound-fraction-title"),
+    compoundFractionStepBadge: $("#compound-fraction-step-badge"),
+    compoundFractionMsg: $("#compound-fraction-msg"),
     crossLayer: $("#cross-layer"),
     crossHandle: $("#cross-handle"),
     crossDissolveLayer: $("#cross-dissolve-layer"),
-    btnToggleImplicitDen: $("#btn-toggle-implicit-den"),
     equationDisplay: $("#equation-display"),
     keypadOps: $("#keypad-ops"),
     keypadOperands: $("#keypad-operands"),
@@ -6500,7 +8665,29 @@
     btnImportFormulas: $("#btn-import-formulas"),
     btnClearFormulas: $("#btn-clear-formulas"),
     jsonArea: $("#json-area"),
-    storageError: $("#storage-error")
+    storageError: $("#storage-error"),
+    // --- Didactic Bubble (Fumetto Diagnosi) ---
+    didacticBubbleAnchor: $("#didactic-bubble-anchor"),
+    didacticBubble: $("#didactic-bubble"),
+    bubbleBadge: $("#bubble-badge"),
+    bubbleMessage: $("#bubble-message"),
+    bubbleHintBox: $("#bubble-hint-box"),
+    bubbleHintText: $("#bubble-hint-text"),
+    bubbleFooterRule: $("#bubble-footer-rule"),
+    btnCloseBubble: $("#btn-close-bubble"),
+    btnBubbleOk: $("#btn-bubble-ok"),
+    // --- Calcolo numerico con Unità SI ---
+    numericalCalcCard: $("#numerical-calc-card"),
+    btnCalcSample: $("#btn-calc-sample"),
+    btnCalcReset: $("#btn-calc-reset"),
+    calcInputsGrid: $("#calc-inputs-grid"),
+    calcResultBox: $("#calc-result-box"),
+    calcStepFormula: $("#calc-step-formula"),
+    calcTargetVar: $("#calc-target-var"),
+    calcFinalNumber: $("#calc-final-number"),
+    calcFinalUnit: $("#calc-final-unit"),
+    btnCopyCalcResult: $("#btn-copy-calc-result"),
+    calcErrorNotice: $("#calc-error-notice")
   };
   function init() {
     initTheme();
@@ -6517,7 +8704,57 @@
     renderMyFormulas();
     if (dom.crossLayer) dom.crossLayer.hidden = true;
     initDragArrow();
+    initPwa();
     loadFormula(getFormulaById("v-st"), "t");
+  }
+  var deferredInstallPrompt = null;
+  function initPwa() {
+    if ("serviceWorker" in navigator && (window.location.protocol.startsWith("http") || window.location.protocol === "file:")) {
+      if (window.location.protocol.startsWith("http")) {
+        navigator.serviceWorker.register("./sw.js").then((reg) => {
+          reg.onupdatefound = () => {
+            const installingWorker = reg.installing;
+            if (installingWorker) {
+              installingWorker.onstatechange = () => {
+                if (installingWorker.state === "installed" && navigator.serviceWorker.controller) {
+                  showMessage("Nuova versione disponibile! Ricarica la pagina per aggiornare.", "info");
+                }
+              };
+            }
+          };
+        }).catch((err) => {
+          console.debug("Service Worker non registrato:", err);
+        });
+      }
+    }
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      if (dom.btnInstallPwa && !isStandalone) {
+        dom.btnInstallPwa.style.display = "inline-flex";
+      }
+    });
+    if (dom.btnInstallPwa) {
+      dom.btnInstallPwa.addEventListener("click", async () => {
+        if (!deferredInstallPrompt) return;
+        dom.btnInstallPwa.style.display = "none";
+        deferredInstallPrompt.prompt();
+        try {
+          const choice = await deferredInstallPrompt.userChoice;
+          if (choice && choice.outcome === "accepted") {
+            showMessage("\u{1F389} Installazione avviata! Troverai l'app sulla schermata Home.", "success");
+          }
+        } catch (_) {
+        }
+        deferredInstallPrompt = null;
+      });
+    }
+    window.addEventListener("appinstalled", () => {
+      if (dom.btnInstallPwa) dom.btnInstallPwa.style.display = "none";
+      deferredInstallPrompt = null;
+      showMessage('\u{1F389} "Formule Inverse" \xE8 ora installata sul tuo dispositivo!', "success");
+    });
   }
   function populateTopics() {
     for (const t of TOPICS) {
@@ -6539,6 +8776,9 @@
     const search = dom.librarySearch ? dom.librarySearch.value.trim() : "";
     const difficulty = dom.libraryDifficulty ? dom.libraryDifficulty.value : "";
     const list = filterFormulas({ topic, search, difficulty });
+    if (topic && search && list.length > 0 && list.some((f) => f.topic !== topic)) {
+      if (dom.libraryTopic) dom.libraryTopic.value = "";
+    }
     if (dom.libraryCountBadge) {
       dom.libraryCountBadge.textContent = list.length + (list.length === 1 ? " formula" : " formule");
     }
@@ -6632,7 +8872,10 @@
     return parts[0].trim() === v;
   }
   function bindLibraryEvents() {
-    if (dom.librarySearch) dom.librarySearch.addEventListener("input", renderLibrary);
+    if (dom.librarySearch) {
+      dom.librarySearch.addEventListener("input", renderLibrary);
+      dom.librarySearch.addEventListener("search", renderLibrary);
+    }
     if (dom.libraryTopic) dom.libraryTopic.addEventListener("change", renderLibrary);
     if (dom.libraryDifficulty) dom.libraryDifficulty.addEventListener("change", renderLibrary);
     if (dom.btnRandom) {
@@ -6643,6 +8886,7 @@
     }
   }
   function loadFormula(formulaEntry, targetVar) {
+    cancelCompoundFractionAnimation();
     let eq2;
     try {
       eq2 = parseEquation(formulaEntry.formula);
@@ -6692,6 +8936,13 @@
     clearMessage();
     clearPreview();
     clearSelection();
+    dismissDidacticBubble();
+    if (state.goalReached && checkAndAnimateCompoundFraction()) {
+      return;
+    }
+    if (state.mode === "auto") {
+      showAutoMode();
+    }
   }
   function renderEquationView() {
     if (!state.currentEq) {
@@ -6717,6 +8968,41 @@
     attachDropzoneClickHandlers();
     renderConditions();
     renderKeypad();
+    const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
+    if (card) card.classList.toggle("is-auto-mode", state.mode === "auto");
+    if (state.mode === "auto") {
+      const hintBadge = document.querySelector(".drag-hint-badge");
+      const hintText = document.querySelector(".drag-hint-text");
+      if (hintBadge && hintText) {
+        hintBadge.textContent = "\u26A1 Modalit\xE0 Automatica";
+        hintText.innerHTML = "<strong>Fai clic ovunque con il mouse</strong> (sull'equazione o sul pulsante) per eseguire il passaggio con la giustificazione della regola!";
+      }
+    }
+    scheduleNeutralCleanup();
+  }
+  var _neutralCleanupTimer = null;
+  function scheduleNeutralCleanup() {
+    if (_neutralCleanupTimer) clearTimeout(_neutralCleanupTimer);
+    _neutralCleanupTimer = setTimeout(() => {
+      if (!state.currentEq) return;
+      const cleaned = stripNeutrals(state.currentEq);
+      if (!structurallyEqual(cleaned, state.currentEq)) {
+        const wraps = dom.equationDisplay ? dom.equationDisplay.querySelectorAll(".neutral-fade-wrap") : [];
+        if (wraps.length > 0) {
+          wraps.forEach((w) => {
+            w.classList.add("var-exploding");
+            spawnVariableExplosion(w, "gold");
+          });
+          setTimeout(() => {
+            state.currentEq = cleaned;
+            renderEquationView();
+          }, 400);
+        } else {
+          state.currentEq = cleaned;
+          renderEquationView();
+        }
+      }
+    }, 1600);
   }
   function renderKeypad() {
     if (!dom.keypadOps || !dom.keypadOperands) return;
@@ -6734,16 +9020,6 @@
       btn.addEventListener("click", () => handleKeypadOpClick(op));
       dom.keypadOps.appendChild(btn);
     }
-    const crossKbdBtn = document.createElement("button");
-    crossKbdBtn.type = "button";
-    crossKbdBtn.className = "keypad-op keypad-cross-btn" + (state.crossMode ? " active" : "");
-    crossKbdBtn.textContent = "\u2715/";
-    crossKbdBtn.title = "Semplifica: fattori uguali num./den., termini opposti, o stessa grandezza su entrambi i membri";
-    crossKbdBtn.setAttribute("aria-label", crossKbdBtn.title);
-    crossKbdBtn.setAttribute("aria-pressed", state.crossMode ? "true" : "false");
-    crossKbdBtn.disabled = !state.currentEq;
-    crossKbdBtn.addEventListener("click", () => toggleCrossMode());
-    dom.keypadOps.appendChild(crossKbdBtn);
     dom.keypadOperands.innerHTML = "";
     if (!state.currentEq) {
       dom.keypadOperands.innerHTML = '<p class="placeholder small">Carica una formula per usare il tastierino.</p>';
@@ -6756,7 +9032,7 @@
       btn.type = "button";
       btn.className = "keypad-operand keypad-letter";
       btn.textContent = prettyVar(name);
-      btn.title = `Usa ${name}`;
+      btn.title = `Applica ${name}`;
       btn.addEventListener("click", () => handleKeypadOperandClick(name));
       dom.keypadOperands.appendChild(btn);
     }
@@ -6765,13 +9041,13 @@
       btn.type = "button";
       btn.className = "keypad-operand keypad-number";
       btn.textContent = String(value);
-      btn.title = `Usa ${value}`;
+      btn.title = `Applica ${value}`;
       btn.addEventListener("click", () => handleKeypadOperandClick(String(value)));
       dom.keypadOperands.appendChild(btn);
     }
     const custom = document.createElement("span");
     custom.className = "keypad-custom";
-    custom.innerHTML = '<input class="keypad-custom-value" type="text" inputmode="numeric" placeholder="n" aria-label="Altro numero o grandezza" size="3"><button type="button" class="btn-mini keypad-custom-apply">usa</button>';
+    custom.innerHTML = `<input class="keypad-custom-value" type="text" inputmode="numeric" placeholder="n" aria-label="Altro numero o grandezza" size="3"><button type="button" class="btn-mini keypad-custom-apply" title="Applica all'equazione">Applica</button>`;
     dom.keypadOperands.appendChild(custom);
     const input = custom.querySelector(".keypad-custom-value");
     const applyBtn = custom.querySelector(".keypad-custom-apply");
@@ -6801,7 +9077,7 @@
       return;
     }
     const op = KEYPAD_OPERATIONS.find((o) => o.id === state.keypadOp);
-    dom.keypadHint.textContent = op && !op.needsOperand ? "Premi di nuovo per applicare la radice quadrata a entrambi i membri." : `Operazione ${op ? op.label : ""} scelta: ora tocca una grandezza o un numero.`;
+    dom.keypadHint.textContent = op && !op.needsOperand ? `Premi di nuovo per applicare ${op.label} a entrambi i membri.` : `Operazione ${op ? op.label : ""} scelta: ora tocca una grandezza o un numero.`;
   }
   function handleKeypadOpClick(op) {
     if (!state.currentEq) return;
@@ -6821,7 +9097,7 @@
   function handleKeypadOperandClick(text) {
     if (!state.currentEq) return;
     if (!state.keypadOp) {
-      showMessage("Prima scegli un'operazione nel tastierino (+ \u2212 \xD7 \xF7 ^ \u221A), poi la grandezza o il numero.", "info");
+      showMessage("Prima scegli un'operazione nel tastierino, poi la grandezza o il numero.", "info");
       return;
     }
     applyKeypadMove(state.keypadOp, parseOperand(text), text);
@@ -6877,12 +9153,11 @@
     showMessage(`\u2713 ${ruleName}.`, "success");
     if (res.note) showMessage(res.note, "info");
     if (state.goalReached) {
+      if (checkAndAnimateCompoundFraction()) return;
       playSuccessChime();
       showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-    } else if (state.mode === "guided") {
-      showGuidedSuggestion();
-    } else if (state.mode === "multi") {
-      showMultiMode();
+    } else if (state.mode === "auto") {
+      showAutoMode();
     }
   }
   function animateOperationBadge(label, operandText) {
@@ -6915,7 +9190,13 @@
     tokenEl.classList.add("token-in-flight");
     dom.equationDisplay.classList.add("is-dragging-equation", "is-click-drag-mode");
     highlightDropzones(dom.equationDisplay, state.clickDragToken);
-    showMessage(`"${prettyVar(varName)}" selezionato \u2014 clicca la destinazione (denominatore o membro opposto) per applicare il trasporto. Riclicca per annullare.`, "info");
+    showMessage(`"${prettyVar(varName)}" selezionato \u2014 clicca la destinazione (denominatore o membro opposto) per applicare il trasporto, oppure scegli un'operazione in basso. Riclicca per annullare.`, "info");
+    const foundEl = findElement(state.currentEq, tokenEl.dataset.id);
+    if (foundEl) {
+      state.selectedId = tokenEl.dataset.id;
+      const actions = availableActions(state.currentEq, foundEl, state.targetVar);
+      renderActions(foundEl, actions);
+    }
   }
   function exitClickDragMode() {
     state.clickDragToken = null;
@@ -6946,6 +9227,10 @@
     dom.equationDisplay.querySelectorAll(".math-node").forEach((el) => {
       el.addEventListener("click", (e) => {
         e.stopPropagation();
+        if (state.mode === "auto") {
+          executeNextAutoStep();
+          return;
+        }
         if (state.crossMode) {
           crossPickToken(el.dataset.id, el);
           return;
@@ -6989,6 +9274,10 @@
       el.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
+          if (state.mode === "auto") {
+            executeNextAutoStep();
+            return;
+          }
           if (state.crossMode) crossPickToken(el.dataset.id, el);
           else selectElement(el.dataset.id);
         }
@@ -6998,8 +9287,21 @@
   function attachDropzoneClickHandlers() {
     dom.equationDisplay.querySelectorAll(".dropzone").forEach((dz) => {
       dz.addEventListener("click", (e) => {
+        if (state.mode === "auto") {
+          executeNextAutoStep();
+          return;
+        }
         if (!state.clickDragToken) return;
-        if (dz.dataset.side === state.clickDragToken.fromSide) return;
+        if (dz.dataset.side === state.clickDragToken.fromSide) {
+          if (state.clickDragToken.fromSlot === "num" && dz.dataset.slot === "den") {
+            const oppMember = state.clickDragToken.fromSide === "right" ? "primo membro (sotto la linea di frazione a sinistra)" : "secondo membro (sotto la linea di frazione a destra)";
+            showMessage(`Non puoi spostare "${prettyVar(state.clickDragToken.varName)}" al denominatore dello stesso membro! Per il 2\xB0 principio di equivalenza, se dividi per esso va al denominatore del membro OPPOSTO (${oppMember}).`, "warning");
+          } else {
+            showMessage(`Trascina o clicca sul membro opposto per applicare la regola del trasporto!`, "info");
+          }
+          flashTokenRejected(state.clickDragToken.varName, state.clickDragToken.fromSide);
+          return;
+        }
         e.stopPropagation();
         applyClickDragToDropzone(dz);
       });
@@ -7022,11 +9324,14 @@
       dom.btnCross.classList.toggle("active", state.crossMode);
       dom.btnCross.setAttribute("aria-pressed", state.crossMode ? "true" : "false");
     }
+    if (dom.crossLayer) {
+      dom.crossLayer.hidden = !state.crossMode;
+    }
     const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
     if (card) card.classList.toggle("cross-mode", state.crossMode);
     clearCrossMarks();
     if (state.crossMode) {
-      showMessage("\u2715/ Semplificazione attiva \u2014 clicca due elementi da eliminare (fattori num./den., termini opposti o stessa grandezza su entrambi i membri), poi premi Conferma.", "info");
+      showMessage("\u2715/ Semplificazione attiva \u2014 clicca due elementi da eliminare (fattori num./den., termini opposti o stessa grandezza su entrambi i membri).", "info");
     }
   }
   function clearCrossMarks() {
@@ -7056,11 +9361,96 @@
       showInvalidMove(res.error, res.hint, { label: "Semplificazione" });
       return;
     }
-    state.pendingMove = { kind: "cross", idA, idB, result: res };
-    dom.previewBox.hidden = false;
-    dom.previewText.innerHTML = `Semplifica <strong>"${escapeHtml3(res.cancelled)}"</strong> \u2192 <span class="preview-eq">${escapeHtml3(toPretty(res.newEq, 0))}</span>`;
-    dom.btnConfirm.focus();
-    showMessage(`"${res.cancelled}" pronto per la semplificazione \u2014 premi Conferma o Invio.`, "info");
+    dissolveThenApplyCross(idA, idB, res);
+  }
+  function spawnVariableExplosion(el, colorScheme = "neon") {
+    const layer = dom.crossDissolveLayer;
+    if (!el || !layer) return;
+    const layerRect = layer.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
+    const cx = rect.left + rect.width / 2 - layerRect.left;
+    const cy = rect.top + rect.height / 2 - layerRect.top;
+    const shockwave = document.createElement("div");
+    shockwave.className = "explosion-shockwave";
+    shockwave.style.left = `${cx}px`;
+    shockwave.style.top = `${cy}px`;
+    layer.appendChild(shockwave);
+    const palette = colorScheme === "gold" ? ["#fbbf24", "#f59e0b", "#fb7185", "#38bdf8", "#ffffff"] : ["#38bdf8", "#818cf8", "#c084fc", "#f43f5e", "#34d399", "#fbbf24"];
+    const symbols = ["\u2726", "\u2605", "\u25CF", "\u2726", "\u25B2", "\u25C6", "\u2728"];
+    const count = 12;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement("div");
+      p.className = "explosion-particle";
+      const angle = i / count * 2 * Math.PI + (Math.random() - 0.5) * 0.4;
+      const distance = 28 + Math.random() * 42;
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance;
+      const color = palette[i % palette.length];
+      const size = 11 + Math.random() * 9;
+      p.style.left = `${cx}px`;
+      p.style.top = `${cy}px`;
+      p.style.color = color;
+      p.style.fontSize = `${size}px`;
+      p.style.setProperty("--dx", `${dx}px`);
+      p.style.setProperty("--dy", `${dy}px`);
+      p.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+      layer.appendChild(p);
+    }
+    setTimeout(() => {
+      shockwave.remove();
+      layer.querySelectorAll(".explosion-particle").forEach((p) => p.remove());
+    }, 750);
+  }
+  function spawnVictoryConfetti() {
+    const layer = dom.crossDissolveLayer;
+    if (!layer) return;
+    const layerRect = layer.getBoundingClientRect();
+    const width = layerRect.width || 600;
+    const height = layerRect.height || 200;
+    const colors = ["#38bdf8", "#ec4899", "#a855f7", "#fbbf24", "#10b981", "#6366f1"];
+    const symbols = ["\u2605", "\u2726", "\u{1F389}", "\u2728", "\u25C6", "\u25CF"];
+    for (let i = 0; i < 26; i++) {
+      const p = document.createElement("div");
+      p.className = "explosion-particle victory-particle";
+      const startX = Math.random() * width;
+      const startY = height * 0.2 + Math.random() * (height * 0.6);
+      const angle = Math.random() * Math.PI - Math.PI / 2;
+      const distance = 40 + Math.random() * 85;
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      p.style.left = `${startX}px`;
+      p.style.top = `${startY}px`;
+      p.style.color = color;
+      p.style.fontSize = `${12 + Math.random() * 12}px`;
+      p.style.setProperty("--dx", `${dx}px`);
+      p.style.setProperty("--dy", `${dy}px`);
+      p.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+      layer.appendChild(p);
+    }
+    setTimeout(() => {
+      layer.querySelectorAll(".victory-particle").forEach((p) => p.remove());
+    }, 950);
+  }
+  function findCancellableDomElements(action) {
+    if (!dom.equationDisplay || !action) return [];
+    if (action.ruleKey !== "cancelFactor" && action.id !== "cancel-factor") return [];
+    let denText = "";
+    try {
+      const ctx = action.build ? action.build({}) : {};
+      denText = (ctx.denText || "").trim();
+    } catch {
+    }
+    if (!denText) return [];
+    const found = [];
+    dom.equationDisplay.querySelectorAll(".math-node").forEach((el) => {
+      const txt = (el.textContent || "").trim();
+      if (txt === denText || el.dataset.varName === denText) {
+        found.push(el);
+      }
+    });
+    return found;
   }
   function dissolveThenApplyCross(idA, idB, res) {
     clearCrossMarks();
@@ -7069,7 +9459,10 @@
     const elA = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idA)}"]`);
     const elB = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idB)}"]`);
     [elA, elB].forEach((el) => {
-      if (el) el.classList.add("cross-dissolving");
+      if (el) {
+        el.classList.add("cross-dissolving", "var-exploding");
+        spawnVariableExplosion(el);
+      }
     });
     setTimeout(() => {
       state.currentEq = res.newEq;
@@ -7098,12 +9491,12 @@
       showMessage(`\u2713 ${res.ruleName}.`, "success");
       toggleCrossMode(false);
       if (state.goalReached) {
+        if (checkAndAnimateCompoundFraction()) return;
         playSuccessChime();
+        spawnVictoryConfetti();
         showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-      } else if (state.mode === "guided") {
-        showGuidedSuggestion();
-      } else if (state.mode === "multi") {
-        showMultiMode();
+      } else if (state.mode === "auto") {
+        showAutoMode();
       }
     }, 460);
   }
@@ -7175,7 +9568,7 @@
     });
   }
   function applyDragResult(result) {
-    if (!result) return;
+    if (!result || state.isAnimatingCompoundFraction) return;
     if (!result.ok) {
       clearPreview();
       const card = dom.equationDisplay.closest(".equation-display-card") || dom.equationDisplay;
@@ -7188,8 +9581,13 @@
     }
     if (result.principle === "first") playSoundTransport();
     else playSoundFraction();
+    dismissDidacticBubble();
     clearPreview();
-    state.currentEq = result.newEq;
+    let nextEq = result.newEq;
+    if (isGoalReached(nextEq, state.targetVar)) {
+      nextEq = ensureTargetOnFirstMember(nextEq, state.targetVar);
+    }
+    state.currentEq = nextEq;
     state.conditions = mergeConditions(state.conditions, result.conditions || []);
     state.selectedId = null;
     const pseudoRule = {
@@ -7198,13 +9596,13 @@
       explanation: null
     };
     const pseudoResult = {
-      equation: result.newEq,
+      equation: nextEq,
       rule: pseudoRule,
       steps: result.steps || [],
       conditions: result.conditions || []
     };
     pushHistory({
-      equation: clone(result.newEq),
+      equation: clone(nextEq),
       ruleName: result.ruleName,
       rulePrinciple: result.rulePrinciple,
       ruleId: null,
@@ -7220,12 +9618,11 @@
     clearMessage();
     showMessage(`\u2713 ${result.ruleName}!`, "success");
     if (state.goalReached) {
+      if (checkAndAnimateCompoundFraction()) return;
       playSuccessChime();
       showMessage(`\u{1F389} Ottimo lavoro! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata con successo!`, "success");
-    } else if (state.mode === "guided") {
-      showGuidedSuggestion();
-    } else if (state.mode === "multi") {
-      showMultiMode();
+    } else if (state.mode === "auto") {
+      showAutoMode();
     }
   }
   function applyReciprocalRule() {
@@ -7270,12 +9667,184 @@
     clearMessage();
     showMessage("\u{1F501} Regola dei reciproci applicata a entrambi i membri!", "success");
     if (state.goalReached) {
+      if (checkAndAnimateCompoundFraction()) return;
       playSuccessChime();
+      spawnVictoryConfetti();
       showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-    } else if (state.mode === "guided") {
-      showGuidedSuggestion();
-    } else if (state.mode === "multi") {
-      showMultiMode();
+    } else if (state.mode === "auto") {
+      showAutoMode();
+    }
+  }
+  function applyDistributeRule() {
+    if (!state.currentEq) return;
+    const eq2 = state.currentEq;
+    const leftDist = canDistribute(eq2.left);
+    const rightDist = canDistribute(eq2.right);
+    if (!leftDist && !rightDist) {
+      showMessage("Non ci sono prodotti con parentesi (somme o differenze) da sviluppare.", "info");
+      return;
+    }
+    let chosenSide = null;
+    if (state.selectedId) {
+      const selInfo = analyseElementId(state.selectedId);
+      if (selInfo && selInfo.side) {
+        if (selInfo.side === "left" && leftDist) chosenSide = "left";
+        if (selInfo.side === "right" && rightDist) chosenSide = "right";
+      }
+    }
+    if (!chosenSide) {
+      const targetLeft = hasDistributableSum(eq2.left, state.targetVar);
+      const targetRight = hasDistributableSum(eq2.right, state.targetVar);
+      if (targetRight && !targetLeft && rightDist) chosenSide = "right";
+      else if (targetLeft && !targetRight && leftDist) chosenSide = "left";
+      else if (rightDist && !leftDist) chosenSide = "right";
+      else if (leftDist && !rightDist) chosenSide = "left";
+      else chosenSide = "right";
+    }
+    playSoundTransport();
+    const res = applyRule(RULES.distribute, eq2, { side: chosenSide });
+    if (!res.ok) {
+      showInvalidMove(res.error, res.hint);
+      return;
+    }
+    state.currentEq = res.equation;
+    state.selectedId = null;
+    clearPreview();
+    const rule = RULES.distribute;
+    pushHistory({
+      equation: clone(res.equation),
+      ruleName: rule.name,
+      rulePrinciple: rule.principle,
+      ruleId: "distribute",
+      steps: [`Sviluppo le parentesi con la propriet\xE0 distributiva al ${chosenSide === "left" ? "primo" : "secondo"} membro: ${toPretty(eq2, 0)} \u2192 ${toPretty(res.equation, 0)}.`],
+      conditions: state.conditions.slice(),
+      explanationKey: "distribute",
+      note: null,
+      verified: true
+    }, false);
+    updateObjective();
+    renderEquationView();
+    showRulePanel(rule, { steps: ["Sviluppate le parentesi con la propriet\xE0 distributiva"], conditions: [] }, res.equation);
+    clearMessage();
+    showMessage("\u{1F4E6} Propriet\xE0 distributiva applicata: parentesi sviluppate!", "success");
+    if (state.goalReached) {
+      if (checkAndAnimateCompoundFraction()) return;
+      playSuccessChime();
+      spawnVictoryConfetti();
+      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
+    } else if (state.mode === "auto") {
+      showAutoMode();
+    }
+  }
+  function applyFactorCommonRule() {
+    if (!state.currentEq) return;
+    const eq2 = state.currentEq;
+    const targetSide = whichSideHas(eq2, state.targetVar) || "right";
+    const sidesToCheck = targetSide === "both" ? ["right", "left"] : [targetSide, targetSide === "left" ? "right" : "left"];
+    let foundSide = null;
+    let commonNode = null;
+    for (const s of sidesToCheck) {
+      const member = s === "left" ? eq2.left : eq2.right;
+      const common = findCommonFactor(member, state.targetVar);
+      if (common) {
+        foundSide = s;
+        commonNode = common;
+        break;
+      }
+    }
+    if (!commonNode) {
+      for (const s of sidesToCheck) {
+        const member = s === "left" ? eq2.left : eq2.right;
+        const common = findCommonFactor(member, null);
+        if (common) {
+          foundSide = s;
+          commonNode = common;
+          break;
+        }
+      }
+    }
+    if (!commonNode) {
+      const member = targetSide === "left" ? eq2.left : eq2.right;
+      if (hasTrigConflict(member, state.targetVar)) {
+        showMessage(`\u26A0\uFE0F Non \xE8 possibile raccogliere ${prettyVar(state.targetVar)} a fattor comune: ${prettyVar(state.targetVar)} \xE8 l'argomento di funzioni trigonometriche distinte (sin e cos), non un fattore moltiplicativo.`, "warning");
+        return;
+      }
+      showMessage("Nessun fattore comune trovato da raccogliere tra tutti i termini del membro.", "info");
+      return;
+    }
+    playSoundTransport();
+    const commonText = toPretty(commonNode, 0);
+    const res = applyRule(RULES.factorCommon, eq2, { side: foundSide, common: commonNode, commonText });
+    if (!res.ok) {
+      showInvalidMove(res.error, res.hint);
+      return;
+    }
+    state.currentEq = res.equation;
+    state.selectedId = null;
+    clearPreview();
+    const rule = RULES.factorCommon;
+    pushHistory({
+      equation: clone(res.equation),
+      ruleName: rule.name,
+      rulePrinciple: rule.principle,
+      ruleId: "factorCommon",
+      steps: [`Raccolgo ${commonText} a fattor comune al ${foundSide === "left" ? "primo" : "secondo"} membro: ${toPretty(eq2, 0)} \u2192 ${toPretty(res.equation, 0)}.`],
+      conditions: state.conditions.slice(),
+      explanationKey: null,
+      note: null,
+      verified: true
+    }, false);
+    updateObjective();
+    renderEquationView();
+    showRulePanel(rule, { steps: [`Raccolto ${commonText} a fattor comune`], conditions: [] }, res.equation);
+    clearMessage();
+    showMessage(`\u{1F9E9} Raccoglimento a fattor comune applicato: ${commonText} messo in evidenza!`, "success");
+    if (state.goalReached) {
+      if (checkAndAnimateCompoundFraction()) return;
+      playSuccessChime();
+      spawnVictoryConfetti();
+      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
+    } else if (state.mode === "auto") {
+      showAutoMode();
+    }
+  }
+  function applyChangeSignRule() {
+    if (!state.currentEq) return;
+    playSoundTransport();
+    const eq2 = state.currentEq;
+    const newEq = Eq(negateExpr(eq2.left), negateExpr(eq2.right));
+    state.currentEq = newEq;
+    state.selectedId = null;
+    clearPreview();
+    const rule = {
+      id: "changeSign",
+      name: "Regola del cambio di segno",
+      principle: "Secondo principio di equivalenza: moltiplicando entrambi i membri per \u22121, tutti i segni si invertono (+ \u2194 \u2212).",
+      explanation: null
+    };
+    pushHistory({
+      equation: clone(newEq),
+      ruleName: rule.name,
+      rulePrinciple: rule.principle,
+      ruleId: "changeSign",
+      steps: [`Moltiplico entrambi i membri per \u22121: ${toPretty(eq2, 0)} \u2192 ${toPretty(newEq, 0)}.`],
+      conditions: state.conditions.slice(),
+      explanationKey: null,
+      note: null,
+      verified: true
+    }, false);
+    updateObjective();
+    renderEquationView();
+    showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
+    clearMessage();
+    showMessage("\xB1 Regola del cambio di segno applicata: tutti i segni invertiti!", "success");
+    if (state.goalReached) {
+      if (checkAndAnimateCompoundFraction()) return;
+      playSuccessChime();
+      spawnVictoryConfetti();
+      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
+    } else if (state.mode === "auto") {
+      showAutoMode();
     }
   }
   function renderConditions() {
@@ -7326,7 +9895,7 @@
   function addValueOps(actions, element) {
     const node = unwrap(element.node);
     const text = toPretty(node, 0);
-    if (node.type === "Var" || node.type === "Div" || node.type === "Mul") {
+    if (node.type === "Var" || node.type === "Div" || node.type === "Mul" || node.type === "Add" || node.type === "Sub" || node.type === "Group") {
       actions.push({
         id: "mul-both",
         label: `Moltiplica entrambi i membri per "${text}"`,
@@ -7427,7 +9996,9 @@
       showRulePanel(pseudoRule, pseudoResult, res.newEq);
       clearMessage();
       if (state.goalReached) {
+        if (checkAndAnimateCompoundFraction()) return;
         playSuccessChime();
+        spawnVictoryConfetti();
         showMessage(`\u{1F389} Ottimo lavoro! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata con successo!`, "success");
       }
       return;
@@ -7455,12 +10026,12 @@
     showRulePanel(rule, result, state.currentEq);
     clearMessage();
     if (state.goalReached) {
+      if (checkAndAnimateCompoundFraction()) return;
       playSuccessChime();
+      spawnVictoryConfetti();
       showMessage(`\u{1F389} Ottimo lavoro! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata con successo!`, "success");
-    } else if (state.mode === "guided") {
-      showGuidedSuggestion();
-    } else if (state.mode === "multi") {
-      showMultiMode();
+    } else if (state.mode === "auto") {
+      showAutoMode();
     }
   }
   function cancelPreview() {
@@ -7478,6 +10049,59 @@
     el.classList.add("token-rejected");
     setTimeout(() => el.classList.remove("token-rejected"), 600);
   }
+  var bubbleTimeout = null;
+  function showDidacticBubble({ error, hint, action }) {
+    if (!dom.didacticBubbleAnchor) return;
+    if (bubbleTimeout) {
+      clearTimeout(bubbleTimeout);
+      bubbleTimeout = null;
+    }
+    const errLow = (error || "").toLowerCase();
+    let badgeText = "Principio di Equivalenza";
+    let ruleReminder = "Ricorda di applicare correttamente i principi di equivalenza delle equazioni.";
+    if (errLow.includes("fa parte di una somma") || errLow.includes("non \xE8 un fattore") || errLow.includes("dividere") || errLow.includes("moltiplicare")) {
+      badgeText = "2\xB0 Principio (Fattori e Prodotti)";
+      ruleReminder = "Secondo principio: puoi dividere entrambi i membri solo per un fattore che moltiplica l'intero membro!";
+    } else if (errLow.includes("additivo") || errLow.includes("trasporto") || errLow.includes("segno") || errLow.includes("trascina la variabile")) {
+      badgeText = "1\xB0 Principio (Regola del Trasporto)";
+      ruleReminder = "Primo principio: spostando un addendo all'altro membro, esso cambia di segno (+ diventa \u2212, \u2212 diventa +).";
+    } else if (errLow.includes("zero") || errLow.includes("\u2260 0")) {
+      badgeText = "Condizione di Esistenza (\u2260 0)";
+      ruleReminder = "Attenzione: la divisione per zero non \xE8 definita nei numeri reali.";
+    }
+    if (dom.bubbleBadge) dom.bubbleBadge.textContent = badgeText;
+    if (dom.bubbleMessage) dom.bubbleMessage.textContent = error || "Operazione non consentita.";
+    if (dom.bubbleHintBox && dom.bubbleHintText) {
+      if (hint) {
+        dom.bubbleHintText.textContent = hint;
+        dom.bubbleHintBox.hidden = false;
+      } else {
+        dom.bubbleHintBox.hidden = true;
+      }
+    }
+    if (dom.bubbleFooterRule) dom.bubbleFooterRule.textContent = ruleReminder;
+    dom.didacticBubbleAnchor.hidden = false;
+    if (dom.didacticBubble) dom.didacticBubble.classList.remove("bubble-closing");
+    bubbleTimeout = setTimeout(() => {
+      dismissDidacticBubble();
+    }, 8e3);
+  }
+  function dismissDidacticBubble() {
+    if (!dom.didacticBubbleAnchor || dom.didacticBubbleAnchor.hidden) return;
+    if (bubbleTimeout) {
+      clearTimeout(bubbleTimeout);
+      bubbleTimeout = null;
+    }
+    if (dom.didacticBubble) {
+      dom.didacticBubble.classList.add("bubble-closing");
+      setTimeout(() => {
+        if (dom.didacticBubbleAnchor) dom.didacticBubbleAnchor.hidden = true;
+        if (dom.didacticBubble) dom.didacticBubble.classList.remove("bubble-closing");
+      }, 220);
+    } else {
+      dom.didacticBubbleAnchor.hidden = true;
+    }
+  }
   function showInvalidMove(error, hint, action) {
     playSoundInvalid();
     const parts = [];
@@ -7485,6 +10109,7 @@
     if (hint) parts.push("Suggerimento: " + hint);
     if (action) parts.push("Regola tentata: " + action.label);
     showMessage(parts.join(" "), "error");
+    showDidacticBubble({ error, hint, action });
     pushHistory({
       equation: clone(state.currentEq),
       ruleName: "Tentativo non valido",
@@ -7498,23 +10123,23 @@
   }
   function showRulePanel(rule, result, afterEq) {
     const ex = rule ? getExplanation(rule.explanation) : null;
-    let html = `<div class="rule-name">${escapeHtml3(rule ? rule.name : "Trasformazione")}</div>`;
+    let html = `<div class="rule-name">\u{1F4DC} ${escapeHtml3(rule ? rule.name : "Trasformazione")}</div>`;
     if (ex) {
-      html += `<div class="rule-section"><strong>Spiegazione intuitiva</strong><p>${escapeHtml3(ex.intuitiva)}</p></div>`;
-      html += `<div class="rule-section"><strong>Principio di equivalenza</strong><p>${escapeHtml3(ex.principio)}</p></div>`;
-      html += `<div class="rule-section"><strong>Perch\xE9 \xE8 corretta</strong><p>${escapeHtml3(ex.perche)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u{1F4A1} Spiegazione intuitiva</strong><p>${escapeHtml3(ex.intuitiva)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio di equivalenza</strong><p>${escapeHtml3(ex.principio)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u{1F3AF} Perch\xE9 \xE8 corretta</strong><p>${escapeHtml3(ex.perche)}</p></div>`;
     } else if (rule && rule.principle) {
-      html += `<div class="rule-section"><strong>Principio</strong><p>${escapeHtml3(rule.principle)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio matematico</strong><p>${escapeHtml3(rule.principle)}</p></div>`;
     }
     if (result.steps && result.steps.length) {
-      html += `<div class="rule-section"><strong>Operazione svolta</strong><ul class="steps-list">${result.steps.map((s) => `<li>${escapeHtml3(s)}</li>`).join("")}</ul></div>`;
+      html += `<div class="rule-section"><strong>\u2699\uFE0F Operazione svolta</strong><ul class="steps-list">${result.steps.map((s) => `<li>${escapeHtml3(s)}</li>`).join("")}</ul></div>`;
     }
-    html += `<div class="rule-section rule-eq"><strong>Equazione dopo</strong><div class="rule-math">${renderEquation(afterEq, {})}</div></div>`;
+    html += `<div class="rule-section rule-eq"><strong>\u{1F4D0} Equazione dopo</strong><div class="rule-math">${renderEquation(afterEq, {})}</div></div>`;
     if (result.conditions && result.conditions.length) {
-      html += `<div class="rule-section conditions"><strong>Condizioni di validit\xE0 richieste</strong><ul>${result.conditions.map((c) => `<li>${escapeHtml3(c)}</li>`).join("")}</ul></div>`;
+      html += `<div class="rule-section conditions"><strong>\u{1F50D} Condizioni di validit\xE0 richieste</strong><ul>${result.conditions.map((c) => `<li>${escapeHtml3(c)}</li>`).join("")}</ul></div>`;
     }
     if (ex && ex.attenzione && ex.attenzione.length) {
-      html += `<div class="rule-section warning"><strong>Attenzione</strong><ul>${ex.attenzione.map((c) => `<li>${escapeHtml3(c)}</li>`).join("")}</ul></div>`;
+      html += `<div class="rule-section warning"><strong>\u26A0\uFE0F Attenzione</strong><ul>${ex.attenzione.map((c) => `<li>${escapeHtml3(c)}</li>`).join("")}</ul></div>`;
     }
     if (result.note) {
       html += `<div class="rule-section warning"><p>${escapeHtml3(result.note)}</p></div>`;
@@ -7531,15 +10156,157 @@
     <div class="rule-section"><p>Seleziona un elemento nell'area di lavoro per iniziare a ricavare la formula inversa.</p></div>
   `;
   }
+  function cancelCompoundFractionAnimation() {
+    if (state.compoundAnimTimers && state.compoundAnimTimers.length) {
+      for (const t of state.compoundAnimTimers) clearTimeout(t);
+      state.compoundAnimTimers = [];
+    }
+    state.isAnimatingCompoundFraction = false;
+    if (dom.equationDisplay) {
+      dom.equationDisplay.classList.remove("compound-anim-step1", "compound-anim-step2", "compound-anim-step3");
+    }
+    if (dom.compoundFractionBanner) {
+      dom.compoundFractionBanner.hidden = true;
+    }
+  }
+  function checkAndAnimateCompoundFraction(onComplete) {
+    if (state.isAnimatingCompoundFraction) return false;
+    if (!state.currentEq || !state.targetVar) return false;
+    if (!isGoalReached(state.currentEq, state.targetVar)) return false;
+    const steps = getCompoundFractionSteps(state.currentEq, state.targetVar);
+    if (!steps) return false;
+    startCompoundFractionAnimation(steps, onComplete);
+    return true;
+  }
+  function startCompoundFractionAnimation(steps, onComplete) {
+    cancelCompoundFractionAnimation();
+    state.isAnimatingCompoundFraction = true;
+    if (dom.completionBanner) dom.completionBanner.hidden = true;
+    if (dom.compoundFractionBanner) {
+      dom.compoundFractionBanner.hidden = false;
+      if (dom.compoundFractionStepBadge) dom.compoundFractionStepBadge.textContent = "Passaggio 1 di 2";
+      if (dom.compoundFractionTitle) dom.compoundFractionTitle.textContent = "Frazione di frazione rilevata";
+      if (dom.compoundFractionMsg) {
+        dom.compoundFractionMsg.textContent = "La formula presenta una frazione al denominatore. Dividere per una frazione equivale a moltiplicare per la sua reciproca (inversa).";
+      }
+    }
+    if (dom.equationDisplay) {
+      dom.equationDisplay.classList.remove("compound-anim-step2", "compound-anim-step3");
+      dom.equationDisplay.classList.add("compound-anim-step1");
+    }
+    state.currentEq = steps.step1Eq;
+    renderEquationView();
+    updateObjective();
+    const t1 = setTimeout(() => {
+      if (!state.isAnimatingCompoundFraction) return;
+      playSoundFraction();
+      state.currentEq = steps.step2Eq;
+      renderEquationView();
+      if (dom.compoundFractionBanner) {
+        if (dom.compoundFractionStepBadge) dom.compoundFractionStepBadge.textContent = "Passaggio 2 di 2";
+        if (dom.compoundFractionTitle) dom.compoundFractionTitle.textContent = "Inversione del denominatore";
+        if (dom.compoundFractionMsg) {
+          dom.compoundFractionMsg.textContent = "Moltiplichiamo il numeratore per la frazione reciproca del denominatore: la frazione si capovolge.";
+        }
+      }
+      if (dom.equationDisplay) {
+        dom.equationDisplay.classList.remove("compound-anim-step1");
+        dom.equationDisplay.classList.add("compound-anim-step2");
+      }
+      const t2 = setTimeout(() => {
+        if (!state.isAnimatingCompoundFraction) return;
+        playSuccessChime();
+        spawnVictoryConfetti();
+        state.currentEq = steps.step3Eq;
+        state.isAnimatingCompoundFraction = false;
+        renderEquationView();
+        const rule = {
+          name: "Semplificazione frazione di frazione",
+          principle: "Dividere per una frazione equivale a moltiplicare per la sua reciproca (inversa): a / (b/c) = (a \xB7 c) / b.",
+          explanation: null
+        };
+        pushHistory({
+          equation: clone(steps.step3Eq),
+          ruleName: rule.name,
+          rulePrinciple: rule.principle,
+          ruleId: "compound_frac_simplify",
+          steps: [
+            `Frazione di frazione rilevata: ${steps.step1Pretty}`,
+            `Moltiplicazione per la reciproca: ${steps.step2Pretty}`,
+            `Frazione normale semplificata: ${steps.step3Pretty}`
+          ],
+          conditions: (state.conditions || []).slice(),
+          explanationKey: null,
+          note: "Semplificazione automatica frazione di frazione",
+          verified: true
+        }, false);
+        if (dom.compoundFractionBanner) {
+          if (dom.compoundFractionStepBadge) dom.compoundFractionStepBadge.textContent = "Completato \u2713";
+          if (dom.compoundFractionTitle) dom.compoundFractionTitle.textContent = "Frazione normale ottenuta!";
+          if (dom.compoundFractionMsg) {
+            dom.compoundFractionMsg.textContent = `Formula finale semplificata: ${steps.step3Pretty}.`;
+          }
+        }
+        if (dom.equationDisplay) {
+          dom.equationDisplay.classList.remove("compound-anim-step2");
+          dom.equationDisplay.classList.add("compound-anim-step3");
+        }
+        updateObjective();
+        showMessage(`\u{1F389} Frazione di frazione semplificata! Formula inversa finale ricavata con successo.`, "success");
+        const t3 = setTimeout(() => {
+          if (dom.compoundFractionBanner) dom.compoundFractionBanner.hidden = true;
+          if (dom.equationDisplay) dom.equationDisplay.classList.remove("compound-anim-step3");
+          if (typeof onComplete === "function") onComplete();
+        }, 3200);
+        state.compoundAnimTimers.push(t3);
+      }, 2500);
+      state.compoundAnimTimers.push(t2);
+    }, 2200);
+    state.compoundAnimTimers.push(t1);
+  }
   function updateObjective() {
     const f = state.baseFormula;
     const t = prettyVar(state.targetVar);
     dom.objectiveText.textContent = f ? `ricavare ${t} \u2014 ${f.name} (${f.formula})` : `ricavare ${t}`;
     state.goalReached = isGoalReached(state.currentEq, state.targetVar);
+    if (state.goalReached && state.currentEq && state.currentEq.type === "Eq") {
+      const flipped = ensureTargetOnFirstMember(state.currentEq, state.targetVar);
+      if (flipped !== state.currentEq) {
+        state.currentEq = flipped;
+        if (dom.equationDisplay) {
+          dom.equationDisplay.innerHTML = renderEquation(state.currentEq, {
+            selectedId: state.selectedId,
+            targetVar: state.targetVar,
+            interactive: true,
+            showImplicitDen: state.showImplicitDen
+          });
+          if (dom.latexLiveCode) dom.latexLiveCode.textContent = toLatex(state.currentEq);
+        }
+      }
+    }
+    const resSide = state.currentEq && state.currentEq.type === "Eq" ? isolatedSide(state.currentEq.left, state.targetVar) ? state.currentEq.right : isolatedSide(state.currentEq.right, state.targetVar) ? state.currentEq.left : null : null;
+    const hasCompound = hasCompoundFraction(resSide);
+    const isFullySolved = state.goalReached && !hasCompound && !state.isAnimatingCompoundFraction;
     dom.objectiveStatus.hidden = false;
-    dom.objectiveStatus.textContent = state.goalReached ? "\u2713 Raggiunto" : "\u25CF In corso";
-    dom.objectiveStatus.className = "status-badge " + (state.goalReached ? "status-success" : "status-progress");
-    dom.objectiveBox.classList.toggle("objective-done", state.goalReached);
+    if (state.isAnimatingCompoundFraction) {
+      dom.objectiveStatus.textContent = "\u26A1 Semplificazione...";
+      dom.objectiveStatus.className = "status-badge status-progress";
+      dom.objectiveBox.classList.remove("objective-done");
+    } else {
+      dom.objectiveStatus.textContent = isFullySolved ? "\u2713 Raggiunto" : "\u25CF In corso";
+      dom.objectiveStatus.className = "status-badge " + (isFullySolved ? "status-success" : "status-progress");
+      dom.objectiveBox.classList.toggle("objective-done", isFullySolved);
+    }
+    if (dom.btnRetryExercise) dom.btnRetryExercise.hidden = !state.startEq;
+    if (dom.completionBanner) {
+      dom.completionBanner.hidden = !isFullySolved;
+      if (isFullySolved) {
+        if (dom.completionTitle) dom.completionTitle.textContent = `\u{1F3C6} Ottimo lavoro! Hai isolato ${t}`;
+        if (dom.completionSubtitle) {
+          dom.completionSubtitle.textContent = `Formula inversa ricavata con successo: ${toPretty(state.currentEq, 0)}.`;
+        }
+      }
+    }
     if (dom.objectiveTargetPicker && f && f.isolate) {
       dom.objectiveTargetPicker.hidden = false;
       dom.targetChips.innerHTML = "";
@@ -7555,18 +10322,174 @@
     } else if (dom.objectiveTargetPicker) {
       dom.objectiveTargetPicker.hidden = true;
     }
+    updateNumericalCalculator();
   }
   function setTargetVar(v) {
     state.targetVar = v;
+    dismissDidacticBubble();
     updateObjective();
     renderEquationView();
     clearMessage();
     if (state.goalReached) {
+      if (checkAndAnimateCompoundFraction()) return;
       playSuccessChime();
       showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(v)} \xE8 gi\xE0 isolata!`, "success");
     } else {
       showMessage(`\u{1F3AF} Nuovo obiettivo impostato: isolare ${prettyVar(v)}.`, "info");
     }
+  }
+  function getSolvedExpression() {
+    if (!state.currentEq || !state.targetVar) return null;
+    const leftRaw = unwrap(state.currentEq.left);
+    const rightRaw = unwrap(state.currentEq.right);
+    if (isVar(leftRaw) && leftRaw.name === state.targetVar) {
+      return rightRaw;
+    }
+    if (isVar(rightRaw) && rightRaw.name === state.targetVar) {
+      return leftRaw;
+    }
+    return null;
+  }
+  function updateNumericalCalculator() {
+    if (!dom.numericalCalcCard) return;
+    if (!state.goalReached) {
+      dom.numericalCalcCard.hidden = true;
+      return;
+    }
+    const solvedExpr = getSolvedExpression();
+    if (!solvedExpr) {
+      dom.numericalCalcCard.hidden = true;
+      return;
+    }
+    dom.numericalCalcCard.hidden = false;
+    const targetInfo = getQuantityInfo(state.targetVar, state.baseFormula);
+    if (dom.calcTargetVar) dom.calcTargetVar.textContent = prettyVar(state.targetVar);
+    if (dom.calcFinalUnit) dom.calcFinalUnit.textContent = targetInfo.unit;
+    const freeVars = Array.from(collectVars(solvedExpr)).filter(
+      (v) => v !== state.targetVar && v !== "pi" && v !== "\u03C0" && v !== "e"
+    );
+    renderCalculatorInputs(freeVars, solvedExpr);
+  }
+  function renderCalculatorInputs(freeVars, solvedExpr) {
+    if (!dom.calcInputsGrid) return;
+    dom.calcInputsGrid.innerHTML = "";
+    if (freeVars.length === 0) {
+      const evalRes = evalWithEnv(solvedExpr, {});
+      const valStr = evalRes.ok ? formatResultNumber(evalRes.value) : "\u2014";
+      if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = valStr;
+      if (dom.calcStepFormula) dom.calcStepFormula.textContent = `${prettyVar(state.targetVar)} = ${valStr}`;
+      return;
+    }
+    freeVars.forEach((v) => {
+      const qInfo = getQuantityInfo(v, state.baseFormula);
+      const item = document.createElement("div");
+      item.className = "calc-input-item";
+      item.innerHTML = `
+      <div class="calc-input-meta">
+        <span class="calc-input-symbol">${prettyVar(v)}</span>
+        <span class="calc-input-label" title="${escapeHtml3(qInfo.name)}">${escapeHtml3(qInfo.name)}</span>
+      </div>
+      <div class="calc-input-row">
+        <input type="number" step="any" class="calc-num-input" data-var="${escapeHtml3(v)}" placeholder="0" />
+        <span class="calc-unit-badge">${escapeHtml3(qInfo.unit)}</span>
+      </div>
+    `;
+      const input = item.querySelector(".calc-num-input");
+      input.addEventListener("input", () => runNumericalCalculation(solvedExpr));
+      dom.calcInputsGrid.appendChild(item);
+    });
+    populateCalculatorSamples(freeVars, solvedExpr);
+  }
+  function populateCalculatorSamples(freeVars, solvedExpr) {
+    if (!dom.calcInputsGrid) return;
+    const inputs = dom.calcInputsGrid.querySelectorAll(".calc-num-input");
+    inputs.forEach((input) => {
+      const v = input.dataset.var;
+      const qInfo = getQuantityInfo(v, state.baseFormula);
+      input.value = qInfo.sample !== void 0 ? qInfo.sample : 1;
+    });
+    runNumericalCalculation(solvedExpr);
+  }
+  function resetCalculatorInputs(solvedExpr) {
+    if (!dom.calcInputsGrid) return;
+    const inputs = dom.calcInputsGrid.querySelectorAll(".calc-num-input");
+    inputs.forEach((input) => {
+      input.value = "";
+    });
+    runNumericalCalculation(solvedExpr);
+  }
+  function runNumericalCalculation(solvedExpr) {
+    if (!dom.calcInputsGrid) return;
+    const inputs = dom.calcInputsGrid.querySelectorAll(".calc-num-input");
+    const env = {};
+    let anyEmpty = false;
+    inputs.forEach((input) => {
+      const v = input.dataset.var;
+      const val = input.value.trim();
+      if (val === "") {
+        anyEmpty = true;
+      } else {
+        env[v] = parseFloat(val);
+      }
+    });
+    const targetInfo = getQuantityInfo(state.targetVar, state.baseFormula);
+    if (anyEmpty) {
+      if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = "\u2014";
+      if (dom.calcStepFormula) dom.calcStepFormula.textContent = "Inserisci tutte le grandezze per visualizzare il calcolo numerico.";
+      if (dom.calcErrorNotice) dom.calcErrorNotice.hidden = true;
+      return;
+    }
+    const evalRes = evalWithEnv(solvedExpr, env);
+    if (evalRes.ok) {
+      const formatted = formatResultNumber(evalRes.value);
+      if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = formatted;
+      if (dom.calcErrorNotice) dom.calcErrorNotice.hidden = true;
+      try {
+        const substitutedAst = substituteVarsInAst(solvedExpr, env);
+        const substitutedHtml = renderNode(substitutedAst, "calc-step", { interactive: false });
+        if (dom.calcStepFormula) {
+          dom.calcStepFormula.innerHTML = `
+          <span class="calc-step-var">${prettyVar(state.targetVar)}</span>
+          <span class="calc-step-eq">=</span>
+          <span class="calc-step-expr">${substitutedHtml}</span>
+          <span class="calc-step-eq">=</span>
+          <strong>${formatted}</strong>
+          <span class="calc-step-unit">${targetInfo.unit}</span>
+        `;
+        }
+      } catch {
+        if (dom.calcStepFormula) {
+          dom.calcStepFormula.textContent = `${prettyVar(state.targetVar)} = ${formatted} ${targetInfo.unit}`;
+        }
+      }
+    } else {
+      if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = "Non calcolabile";
+      if (dom.calcErrorNotice) {
+        dom.calcErrorNotice.textContent = `\u26A0\uFE0F Impossibile completare il calcolo: ${evalRes.error || "Errore nei valori numerici"}`;
+        dom.calcErrorNotice.hidden = false;
+      }
+      if (dom.calcStepFormula) dom.calcStepFormula.textContent = "Verifica i valori inseriti.";
+    }
+  }
+  function copyCalculatorResult() {
+    const val = dom.calcFinalNumber ? dom.calcFinalNumber.textContent.trim() : "";
+    const unit = dom.calcFinalUnit ? dom.calcFinalUnit.textContent.trim() : "";
+    const target = prettyVar(state.targetVar);
+    if (!val || val === "\u2014" || val === "Non calcolabile") {
+      showMessage("Nessun valore valido da copiare.", "warning");
+      return;
+    }
+    const text = `${target} = ${val} ${unit}`;
+    navigator.clipboard.writeText(text).then(() => {
+      const oldText = dom.btnCopyCalcResult.textContent;
+      dom.btnCopyCalcResult.textContent = "\u2713 Copiato!";
+      setTimeout(() => {
+        if (dom.btnCopyCalcResult) dom.btnCopyCalcResult.textContent = oldText;
+      }, 1800);
+      showMessage(`Copiato negli appunti: ${text}`, "success");
+    }).catch(() => {
+      showMessage(`Risultato: ${text}`, "info");
+    });
   }
   function pushHistory(entry, isInitial = false, isFailed = false) {
     if (!isInitial && state.historyIndex < state.history.length - 1) {
@@ -7614,6 +10537,7 @@
     }
   }
   function goToHistory(i) {
+    cancelCompoundFractionAnimation();
     if (i < 0 || i >= state.history.length) return;
     if (state.history[i].failed) {
       showMessage("Questo \xE8 un tentativo non valido: l'equazione non \xE8 cambiata.", "info");
@@ -7670,26 +10594,35 @@
     goToHistory(i);
   }
   function resetExercise() {
+    cancelCompoundFractionAnimation();
     if (!state.startEq) return;
+    playSoundClick();
+    dismissDidacticBubble();
+    clearSelection();
+    clearPreview();
+    if (state.baseFormula && state.targetVar) {
+      loadFormula(state.baseFormula, state.targetVar);
+      showMessage("Esercizio ricominciato dall'inizio.", "info");
+      return;
+    }
     state.history = [];
     state.historyIndex = -1;
     state.currentEq = clone(state.startEq);
-    state.conditions = (state.baseFormula.conditions || []).slice();
+    state.conditions = (state.baseFormula && state.baseFormula.conditions ? state.baseFormula.conditions : state.conditions || []).slice();
     state.selectedId = null;
-    clearPreview();
     pushHistory({
       equation: clone(state.startEq),
       ruleName: "Formula di partenza",
-      rulePrinciple: state.baseFormula.formula,
+      rulePrinciple: state.baseFormula ? state.baseFormula.formula : toPretty(state.startEq, 0),
       steps: [],
       conditions: state.conditions.slice(),
       explanationKey: null,
-      note: state.baseFormula.hypotheses || null,
+      note: state.baseFormula && state.baseFormula.hypotheses || null,
       verified: true
     }, true);
     updateObjective();
     renderEquationView();
-    updateRulePanelInitial(state.baseFormula);
+    if (state.baseFormula) updateRulePanelInitial(state.baseFormula);
     clearMessage();
     showMessage("Esercizio ricominciato dall'inizio.", "info");
   }
@@ -7718,27 +10651,94 @@
       dom.actionHint.textContent = "Seleziona un elemento dell'equazione per vedere le operazioni disponibili.";
     }
   }
+  function retryCurrentExercise() {
+    cancelCompoundFractionAnimation();
+    playSoundClick();
+    dismissDidacticBubble();
+    clearSelection();
+    clearPreview();
+    if (state.baseFormula && state.targetVar) {
+      loadFormula(state.baseFormula, state.targetVar);
+      showMessage(`\u{1F504} Esercizio riavviato! Riprova a ricavare ${prettyVar(state.targetVar)}.`, "info");
+    } else if (state.startEq && state.targetVar) {
+      loadFormula({
+        id: "custom-" + Date.now(),
+        topic: "formula personalizzata",
+        name: "formula personalizzata",
+        formula: toPretty(state.startEq, 0),
+        isolate: [state.targetVar],
+        conditions: state.conditions ? state.conditions.slice() : [],
+        difficulty: 3
+      }, state.targetVar);
+      showMessage(`\u{1F504} Esercizio riavviato! Riprova a ricavare ${prettyVar(state.targetVar)}.`, "info");
+    } else if (state.startEq) {
+      resetExercise();
+    }
+  }
   function bindWorkAreaEvents() {
+    const eqCard = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
+    if (eqCard) {
+      eqCard.addEventListener("click", (e) => {
+        if (state.mode !== "auto") return;
+        if (e.target.closest(".cross-layer, .didactic-bubble-anchor, .btn-mini, .close-btn, button")) return;
+        executeNextAutoStep();
+      });
+    }
     dom.equationDisplay.addEventListener("click", (e) => {
+      if (state.mode === "auto") {
+        executeNextAutoStep();
+        return;
+      }
       if (e.target === dom.equationDisplay) clearSelection();
     });
     dom.btnConfirm.addEventListener("click", confirmMove);
     dom.btnCancel.addEventListener("click", cancelPreview);
     if (dom.btnMirror) dom.btnMirror.addEventListener("click", applyMirrorRule);
     if (dom.btnReciprocal) dom.btnReciprocal.addEventListener("click", applyReciprocalRule);
-    if (dom.btnCopyFormula) dom.btnCopyFormula.addEventListener("click", copyFormulaText);
+    if (dom.btnDistribute) dom.btnDistribute.addEventListener("click", applyDistributeRule);
+    if (dom.btnFactorCommon) dom.btnFactorCommon.addEventListener("click", applyFactorCommonRule);
+    if (dom.btnChangeSign) dom.btnChangeSign.addEventListener("click", applyChangeSignRule);
     if (dom.btnCross) dom.btnCross.addEventListener("click", () => toggleCrossMode());
     bindCrossDrag();
-    if (dom.btnCopyLatex) dom.btnCopyLatex.addEventListener("click", copyLatexFormula);
     if (dom.btnCopyLatexInline) dom.btnCopyLatexInline.addEventListener("click", copyLatexFormula);
     if (dom.btnQuickHint) dom.btnQuickHint.addEventListener("click", triggerQuickHint);
-    if (dom.btnToggleImplicitDen) {
-      dom.btnToggleImplicitDen.addEventListener("click", () => {
-        state.showImplicitDen = !state.showImplicitDen;
-        dom.btnToggleImplicitDen.classList.toggle("active", state.showImplicitDen);
-        dom.btnToggleImplicitDen.title = state.showImplicitDen ? "Nascondi denominatori sottintesi" : "Mostra denominatori sottintesi (/1)";
-        renderEquationView();
+    if (dom.btnRetryExercise) dom.btnRetryExercise.addEventListener("click", retryCurrentExercise);
+    if (dom.btnCompletionRetry) dom.btnCompletionRetry.addEventListener("click", retryCurrentExercise);
+    if (dom.btnCompletionNext) {
+      dom.btnCompletionNext.addEventListener("click", () => {
+        playSoundClick();
+        const { id, target } = randomExercise();
+        loadFormula(getFormulaById(id), target);
       });
+    }
+    if (dom.btnCloseBubble) dom.btnCloseBubble.addEventListener("click", dismissDidacticBubble);
+    if (dom.btnBubbleOk) {
+      dom.btnBubbleOk.addEventListener("click", () => {
+        playSoundClick();
+        dismissDidacticBubble();
+      });
+    }
+    if (dom.btnCalcSample) {
+      dom.btnCalcSample.addEventListener("click", () => {
+        playSoundClick();
+        const solvedExpr = getSolvedExpression();
+        if (!solvedExpr) return;
+        const freeVars = Array.from(collectVars(solvedExpr)).filter(
+          (v) => v !== state.targetVar && v !== "pi" && v !== "\u03C0" && v !== "e"
+        );
+        populateCalculatorSamples(freeVars, solvedExpr);
+      });
+    }
+    if (dom.btnCalcReset) {
+      dom.btnCalcReset.addEventListener("click", () => {
+        playSoundClick();
+        const solvedExpr = getSolvedExpression();
+        if (!solvedExpr) return;
+        resetCalculatorInputs(solvedExpr);
+      });
+    }
+    if (dom.btnCopyCalcResult) {
+      dom.btnCopyCalcResult.addEventListener("click", copyCalculatorResult);
     }
   }
   function applyMirrorRule() {
@@ -7771,6 +10771,7 @@
     showMessage("\u{1FA9E} Regola dello specchio applicata: se A = B allora B = A!", "success");
     if (state.goalReached) {
       playSuccessChime();
+      spawnVictoryConfetti();
       showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
     }
   }
@@ -7785,92 +10786,174 @@
         btn.setAttribute("aria-pressed", "true");
         state.mode = btn.dataset.mode;
         const modeDesc = {
-          free: "\u{1F513} Modalit\xE0 Libera: clicca un elemento dell'equazione per vedere le operazioni disponibili, oppure trascina variabili e fattori.",
-          guided: "\u{1F4A1} Modalit\xE0 Guidata: il sistema ti suggerisce ogni passaggio. Segui i consigli o esplora tu stesso.",
-          multi: "\u26A1 Modalit\xE0 Multi-operazione: vedi il piano completo di risoluzione e scegli se eseguire un passo alla volta o tutto in automatico."
+          free: "\u{1F513} Modalit\xE0 Libera: interagisci liberamente trascinando variabili e applicando operazioni.",
+          auto: "\u26A1 Modalit\xE0 Automatica: a ogni clic del mouse il programma esegue una operazione giustificando la regola."
         };
         showMessage(modeDesc[state.mode] || "", "info");
-        if (state.mode === "guided") showGuidedSuggestion();
-        else if (state.mode === "multi") showMultiMode();
-        else {
+        const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
+        if (card) card.classList.toggle("is-auto-mode", state.mode === "auto");
+        if (state.mode === "auto") {
+          showAutoMode();
+        } else {
+          const hintBadge = document.querySelector(".drag-hint-badge");
+          const hintText = document.querySelector(".drag-hint-text");
+          if (hintBadge && hintText) {
+            hintBadge.textContent = "\u2728 Modalit\xE0 Libera";
+            hintText.innerHTML = "Trascina una variabile dall'altra parte dell'uguale: rilasciala <strong>sotto la linea di frazione</strong> per dividere, o al numeratore per moltiplicare!";
+          }
           renderEquationView();
           clearSelection();
         }
       });
     });
   }
-  function showGuidedSuggestion() {
-    if (!state.currentEq) return;
+  var _isAutoStepping = false;
+  function executeNextAutoStep() {
+    if (_isAutoStepping) return;
+    _isAutoStepping = true;
+    setTimeout(() => {
+      _isAutoStepping = false;
+    }, 250);
+    if (!state.currentEq) {
+      showMessage("Seleziona prima una formula dalla libreria per iniziare.", "info");
+      return;
+    }
     if (state.goalReached) {
-      showMessage("Obiettivo raggiunto! Non ci sono altri passi necessari.", "success");
+      playSuccessChime();
+      showMessage(`\u{1F389} Obiettivo gi\xE0 raggiunto! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata.`, "success");
       return;
     }
     const sug = suggestNextStep(state.currentEq, state.targetVar);
     if (!sug.found) {
-      showMessage(sug.message, "info");
+      showMessage(sug.message || "Nessun ulteriore passaggio automatico trovato.", "info");
       return;
     }
-    dom.actionHint.textContent = "Modalit\xE0 guidata \u2014 passo consigliato:";
-    dom.actionButtons.innerHTML = "";
-    const btn = document.createElement("button");
-    btn.className = "action-btn guided";
-    btn.type = "button";
-    btn.innerHTML = `<span class="action-label">${escapeHtml3(sug.action.label)}</span>
-    <span class="action-desc">${escapeHtml3(sug.reason)}</span>`;
-    btn.addEventListener("click", () => previewAction(sug.action));
-    dom.actionButtons.appendChild(btn);
-    showMessage("Suggerimento: " + sug.reason, "info");
+    const res = performAction(state.currentEq, sug.action, { target: state.targetVar });
+    if (!res.ok) {
+      showInvalidMove(res.error, res.hint, { label: sug.action.label });
+      return;
+    }
+    const cancellables = findCancellableDomElements(sug.action);
+    if (cancellables.length > 0) {
+      playSoundExplosion();
+      cancellables.forEach((el) => {
+        el.classList.add("var-exploding", "cross-dissolving");
+        spawnVariableExplosion(el);
+      });
+      setTimeout(() => {
+        applyAutoStepState(sug, res);
+      }, 420);
+      return;
+    }
+    applyAutoStepState(sug, res);
   }
-  function showMultiMode() {
-    if (!state.currentEq) return;
+  function applyAutoStepState(sug, res) {
+    playSoundForRule(sug.action.ruleKey);
+    let nextEq = res.equation;
+    if (isGoalReached(nextEq, state.targetVar)) {
+      nextEq = ensureTargetOnFirstMember(nextEq, state.targetVar);
+    }
+    state.currentEq = nextEq;
+    state.conditions = mergeConditions(state.conditions, res.conditions || []);
+    state.selectedId = null;
+    clearPreview();
+    state.goalReached = isGoalReached(state.currentEq, state.targetVar);
+    const rule = res.rule || {
+      id: sug.action.ruleKey || sug.action.id,
+      name: res.ruleName || sug.action.label,
+      principle: res.rulePrinciple || sug.reason || "Principio di equivalenza delle equazioni.",
+      explanation: res.explanationKey || null
+    };
+    pushHistory({
+      equation: clone(nextEq),
+      ruleName: rule.name || sug.action.label,
+      rulePrinciple: rule.principle || res.rulePrinciple || "",
+      ruleId: rule.id || sug.action.id,
+      steps: res.steps || (sug.reason ? [sug.reason] : []),
+      conditions: (res.conditions || []).slice(),
+      explanationKey: rule.explanation || null,
+      note: res.note || sug.reason || null,
+      verified: true
+    }, false);
+    updateObjective();
+    renderEquationView();
+    showRulePanel(rule, res, state.currentEq);
+    animateOperationBadge(sug.action.label, sug.action.operandText);
+    clearMessage();
     if (state.goalReached) {
-      showMessage("Obiettivo gi\xE0 raggiunto! La grandezza " + prettyVar(state.targetVar) + " \xE8 isolata.", "success");
-      if (dom.actionButtons) dom.actionButtons.innerHTML = "";
+      if (checkAndAnimateCompoundFraction()) return;
+      playSuccessChime();
+      spawnVictoryConfetti();
+      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata con successo! Regola: ${rule.name}`, "success");
+    } else {
+      showMessage(`\u2713 ${sug.action.label}: ${sug.reason || rule.principle}`, "success");
+    }
+    showAutoMode();
+  }
+  function showAutoMode() {
+    if (!state.currentEq) return;
+    const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
+    if (card) card.classList.add("is-auto-mode");
+    const hintBadge = document.querySelector(".drag-hint-badge");
+    const hintText = document.querySelector(".drag-hint-text");
+    if (hintBadge && hintText) {
+      hintBadge.textContent = "\u26A1 Modalit\xE0 Automatica";
+      hintText.innerHTML = "<strong>Fai clic ovunque con il mouse</strong> (sull'equazione o sul pulsante in basso) per eseguire il passaggio successivo!";
+    }
+    if (state.goalReached) {
+      if (dom.actionHint) dom.actionHint.textContent = "Modalit\xE0 Automatica:";
+      if (dom.actionButtons) {
+        dom.actionButtons.innerHTML = `
+        <div class="auto-mode-finished">
+          <div class="auto-success-header">\u{1F389} Formula isolata con successo!</div>
+          <p>La grandezza <strong>${prettyVar(state.targetVar)}</strong> \xE8 stata completamente isolata. Puoi cambiare la grandezza da isolare in alto o selezionare un'altra formula dalla libreria.</p>
+        </div>
+      `;
+      }
       return;
     }
+    const sug = suggestNextStep(state.currentEq, state.targetVar);
     const roadmap = computeRoadmap(state.currentEq, state.targetVar);
-    dom.actionHint.textContent = `Modalit\xE0 Multi-operazione (${roadmap.length} passaggi stimati per isolare ${prettyVar(state.targetVar)}):`;
+    if (dom.actionHint) {
+      dom.actionHint.textContent = `Modalit\xE0 Automatica \u2014 A ogni clic del mouse il programma esegue un'operazione (${roadmap.length} passaggi stimati):`;
+    }
+    if (!dom.actionButtons) return;
     dom.actionButtons.innerHTML = "";
-    if (roadmap.length === 0) {
-      dom.actionButtons.innerHTML = '<p class="placeholder small">Nessuna sequenza automatica diretta trovata per questa formula. Prova a selezionare un elemento in modalit\xE0 Libera.</p>';
+    if (!sug.found) {
+      dom.actionButtons.innerHTML = `<p class="placeholder small">${escapeHtml3(sug.message || "Nessuna sequenza automatica diretta trovata per questa formula.")}</p>`;
       return;
     }
-    const topControls = document.createElement("div");
-    topControls.className = "multi-controls";
-    const btnNext = document.createElement("button");
-    btnNext.className = "action-btn guided";
-    btnNext.type = "button";
-    btnNext.innerHTML = `<span class="action-label">\u25B6 Esegui prossimo passo: ${escapeHtml3(roadmap[0].action.label)}</span>
-    <span class="action-desc">${escapeHtml3(roadmap[0].reason)}</span>`;
-    btnNext.addEventListener("click", () => {
-      previewAction(roadmap[0].action);
-    });
-    topControls.appendChild(btnNext);
-    const btnAuto = document.createElement("button");
-    btnAuto.className = "action-btn auto-solve";
-    btnAuto.type = "button";
-    btnAuto.innerHTML = `<span class="action-label">\u26A1 Risolvi tutto automaticamente</span>
-    <span class="action-desc">Applica tutti i passaggi matematici in sequenza animata.</span>`;
-    btnAuto.addEventListener("click", () => autoSolveRoadmap());
-    topControls.appendChild(btnAuto);
-    dom.actionButtons.appendChild(topControls);
-    const roadmapCard = document.createElement("div");
-    roadmapCard.className = "roadmap-card";
-    roadmapCard.innerHTML = `
-    <div class="roadmap-header">Piano di risoluzione simbolica:</div>
-    <ol class="roadmap-list">
-      ${roadmap.map((s, idx) => `
-        <li class="roadmap-item ${idx === 0 ? "roadmap-current" : ""}">
-          <span class="roadmap-step-num">${idx + 1}</span>
-          <div class="roadmap-step-content">
-            <strong>${escapeHtml3(s.action.label)}</strong>
-            <p>${escapeHtml3(s.reason)}</p>
-          </div>
-        </li>
-      `).join("")}
-    </ol>
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "action-btn auto-step-btn";
+    nextBtn.type = "button";
+    nextBtn.innerHTML = `
+    <span class="action-label">\u{1F5B1}\uFE0F Fai clic per eseguire: ${escapeHtml3(sug.action.label)}</span>
+    <span class="action-desc"><strong>Giustificazione della regola:</strong> ${escapeHtml3(sug.reason || sug.action.description || "")}</span>
   `;
-    dom.actionButtons.appendChild(roadmapCard);
+    nextBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      executeNextAutoStep();
+    });
+    dom.actionButtons.appendChild(nextBtn);
+    if (roadmap.length > 0) {
+      const roadmapCard = document.createElement("div");
+      roadmapCard.className = "roadmap-card";
+      roadmapCard.innerHTML = `
+      <div class="roadmap-header">Piano di risoluzione (passaggi rimanenti):</div>
+      <ol class="roadmap-list">
+        ${roadmap.map((s, idx) => `
+          <li class="roadmap-item ${idx === 0 ? "roadmap-current" : ""}">
+            <span class="roadmap-step-num">${idx + 1}</span>
+            <div class="roadmap-step-content">
+              <strong>${escapeHtml3(s.action.label)}</strong>
+              <p>${escapeHtml3(s.reason || s.action.description || "")}</p>
+            </div>
+          </li>
+        `).join("")}
+      </ol>
+    `;
+      dom.actionButtons.appendChild(roadmapCard);
+    }
   }
   function computeRoadmap(startEquation, target) {
     let curr = clone(startEquation);
@@ -7880,32 +10963,12 @@
       const sug = suggestNextStep(curr, target);
       if (!sug.found) break;
       steps.push(sug);
-      const res = performAction(curr, sug.action);
+      const res = performAction(curr, sug.action, { target });
       if (!res.ok) break;
       curr = res.equation;
       iter++;
     }
     return steps;
-  }
-  var autoSolveTimer = null;
-  function autoSolveRoadmap() {
-    if (state.goalReached) return;
-    const sug = suggestNextStep(state.currentEq, state.targetVar);
-    if (!sug.found) {
-      showMessage("Risoluzione completata o nessun ulteriore passaggio diretto.", "info");
-      return;
-    }
-    const res = performAction(state.currentEq, sug.action);
-    if (!res.ok) {
-      showMessage("Errore nel passaggio: " + res.error, "error");
-      return;
-    }
-    state.pendingMove = { action: sug.action, result: res };
-    confirmMove();
-    if (!state.goalReached && state.mode === "multi") {
-      if (autoSolveTimer) clearTimeout(autoSolveTimer);
-      autoSolveTimer = setTimeout(autoSolveRoadmap, 500);
-    }
   }
   function triggerQuickHint() {
     if (!state.currentEq) return;
@@ -7944,11 +11007,23 @@
     }
     const vars = collectVars(eq2);
     let t = target;
+    let multipleSpecified = false;
+    if (t && (t.includes(",") || t.includes(";"))) {
+      const parts = t.split(/[,;\s]+/).filter(Boolean);
+      const validParts = parts.filter((p) => vars.has(p) || [...vars].some((v) => v.toLowerCase() === p.toLowerCase()));
+      if (validParts.length > 0) {
+        t = [...vars].find((v) => v.toLowerCase() === validParts[0].toLowerCase()) || validParts[0];
+        multipleSpecified = true;
+      } else {
+        showCustomError(`Inserisci una sola grandezza da isolare alla volta (es. "${[...vars][0]}"). Grandezze presenti: ${[...vars].join(", ")}.`);
+        return;
+      }
+    }
     if (!t) {
       const L = unwrap(eq2.left);
       if (L.type === "Var") t = L.name;
       else {
-        showCustomError("Specifica la grandezza da isolare.");
+        showCustomError("Specifica la grandezza da isolare (una sola lettera, es. " + [...vars][0] + ").");
         return;
       }
     }
@@ -7956,7 +11031,7 @@
       const alt = [...vars].find((v) => v.toLowerCase() === t.toLowerCase());
       if (alt) t = alt;
       else {
-        showCustomError(`La grandezza "${t}" non compare nella formula. Grandezze presenti: ${[...vars].join(", ")}.`);
+        showCustomError(`La grandezza "${t}" non compare nella formula. Inserisci una sola grandezza presente: ${[...vars].join(", ")}.`);
         return;
       }
     }
@@ -7970,7 +11045,11 @@
       difficulty: 3,
       notes: "Formula inserita manualmente."
     }, t);
-    showMessage(`Formula personalizzata caricata. Obiettivo: isolare ${prettyVar(t)}.`, "success");
+    if (multipleSpecified) {
+      showMessage(`\xC8 possibile isolare una sola grandezza alla volta: impostato obiettivo su "${prettyVar(t)}". Puoi cambiare grandezza da isolare in qualsiasi momento dall'interfaccia!`, "info");
+    } else {
+      showMessage(`Formula personalizzata caricata. Obiettivo: isolare ${prettyVar(t)}.`, "success");
+    }
   }
   function showCustomError(msg) {
     dom.customError.hidden = false;
@@ -8126,6 +11205,24 @@
     } catch {
     }
   }
+  function playSoundClick() {
+    try {
+      const ctx = _audioCtx();
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(1e-3, ctx.currentTime + 0.08);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.08);
+    } catch {
+    }
+  }
   function playSoundExplosion() {
     try {
       const ctx = _audioCtx();
@@ -8176,19 +11273,6 @@
   function playSoundForRule(ruleKey) {
     if (_FIRST_PRINCIPLE.has(ruleKey)) playSoundTransport();
     else playSoundFraction();
-  }
-  function copyFormulaText() {
-    if (!state.currentEq) return;
-    const pretty = toPretty(state.currentEq, 0);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(pretty).then(() => {
-        showMessage(`Formula copiata negli appunti: "${pretty}"`, "success");
-      }).catch(() => {
-        prompt("Copia la formula:", pretty);
-      });
-    } else {
-      prompt("Copia la formula:", pretty);
-    }
   }
   function copyStepsText() {
     if (state.history.length === 0) return;
@@ -8324,18 +11408,29 @@ ${lines.join(" \\\\\n")}
       } catch (e) {
         mathHtml = escapeHtml3(syntax);
       }
-      dom.latexPreview.innerHTML = `<span class="conv-label">Sintassi per l'editor</span><div class="conv-code">` + escapeHtml3(syntax) + '</div><span class="conv-label" style="margin-top:.5rem">Anteprima</span><div class="math-eq">' + mathHtml + "</div>";
+      dom.latexPreview.innerHTML = `<span class="conv-label">Sintassi per l'editor</span><div class="conv-code">` + escapeHtml3(syntax) + '</div><span class="conv-label" style="margin-top:.5rem">Anteprima</span><div class="latex-math-preview">' + mathHtml + "</div>";
     }
     return syntax;
   }
   function argsEmpty(t) {
     return !t;
   }
+  function resolveVar(token, vars) {
+    if (vars.has(token)) return token;
+    const clean = token.replace(/^\\/, "");
+    if (vars.has(clean)) return clean;
+    const lower = clean.toLowerCase();
+    const greek = GREEK_MAP && GREEK_MAP[lower];
+    if (greek && vars.has(greek)) return greek;
+    const alt = [...vars].find((v) => v.toLowerCase() === lower);
+    if (alt) return alt;
+    return null;
+  }
   function saveLatex() {
     const syntax = previewLatex();
     if (!syntax) return;
     const name = (dom.latexName.value || "").trim() || "formula da LaTeX";
-    let target = (dom.latexTarget.value || "").trim();
+    const targetRaw = (dom.latexTarget.value || "").trim();
     let eq2;
     try {
       eq2 = parseEquation(syntax);
@@ -8344,12 +11439,21 @@ ${lines.join(" \\\\\n")}
       return;
     }
     const vars = collectVars(eq2);
-    if (target && !vars.has(target)) {
-      const alt = [...vars].find((v) => v.toLowerCase() === target.toLowerCase());
-      if (alt) target = alt;
-      else {
-        showLatexError(`La grandezza "${target}" non compare nella formula. Presenti: ${[...vars].join(", ")}.`);
-        return;
+    let isolateList = [...vars];
+    if (targetRaw) {
+      const parts = targetRaw.split(/[,;\s]+/).filter(Boolean);
+      const resolved = [];
+      for (const p of parts) {
+        const match = resolveVar(p, vars);
+        if (match) {
+          if (!resolved.includes(match)) resolved.push(match);
+        } else {
+          showLatexError(`La grandezza "${p}" non compare nella formula. Presenti: ${[...vars].join(", ")}.`);
+          return;
+        }
+      }
+      if (resolved.length > 0) {
+        isolateList = resolved;
       }
     }
     try {
@@ -8358,7 +11462,7 @@ ${lines.join(" \\\\\n")}
         formula: syntax,
         latex: (dom.latexInput.value || "").trim(),
         topic: "Le mie formule",
-        isolate: target ? [target] : [...vars],
+        isolate: isolateList,
         conditions: [],
         difficulty: 3,
         notes: "Importata da LaTeX."

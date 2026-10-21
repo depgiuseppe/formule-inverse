@@ -705,7 +705,19 @@ body.dark-theme .app-header {
   margin-bottom: .3rem;
   text-transform: uppercase;
 }
-.latex-preview .conv-code { font-family: var(--mono); font-weight: 700; }
+.latex-preview .conv-code { font-family: var(--mono); font-weight: 700; word-break: break-word; }
+.latex-math-preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: .4rem 0;
+  min-height: 2.2rem;
+  overflow-x: auto;
+}
+.latex-math-preview .math-eq {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 
 /* ------------------------------------------------------------------------- */
 /* 10. Area di lavoro                                                         */
@@ -714,11 +726,10 @@ body.dark-theme .app-header {
   display: flex;
   flex-wrap: wrap;
   gap: .4rem;
+  margin-bottom: 1rem;
 }
 .work-header-tools .btn-mini,
 .history-header-tools .btn-mini { min-height: 36px; }
-.panel-work > .panel-header { align-items: flex-start; }
-.panel-work > .panel-header h2 { flex-basis: 100%; }
 
 .objective {
   display: flex;
@@ -763,13 +774,112 @@ body.high-contrast .objective-label { color: var(--primary); }
 .status-progress { background: var(--warning-soft); color: var(--warning-dark); }
 .status-success  { background: var(--success-soft); color: var(--success); font-weight: 800; }
 
+.objective-status-group {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.btn-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  background: var(--success);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: .3rem .85rem;
+  font-size: .82rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
+  transition: transform .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.btn-retry:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);
+  background: #059669;
+}
+.btn-retry:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Banner celebrativo di completamento esercizio */
+.completion-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(59, 130, 246, 0.12));
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-left: 5px solid var(--success);
+  border-radius: var(--radius-md);
+  padding: .85rem 1.15rem;
+  margin: .85rem 0;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.15);
+  animation: slideDownFade .3s ease-out;
+}
+@keyframes slideDownFade {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.completion-content {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+}
+.completion-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+  animation: trophyBounce 1s ease infinite alternate;
+}
+@keyframes trophyBounce {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-3px) scale(1.08); }
+}
+
+.completion-text {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+.completion-text strong {
+  font-size: .98rem;
+  color: var(--success);
+  font-weight: 800;
+}
+body.dark-theme .completion-text strong {
+  color: #34d399;
+}
+.completion-text span {
+  font-size: .84rem;
+  color: var(--ink-soft);
+}
+
+.completion-actions {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+.btn-completion-action {
+  padding: .5rem .95rem;
+  font-size: .86rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+}
+
 /* Modalità */
 .mode-row {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: .45rem;
-  margin-bottom: 1rem;
+  margin-bottom: .65rem;
 }
 .mode-label { font-weight: 600; color: var(--ink-soft); font-size: .88rem; }
 .mode-btn {
@@ -879,6 +989,16 @@ body.dark-theme .equation-display-card {
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
 }
 .keypad-op:disabled { opacity: .45; cursor: not-allowed; }
+
+.keypad-op[data-op="asin"],
+.keypad-op[data-op="acos"],
+.keypad-op[data-op="atan"] {
+  font-family: var(--font-math);
+  font-size: .88rem;
+  font-weight: 600;
+  padding: .3rem .55rem;
+  min-width: auto;
+}
 
 .keypad-operand {
   font-family: var(--font-math);
@@ -1185,6 +1305,88 @@ body.dark-theme .equation-display-card {
 .action-label { display: block; font-weight: 700; font-size: .92rem; color: var(--ink); }
 .action-desc  { display: block; font-size: .8rem; color: var(--ink-muted); margin-top: .15rem; }
 
+.action-btn.auto-step-btn {
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-left: 5px solid #2563eb;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(139, 92, 246, 0.06) 100%);
+  padding: .85rem 1.15rem;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.12);
+  transition: all .2s cubic-bezier(0.16, 1, 0.3, 1);
+  width: 100%;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+.action-btn.auto-step-btn::after {
+  content: "⚡ CLIC PER APPLICARE";
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.5);
+  animation: pulseBadge 1.8s infinite ease-in-out;
+}
+@keyframes pulseBadge {
+  0%, 100% { transform: scale(1); opacity: 0.95; }
+  50% { transform: scale(1.05); opacity: 1; box-shadow: 0 0 14px rgba(37, 99, 235, 0.8); }
+}
+.action-btn.auto-step-btn:hover {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.22) 0%, rgba(139, 92, 246, 0.14) 100%);
+  border-left-color: #1d4ed8;
+  transform: translateY(-2px) scale(1.005);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22);
+}
+.action-btn.auto-step-btn .action-label {
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+}
+.action-btn.auto-step-btn .action-desc {
+  font-size: .88rem;
+  color: var(--ink);
+  margin-top: .35rem;
+  line-height: 1.4;
+  padding-right: 140px;
+}
+.equation-display-card.is-auto-mode {
+  cursor: pointer;
+  border-color: rgba(37, 99, 235, 0.55);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15), 0 8px 24px rgba(37, 99, 235, 0.08);
+  transition: all .25s ease;
+  position: relative;
+}
+.equation-display-card.is-auto-mode:hover {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28), 0 12px 32px rgba(37, 99, 235, 0.16);
+}
+.equation-display-card.is-auto-mode .equation-display {
+  cursor: pointer;
+}
+.auto-mode-finished {
+  background: var(--success-soft);
+  border: 1px solid var(--success);
+  border-radius: var(--radius-sm);
+  padding: .85rem 1rem;
+  color: var(--ink);
+}
+.auto-success-header {
+  font-size: .98rem;
+  font-weight: 700;
+  color: var(--success);
+  margin-bottom: .35rem;
+}
+
 /* Multi-operazione roadmap */
 .multi-controls {
   display: flex;
@@ -1254,33 +1456,49 @@ body.dark-theme .equation-display-card {
 /* ------------------------------------------------------------------------- */
 .rule-panel { font-size: .92rem; }
 .rule-name {
-  font-weight: 700;
+  font-weight: 800;
   color: var(--primary);
-  font-size: 1.05rem;
-  margin-bottom: .65rem;
+  font-size: 1.15rem;
+  margin-bottom: .75rem;
+  padding-bottom: .45rem;
+  border-bottom: 2px solid var(--primary-soft);
+  display: flex;
+  align-items: center;
+  gap: .4rem;
 }
 .rule-section {
   margin-bottom: .75rem;
-  padding-bottom: .65rem;
-  border-bottom: 1px solid var(--line);
+  padding: .7rem .85rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  transition: all .2s ease;
 }
-.rule-section:last-child { border-bottom: none; }
-.rule-section strong { display: block; margin-bottom: .25rem; font-size: .88rem; color: var(--ink-soft); }
-.rule-section p { margin: .2rem 0; }
+.rule-section:hover {
+  border-color: var(--line-strong);
+}
+.rule-section strong {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin-bottom: .3rem;
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+.rule-section p { margin: .2rem 0; line-height: 1.45; }
 .rule-section ul { margin: .3rem 0 0; padding-left: 1.25rem; }
 .rule-section.warning {
   background: var(--warning-soft);
   border-left: 4px solid var(--warning);
   border-radius: var(--radius-sm);
-  padding: .55rem .8rem;
-  border-bottom: none;
+  padding: .6rem .85rem;
 }
 .rule-section.conditions {
   background: var(--primary-soft);
   border-left: 4px solid var(--primary);
   border-radius: var(--radius-sm);
-  padding: .55rem .8rem;
-  border-bottom: none;
+  padding: .6rem .85rem;
 }
 .rule-eq .rule-math {
   margin-top: .4rem;
@@ -1375,6 +1593,7 @@ body.dark-theme .equation-display-card {
   font-size: 1.55rem;
   font-family: var(--font-math);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .eq-sign {
   font-family: var(--font-math);
@@ -1436,6 +1655,27 @@ body.dark-theme .equation-display-card {
 .math-node.selected * {
   color: #fff !important;
 }
+/* Evita che i token o elementi figli all'interno di un nodo selezionato sbianchino (testo bianco su sfondo bianco card) */
+.math-node.selected .draggable-token,
+.frac-num .math-node.selected .draggable-token,
+.frac-den .math-node.selected .draggable-token {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+}
+.math-node.selected .draggable-token *,
+.frac-num .math-node.selected .draggable-token *,
+.frac-den .math-node.selected .draggable-token * {
+  color: #ffffff !important;
+}
+.math-node.selected .draggable-token:hover,
+.frac-num .math-node.selected .draggable-token:hover,
+.frac-den .math-node.selected .draggable-token:hover {
+  background: rgba(255, 255, 255, 0.35) !important;
+  border-color: #ffffff !important;
+  color: #ffffff !important;
+}
 
 .math-node.node-target {
   font-weight: 700;
@@ -1461,18 +1701,72 @@ body.dark-theme .math-node.node-target {
 .node-group-parens,
 .neg-parens {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.node-add,
+.node-sub,
+.node-mul {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
 }
 .group-paren {
   font-family: var(--font-math);
   color: var(--ink-muted);
   font-weight: 500;
   padding: 0 .04em;
+  line-height: 1;
 }
 .group-paren:first-child { padding-left: 0; }
 .group-paren:last-child { padding-right: 0; }
+.node-group-parens.has-frac > .group-paren,
+.node-group-parens:has(.frac) > .group-paren,
+.neg-parens:has(.frac) > .group-paren {
+  font-size: 1.55em;
+  line-height: 1;
+}
 .node-neg {
   white-space: nowrap;
+}
+
+/* Sfumatura animata dei fattori e termini neutri (1 moltiplicativo e +0 additivo) */
+@keyframes neutralElementFade {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    max-width: 4rem;
+  }
+  35% {
+    opacity: 0.95;
+    color: var(--primary);
+    transform: scale(1.06);
+  }
+  65% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.3);
+    max-width: 0;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.neutral-fade-wrap {
+  display: inline-flex;
+  align-items: center;
+  animation: neutralElementFade 1.1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation-delay: 0.45s;
+  overflow: hidden;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.neutral-fade-wrap .op {
+  margin: 0 .08rem;
 }
 
 /* Frazioni */
@@ -1487,6 +1781,21 @@ body.dark-theme .math-node.node-target {
 .frac-num, .frac-den {
   padding: .1rem .35rem;
   font-family: var(--font-math);
+}
+.frac-num .draggable-token,
+.frac-den .draggable-token {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.frac-num .draggable-token:hover,
+.frac-den .draggable-token:hover {
+  background: var(--primary-soft) !important;
+  border-color: var(--primary) !important;
+  transform: scale(1.12);
 }
 .frac-bar {
   width: 100%;
@@ -1752,8 +2061,8 @@ sup.node-exp {
   pointer-events: none;
   user-select: none;
 }
-/* I figli che sono essi stessi draggable-token restano interattivi */
-.draggable-token > .draggable-token {
+/* I figli e discendenti che sono essi stessi draggable-token restano interattivi */
+.draggable-token .draggable-token {
   pointer-events: auto;
 }
 
@@ -1830,6 +2139,35 @@ sup.node-exp {
 }
 .math-term-group:hover .term-group-tag {
   opacity: 1;
+}
+
+/* Fattori e blocchi composti (es. (v + vo) o denominatori di frazione) */
+.node-group-parens.draggable-token,
+.math-factor-group {
+  display: inline-flex;
+  align-items: center;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: 1px 4px;
+  margin: 0 2px;
+  background: rgba(248, 250, 252, 0.7);
+  transition: all 0.2s ease;
+  position: relative;
+  cursor: grab !important;
+}
+.node-group-parens.draggable-token:hover,
+.math-factor-group:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: 0 0 0 1px var(--primary), 0 3px 8px rgba(37, 99, 235, 0.18);
+  transform: translateY(-1px);
+}
+.node-group-parens.draggable-token:hover .group-paren {
+  color: var(--primary);
+  font-weight: 700;
+}
+.node-group-parens.draggable-token * {
+  pointer-events: none;
 }
 
 /* Lettere singole all'interno del termine composto */
@@ -2134,21 +2472,104 @@ body.dark-theme .dropzone.dropzone-hover {
 }
 
 /* ---------------------------------------------------------------------------
-   Animazione dissolvi elementi cross (semplificazione)
+   Effetto Esplosione e Dissolvenza Particellare delle Grandezze
    --------------------------------------------------------------------------- */
-@keyframes crossDissolve {
-  0%   { opacity: 1; transform: scale(1) rotate(0deg);
-         background: #fecaca; box-shadow: 0 0 0 2px #ef4444; border-radius: 4px; }
-  35%  { opacity: 0.75; transform: scale(1.12) rotate(-4deg);
-         background: #fee2e2; color: #ef4444; }
-  100% { opacity: 0; transform: scale(0.15) translateY(-14px) rotate(8deg);
-         background: transparent; box-shadow: none; }
+@keyframes varExplode {
+  0% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.35) rotate(-6deg);
+    color: #ef4444 !important;
+    text-shadow: 0 0 16px rgba(239, 68, 68, 0.95), 0 0 30px rgba(245, 158, 11, 0.7);
+    background: rgba(254, 202, 202, 0.55);
+    border-radius: 6px;
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.2) rotate(8deg);
+    color: #f59e0b !important;
+    text-shadow: 0 0 24px rgba(245, 158, 11, 0.95);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.12) translateY(-22px) rotate(-16deg);
+    filter: blur(8px);
+  }
 }
+
+.var-exploding,
 .cross-dissolving {
-  animation: crossDissolve 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards !important;
+  animation: varExplode 0.45s cubic-bezier(0.2, 0.8, 0.25, 1) forwards !important;
   pointer-events: none !important;
   position: relative;
-  z-index: 10;
+  z-index: 25;
+}
+
+/* Onda d'urto ad anello al momento dell'esplosione */
+.explosion-shockwave {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  margin-top: -12px;
+  border-radius: 50%;
+  pointer-events: none;
+  border: 2.5px solid #38bdf8;
+  box-shadow: 0 0 16px #38bdf8, inset 0 0 12px rgba(56, 189, 248, 0.6);
+  animation: shockwaveExpand 0.52s cubic-bezier(0.12, 0.8, 0.32, 1) forwards;
+  z-index: 30;
+}
+
+@keyframes shockwaveExpand {
+  0% {
+    transform: scale(0.15);
+    opacity: 1;
+    border-color: #38bdf8;
+  }
+  45% {
+    opacity: 0.9;
+    border-color: #ec4899;
+    box-shadow: 0 0 22px #ec4899, inset 0 0 16px rgba(236, 72, 153, 0.6);
+  }
+  100% {
+    transform: scale(3.5);
+    opacity: 0;
+    border-color: #f59e0b;
+    box-shadow: none;
+  }
+}
+
+/* Particelle ed effetti scintilla/stellina */
+.explosion-particle {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  transform: translate(-50%, -50%);
+  animation: particleBurst 0.65s cubic-bezier(0.15, 0.85, 0.35, 1) forwards;
+  z-index: 31;
+  text-shadow: 0 0 10px currentColor;
+  will-change: transform, opacity;
+  font-weight: 900;
+  line-height: 1;
+}
+
+@keyframes particleBurst {
+  0% {
+    transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
+    opacity: 1;
+  }
+  35% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--dx) * 0.7), calc(-50% + var(--dy) * 0.7)) scale(1.35) rotate(140deg);
+  }
+  100% {
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.2) rotate(360deg);
+    opacity: 0;
+  }
 }
 
 /* Pulsante ✕/ nel tastierino */
@@ -2163,3 +2584,805 @@ body.dark-theme .dropzone.dropzone-hover {
   border-color: #ef4444 !important;
   color: #b91c1c !important;
 }
+
+/* ---------------------------------------------------------------------------
+   Didactic Bubble (Mini-Fumetto Esplicativo Diagnosi Errori)
+   --------------------------------------------------------------------------- */
+.didactic-bubble-anchor {
+  position: relative;
+  width: 100%;
+  margin: 12px 0 6px 0;
+  display: flex;
+  justify-content: center;
+  z-index: 50;
+  pointer-events: auto;
+}
+
+.didactic-bubble {
+  position: relative;
+  max-width: 580px;
+  width: 95%;
+  background: #ffffff;
+  border: 2px solid #f59e0b;
+  border-radius: 16px;
+  box-shadow: 0 16px 36px -6px rgba(245, 158, 11, 0.22), 0 8px 16px -4px rgba(0, 0, 0, 0.08);
+  padding: 16px 18px 14px 18px;
+  animation: bubblePopIn 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  transform-origin: top center;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.didactic-bubble.bubble-closing {
+  opacity: 0;
+  transform: scale(0.92) translateY(-8px);
+}
+
+@keyframes bubblePopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.82) translateY(-14px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Triangolo del fumetto (freccia orientata verso l'alto verso la formula) */
+.bubble-arrow {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-bottom: 11px solid #f59e0b;
+}
+
+.bubble-arrow::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: -9px;
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 9px solid #ffffff;
+}
+
+body.dark-theme .didactic-bubble {
+  background: #1e2638;
+  border-color: #fbbf24;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5), 0 0 24px rgba(251, 191, 36, 0.2);
+}
+
+body.dark-theme .bubble-arrow {
+  border-bottom-color: #fbbf24;
+}
+
+body.dark-theme .bubble-arrow::after {
+  border-bottom-color: #1e2638;
+}
+
+.bubble-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px dashed var(--line, #e2e8f0);
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+
+.bubble-avatar {
+  font-size: 1.85rem;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.bubble-header-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bubble-speaker {
+  font-family: var(--font-display, sans-serif);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink, #0f172a);
+}
+
+.bubble-badge {
+  display: inline-block;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill, 9999px);
+  width: fit-content;
+}
+
+body.dark-theme .bubble-badge {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fde68a;
+}
+
+.bubble-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.15rem;
+  cursor: pointer;
+  color: var(--ink-muted, #94a3b8);
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.bubble-close-btn:hover {
+  background: var(--bg-hover, #f1f5f9);
+  color: var(--danger, #ef4444);
+}
+
+.bubble-body {
+  margin-bottom: 12px;
+}
+
+.bubble-message {
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--ink, #1e293b);
+  margin: 0 0 10px 0;
+  font-weight: 500;
+}
+
+.bubble-hint-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #eff6ff;
+  border-left: 3px solid #3b82f6;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  color: #1e40af;
+  line-height: 1.4;
+}
+
+body.dark-theme .bubble-hint-box {
+  background: rgba(59, 130, 246, 0.15);
+  color: #bfdbfe;
+  border-left-color: #60a5fa;
+}
+
+.bubble-hint-icon {
+  font-size: 1.05rem;
+  flex-shrink: 0;
+}
+
+.bubble-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line, #e2e8f0);
+  padding-top: 10px;
+}
+
+.bubble-footer-rule {
+  font-size: 0.8rem;
+  color: var(--ink-muted, #64748b);
+  font-style: italic;
+  flex: 1;
+}
+
+.btn-bubble-ok {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #ffffff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.35);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-bubble-ok:hover {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(245, 158, 11, 0.45);
+}
+
+.btn-bubble-ok:active {
+  transform: translateY(0);
+}
+
+/* ---------------------------------------------------------------------------
+   Laboratorio di Calcolo Numerico con Unità di Misura SI
+   --------------------------------------------------------------------------- */
+.numerical-calc-card {
+  margin-top: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.95));
+  border: 2px solid #10b981;
+  border-radius: var(--radius, 14px);
+  padding: 18px 20px;
+  box-shadow: 0 10px 25px -4px rgba(16, 185, 129, 0.15), 0 4px 8px -2px rgba(0, 0, 0, 0.05);
+  animation: calcReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  position: relative;
+  overflow: hidden;
+}
+
+body.dark-theme .numerical-calc-card {
+  background: linear-gradient(180deg, #15222e, #101924);
+  border-color: #34d399;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), 0 0 25px rgba(52, 211, 153, 0.18);
+}
+
+@keyframes calcReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.calc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+  padding-bottom: 12px;
+}
+
+.calc-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.calc-icon {
+  font-size: 1.8rem;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  padding: 4px 8px;
+  line-height: 1;
+}
+
+body.dark-theme .calc-icon {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+.calc-heading {
+  font-family: var(--font-display, sans-serif);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink, #0f172a);
+}
+
+.calc-subheading {
+  font-size: 0.85rem;
+  color: var(--ink-muted, #64748b);
+  margin-top: 2px;
+}
+
+.calc-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-calc-action {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--line-strong, #cbd5e1);
+  background: var(--bg-card, #ffffff);
+  color: var(--ink-soft, #334155);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-calc-action:hover {
+  background: var(--bg-hover, #f1f5f9);
+  border-color: var(--primary, #2563eb);
+  color: var(--primary, #2563eb);
+}
+
+body.dark-theme .btn-calc-action {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+body.dark-theme .btn-calc-action:hover {
+  background: #27354f;
+  border-color: #60a5fa;
+  color: #93c5fd;
+}
+
+/* Griglia degli input numerici */
+.calc-inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.calc-input-item {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.calc-input-item:focus-within {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+body.dark-theme .calc-input-item {
+  background: #1a2436;
+  border-color: #2b3952;
+}
+
+body.dark-theme .calc-input-item:focus-within {
+  border-color: #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+}
+
+.calc-input-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.calc-input-symbol {
+  font-family: var(--font-math, serif);
+  font-size: 1.15rem;
+  font-style: italic;
+  font-weight: 700;
+  color: var(--primary, #2563eb);
+}
+
+body.dark-theme .calc-input-symbol {
+  color: #60a5fa;
+}
+
+.calc-input-label {
+  font-size: 0.76rem;
+  color: var(--ink-muted, #64748b);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.calc-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.calc-num-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono, monospace);
+  font-size: 1rem;
+  padding: 6px 8px;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 6px;
+  background: var(--bg-soft, #f8fafc);
+  color: var(--ink, #0f172a);
+  transition: border-color 0.2s ease;
+}
+
+body.dark-theme .calc-num-input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.calc-num-input:focus {
+  outline: none;
+  border-color: #10b981;
+  background: #ffffff;
+}
+
+body.dark-theme .calc-num-input:focus {
+  background: #131c31;
+  border-color: #34d399;
+}
+
+.calc-unit-badge {
+  font-family: var(--mono, monospace);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #047857;
+  background: #d1fae5;
+  padding: 5px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+body.dark-theme .calc-unit-badge {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.2);
+}
+
+/* Risultato finale e sostituzione */
+.calc-result-box {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+body.dark-theme .calc-result-box {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.calc-step-formula {
+  font-family: var(--font-math, serif);
+  font-size: 1.05rem;
+  color: var(--ink-soft, #334155);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 28px;
+}
+
+body.dark-theme .calc-step-formula {
+  color: #cbd5e1;
+}
+
+.calc-result-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-top: 1px dashed rgba(16, 185, 129, 0.3);
+  padding-top: 10px;
+}
+
+.calc-result-val-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.calc-target-var {
+  font-family: var(--font-math, serif);
+  font-size: 1.55rem;
+  font-style: italic;
+  font-weight: 700;
+  color: #047857;
+}
+
+body.dark-theme .calc-target-var {
+  color: #34d399;
+}
+
+.calc-equals {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--ink-muted, #64748b);
+}
+
+.calc-final-number {
+  font-family: var(--mono, monospace);
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #065f46;
+  letter-spacing: -0.5px;
+}
+
+body.dark-theme .calc-final-number {
+  color: #6ee7b7;
+}
+
+.calc-final-unit {
+  font-family: var(--mono, monospace);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #047857;
+  background: #d1fae5;
+  padding: 3px 10px;
+  border-radius: 8px;
+}
+
+body.dark-theme .calc-final-unit {
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.25);
+}
+
+.btn-calc-copy {
+  background: #ffffff;
+  border: 1px solid #10b981;
+  color: #047857;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-calc-copy:hover {
+  background: #10b981;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+}
+
+body.dark-theme .btn-calc-copy {
+  background: #15222e;
+  border-color: #34d399;
+  color: #34d399;
+}
+
+body.dark-theme .btn-calc-copy:hover {
+  background: #34d399;
+  color: #0b0f19;
+}
+
+.calc-error-notice {
+  font-size: 0.85rem;
+  color: #b91c1c;
+  background: #fee2e2;
+  border-left: 3px solid #ef4444;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+body.dark-theme .calc-error-notice {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  border-left-color: #f87171;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .didactic-bubble { animation: none; }
+  .numerical-calc-card { animation: none; }
+  #btn-install-pwa { animation: none; }
+}
+
+/* ------------------------------------------------------------------------- */
+/* PWA Android: Install Banner, Safe Areas & Touch Enhancements              */
+/* ------------------------------------------------------------------------- */
+body {
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#btn-install-pwa {
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #7c3aed 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-pill);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  animation: pwa-btn-pulse 2.5s infinite;
+}
+
+#btn-install-pwa:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+  background: linear-gradient(135deg, #0369a1 0%, #1d4ed8 50%, #6d28d9 100%);
+}
+
+#btn-install-pwa:active {
+  transform: translateY(0) scale(0.97);
+}
+
+@keyframes pwa-btn-pulse {
+  0%, 100% {
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  }
+  50% {
+    box-shadow: 0 4px 22px rgba(124, 58, 237, 0.6);
+  }
+}
+
+@media (max-width: 640px) {
+  #btn-install-pwa {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.7rem;
+  }
+}
+
+/* ------------------------------------------------------------------------- */
+/* Banner & Animazione Didattica per Frazioni di Frazione                    */
+/* ------------------------------------------------------------------------- */
+.compound-fraction-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.75rem 1rem;
+  margin: 0.4rem 0.5rem 0.75rem 0.5rem;
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.95), rgba(224, 231, 255, 0.85));
+  border: 1.5px solid #6366f1;
+  border-left: 5px solid #4f46e5;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.15);
+  animation: slideDownFade 0.4s ease-out;
+  transition: all 0.3s ease;
+}
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.compound-fraction-icon {
+  font-size: 1.6rem;
+  color: #4f46e5;
+  flex-shrink: 0;
+  animation: pulseIcon 1.5s infinite;
+}
+
+@keyframes pulseIcon {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.compound-fraction-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.compound-fraction-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+  flex-wrap: wrap;
+}
+
+.compound-fraction-title {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: #312e81;
+}
+
+.compound-fraction-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: #4f46e5;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);
+}
+
+.compound-fraction-msg {
+  font-size: 0.85rem;
+  color: #374151;
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Step 1: Evidenziazione della frazione a doppio piano */
+.equation-display.compound-anim-step1 {
+  position: relative;
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25), 0 8px 24px rgba(245, 158, 11, 0.15) !important;
+  transition: all 0.6s ease;
+}
+
+.equation-display.compound-anim-step1 .node-div .node-div {
+  animation: compoundPulseGlow 1.8s infinite alternate ease-in-out;
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+
+@keyframes compoundPulseGlow {
+  0% {
+    background: rgba(245, 158, 11, 0.08);
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+  }
+  100% {
+    background: rgba(245, 158, 11, 0.22);
+    box-shadow: 0 0 18px rgba(245, 158, 11, 0.6);
+  }
+}
+
+/* Step 2: Inversione del denominatore in moltiplicazione per la reciproca */
+.equation-display.compound-anim-step2 {
+  position: relative;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25), 0 8px 24px rgba(99, 102, 241, 0.15) !important;
+  transition: all 0.6s ease;
+}
+
+.equation-display.compound-anim-step2 .math-member-content {
+  animation: compoundReciprocalFlip 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes compoundReciprocalFlip {
+  0% {
+    opacity: 0.3;
+    transform: translateY(8px) scale(0.94);
+  }
+  60% {
+    transform: translateY(-2px) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Step 3: Frazione normale canonica raggiunta */
+.equation-display.compound-anim-step3 {
+  position: relative;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.28), 0 8px 24px rgba(16, 185, 129, 0.2) !important;
+  transition: all 0.6s ease;
+}
+
+.equation-display.compound-anim-step3 .math-member-content {
+  animation: compoundSuccessPop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes compoundSuccessPop {
+  0% {
+    transform: scale(0.95);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+
+

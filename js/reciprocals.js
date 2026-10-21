@@ -6,7 +6,7 @@
 // Attenzione didattica: il reciproco di una somma NON è la somma dei reciproci,
 // quindi 1/(A/B + C/D) ≠ B/A + D/C. In quel caso l'operazione va rifiutata.
 
-import { unwrap, clone, canonical, Div, Eq, Mul, Num } from './ast.js';
+import { unwrap, clone, canonical, Div, Eq, Mul, Num, isIdenticallyZero } from './ast.js';
 
 const isOne = (node) => {
   const u = unwrap(node);
@@ -71,6 +71,13 @@ export function reciprocalOfMember(node) {
 export function reciprocalEquation(eq) {
   if (!eq || eq.type !== 'Eq') {
     return { ok: false, error: 'Nessuna equazione valida da invertire.' };
+  }
+  if (isIdenticallyZero(eq.left) || isIdenticallyZero(eq.right)) {
+    return {
+      ok: false,
+      error: 'Non si può calcolare il reciproco di un membro identicamente nullo: la divisione per zero non è definita.',
+      hint: 'Assicurati che entrambi i membri siano diversi da zero prima di applicare la regola dei reciproci.',
+    };
   }
   if (memberIsFractionSum(eq.left) || memberIsFractionSum(eq.right)) {
     return {

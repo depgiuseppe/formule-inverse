@@ -58,6 +58,26 @@ async function run() {
   check('La libreria delle formule è popolata',
     (await page.locator('#library-list .formula-card').count()) > 10);
 
+  // Test di ricerca interattiva nella libreria:
+  await page.locator('#library-search').fill('stevino');
+  await page.waitForTimeout(100);
+  const stevinoCards = await page.locator('#library-list .formula-card').count();
+  check('Ricerca UI: "stevino" mostra le formule di Stevino', stevinoCards >= 2, `trovate ${stevinoCards} carte`);
+
+  await page.locator('#library-search').fill('archimede');
+  await page.waitForTimeout(100);
+  const archimedeCards = await page.locator('#library-list .formula-card').count();
+  check('Ricerca UI: "archimede" mostra le formule di Archimede', archimedeCards >= 2, `trovate ${archimedeCards} carte`);
+
+  await page.locator('#library-search').fill('suono');
+  await page.waitForTimeout(100);
+  const suonoCards = await page.locator('#library-list .formula-card').count();
+  check('Ricerca UI: "suono" mostra tutte le formule acustiche e onde sonore', suonoCards >= 12, `trovate ${suonoCards} carte`);
+
+  // Ripristina ricerca vuota
+  await page.locator('#library-search').fill('');
+  await page.waitForTimeout(100);
+
   // 2. Scelta della grandezza da ricavare
   await page.locator('#library-list .formula-card').first().click();
   const pickModal = page.locator('#pick-target-backdrop');
@@ -71,8 +91,8 @@ async function run() {
     (await page.locator('#objective-text').innerText()).includes('t'));
 
   // 3. Tastierino: le operazioni e le grandezze dell'equazione
-  check('Il tastierino mostra le 6 operazioni',
-    (await page.locator('#keypad-ops .keypad-op').count()) === 6);
+  check('Il tastierino mostra le operazioni (incluse arcsin, arccos, arctan)',
+    (await page.locator('#keypad-ops .keypad-op').count()) >= 9);
   const operands = await page.locator('#keypad-operands .keypad-operand').allInnerTexts();
   check('Il tastierino elenca le grandezze dell\'equazione',
     operands.includes('s') && operands.includes('t') && operands.includes('v'),
@@ -165,6 +185,31 @@ async function run() {
   const [bl, br] = beforeMirrorRaw.split('=');
   check('La regola dello specchio scambia i due membri',
     afterMirrorRaw === `${br}=${bl}`, `${beforeMirrorRaw} -> ${afterMirrorRaw}`);
+
+  // 8b. Regola del cambio di segno (posizionato prima della croce di semplificazione)
+  const isDirectlyBeforeCross = await page.evaluate(() => {
+    const changeBtn = document.getElementById('btn-change-sign');
+    const crossBtn = document.getElementById('btn-cross');
+    return changeBtn && crossBtn && changeBtn.nextElementSibling === crossBtn;
+  });
+  check('Il pulsante Cambio Segno è posizionato subito prima della Croce di semplificazione',
+    isDirectlyBeforeCross);
+
+  await page.evaluate(() => {
+    document.querySelectorAll('details.editor-toggle').forEach((d) => { d.open = true; });
+  });
+  await page.locator('#custom-formula').fill('-v = -v0 + a*t');
+  await page.locator('#custom-target').fill('v');
+  await page.locator('#btn-load-custom').click();
+  await page.waitForTimeout(300);
+
+  await page.locator('#btn-change-sign').click();
+  await page.waitForTimeout(300);
+  const rawText = await page.locator('#equation-display').innerText();
+  const clean = rawText.replace(/\s+/g, '').replace(/\u2212/g, '-');
+  check('La regola del cambio di segno inverte i segni dell\'equazione',
+    clean.includes('v0-') || clean.includes('v₀-') || clean.includes('v=v0'),
+    clean);
 
   // 9. Croce di semplificazione (formula personalizzata con un fattore comune)
   await page.evaluate(() => {
@@ -295,7 +340,99 @@ async function run() {
   await page.keyboard.press('Escape');
   await page.waitForTimeout(200);
 
-  // 15. Nessun errore in console durante le interazioni
+  // 15. Modalità: esattamente 2 (Libera e Automatica)
+  const modeButtons = await page.locator('.mode-row .mode-btn').allInnerTexts();
+  check('Le modalità sono esattamente 2 (Libera e Automatica)',
+    modeButtons.length === 2 && modeButtons[0].trim() === 'Libera' && modeButtons[1].trim() === 'Automatica',
+    modeButtons.join(', '));
+
+  // 16. Modalità Automatica: ogni click del mouse esegue un'operazione giustificando la regola
+  await page.locator('#custom-formula').fill('v = s/t');
+  await page.locator('#custom-target').fill('t');
+  await page.locator('#btn-load-custom').click();
+  await page.waitForTimeout(300);
+
+  await page.locator('.mode-btn[data-mode="auto"]').click();
+  await page.waitForTimeout(200);
+  check('La modalità Automatica è attiva',
+    (await page.locator('.mode-btn[data-mode="auto"]').getAttribute('aria-pressed')) === 'true');
+
+  const eqBeforeClick = await page.locator('#equation-display').innerText();
+  // Clic del mouse sull'equazione: esegue il primo passaggio
+  await page.locator('#equation-display').click();
+  await page.waitForTimeout(400);
+
+  const eqAfterClick1 = await page.locator('#equation-display').innerText();
+  const ruleTitle1 = await page.locator('#rule-panel .rule-name').innerText();
+  const rulePanelText = await page.locator('#rule-panel').innerText();
+
+  check('Primo click del mouse esegue l\'operazione',
+    eqBeforeClick !== eqAfterClick1, `${eqBeforeClick} -> ${eqAfterClick1}`);
+  check('Il programma giustifica la regola matematica applicata',
+    ruleTitle1.length > 0 && /principio|regola|moltiplicazione|divisione/i.test(rulePanelText),
+    `Regola: "${ruleTitle1}"`);
+
+  // Continua a cliccare fino al completamento dell'isolamento
+  for (let i = 0; i < 4; i++) {
+    const isDone = (await page.locator('#objective-status').innerText()).includes('Raggiunto');
+    if (isDone) break;
+    await page.locator('#equation-display').click();
+    await page.waitForTimeout(400);
+  }
+
+  check('Obiettivo raggiunto con i click del mouse',
+    (await page.locator('#objective-status').innerText()).includes('Raggiunto'));
+
+  // Test tasto "Ricomincia":
+  const isRetryVisible = await page.locator('#btn-retry-exercise').isVisible();
+  const isBannerVisible = await page.locator('#completion-banner').isVisible();
+  check('Tasto "Ricomincia" è visibile e attivo', isRetryVisible);
+  check('Banner celebrativo con tasti Riprova e Altro compare al completamento', isBannerVisible);
+
+  // Click su "Riprova": deve riavviare l'esercizio con la formula iniziale
+  await page.locator('#btn-completion-retry').click();
+  await page.waitForTimeout(300);
+  const eqAfterRetry = await page.locator('#equation-display').innerText();
+  const isRetryStillVisible = await page.locator('#btn-retry-exercise').isVisible();
+  check('Premendo "Riprova" l\'equazione torna alla formula di partenza', eqAfterRetry.includes('s') && eqAfterRetry.includes('t') && eqAfterRetry.includes('v'));
+  check('Dopo il riavvio il tasto ricomincia resta sempre attivo e visibile', isRetryStillVisible);
+
+  // 17. Progressive Web App (PWA) e installabilità su Android
+  const manifestHref = await page.locator('link[rel="manifest"]').getAttribute('href');
+  check('Il tag manifest per PWA è presente in index.html', manifestHref === 'manifest.json');
+
+  const manifestPath = path.join(root, 'manifest.json');
+  const manifestExists = fs.existsSync(manifestPath);
+  let manifestObj = null;
+  if (manifestExists) {
+    try {
+      manifestObj = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    } catch (_) {}
+  }
+  check('Il file manifest.json esiste ed è valido', !!manifestObj);
+  check('Il manifest è configurato in modalità standalone per Android',
+    manifestObj && manifestObj.display === 'standalone');
+  check('Il manifest include le icone richieste (192, 512 e maskable)',
+    manifestObj && manifestObj.icons && manifestObj.icons.length >= 4);
+
+  const icon192Exists = fs.existsSync(path.join(root, 'icons', 'icon-192.png'));
+  const icon512Exists = fs.existsSync(path.join(root, 'icons', 'icon-512.png'));
+  const swExists = fs.existsSync(path.join(root, 'sw.js'));
+  check('Le icone PNG 192 e 512 esistono sul disco', icon192Exists && icon512Exists);
+  check('Il file sw.js (Service Worker) esiste per il supporto offline', swExists);
+
+  const hasInstallBtn = await page.locator('#btn-install-pwa').count();
+  check('Il pulsante di installazione PWA (#btn-install-pwa) è presente nel DOM', hasInstallBtn === 1);
+
+  // 18. Banner didattico frazioni di frazione
+  const hasCompoundBanner = await page.locator('#compound-fraction-banner').count();
+  const hasCompoundTitle = await page.locator('#compound-fraction-title').count();
+  const hasCompoundBadge = await page.locator('#compound-fraction-step-badge').count();
+  const hasCompoundMsg = await page.locator('#compound-fraction-msg').count();
+  check('Elementi banner frazione di frazione presenti nel DOM',
+    hasCompoundBanner === 1 && hasCompoundTitle === 1 && hasCompoundBadge === 1 && hasCompoundMsg === 1);
+
+  // 19. Nessun errore in console durante le interazioni
   check('Nessun errore JavaScript durante le interazioni',
     consoleErrors.length === 0, consoleErrors.join(' | '));
 

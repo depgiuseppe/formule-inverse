@@ -8,7 +8,7 @@
 // condizioni (÷ per una quantità ≠ 0, radice con radicando ≥ 0, …) restano
 // coerenti con il resto dell'applicazione.
 
-import { Sqrt, Eq, unwrap, canonical, isNum, collectVars } from './ast.js';
+import { Sqrt, Eq, unwrap, unwrapNeutrals, canonical, isNum, collectVars, evalConst } from './ast.js';
 import { parseExpression } from './parser.js';
 import { RULES, applyRule, conditionText } from './rules.js';
 import { whichSideHas } from './algebra.js';
@@ -21,6 +21,9 @@ export const KEYPAD_OPERATIONS = [
   { id: 'div', label: '÷', title: 'Dividi entrambi i membri per la stessa grandezza o numero (≠ 0)', needsOperand: true },
   { id: 'pow', label: '^', title: 'Eleva entrambi i membri alla stessa potenza', needsOperand: true },
   { id: 'sqrt', label: '√', title: 'Estrai la radice quadrata di entrambi i membri', needsOperand: false },
+  { id: 'asin', label: 'arcsin', title: "Applica l'arcoseno (sin⁻¹) a entrambi i membri per liberare l'argomento del seno", needsOperand: false },
+  { id: 'acos', label: 'arccos', title: "Applica l'arcocoseno (cos⁻¹) a entrambi i membri per liberare l'argomento del coseno", needsOperand: false },
+  { id: 'atan', label: 'arctan', title: "Applica l'arcotangente (tan⁻¹) a entrambi i membri per liberare l'argomento della tangente", needsOperand: false },
 ];
 
 const RULE_BY_OP = {
@@ -97,6 +100,18 @@ function applySqrtBothSides(eq, targetVar) {
     }
   }
 
+  // Se un membro è una costante strettamente negativa, la radice quadrata reale non esiste
+  for (const member of [eq.left, eq.right]) {
+    const constM = evalConst(member);
+    if (constM.ok && constM.value < 0) {
+      return {
+        ok: false,
+        error: 'Non si può estrarre una radice di indice pari da un radicando strettamente negativo nel campo reale.',
+        hint: 'L\'equazione non ammette soluzioni reali.',
+      };
+    }
+  }
+
   // Se un membro è una potenza pari, la radice va fatta con la regola dedicata:
   // √(x²) = |x|, quindi non possiamo semplificarla via senza perdere il ±.
   for (const member of [eq.left, eq.right]) {
@@ -119,6 +134,107 @@ function applySqrtBothSides(eq, targetVar) {
   };
 }
 
+// Verifica se un tipo di nodo compare in un sottoalbero AST.
+function nodeContainsType(node, type) {
+  if (!node) return false;
+  const u = unwrap(node);
+  if (u.type === type) return true;
+  switch (u.type) {
+    case 'Add': case 'Sub': case 'Mul':
+      return u.args.some((arg) => nodeContainsType(arg, type));
+    case 'Div':
+      return nodeContainsType(u.num, type) || nodeContainsType(u.den, type);
+    case 'Pow':
+      return nodeContainsType(u.base, type) || nodeContainsType(u.exp, type);
+    case 'Eq':
+      return nodeContainsType(u.left, type) || nodeContainsType(u.right, type);
+    default:
+      return u.arg ? nodeContainsType(u.arg, type) : false;
+  }
+}
+
+const TRIG_OPS = {
+  asin: {
+    trigType: 'Sin',
+    fnName: 'seno (sin)',
+    invName: 'arcoseno (arcsin)',
+    notation: 'sin(...)',
+  },
+  acos: {
+    trigType: 'Cos',
+    fnName: 'coseno (cos)',
+    invName: 'arcocoseno (arccos)',
+    notation: 'cos(...)',
+  },
+  atan: {
+    trigType: 'Tan',
+    fnName: 'tangente (tan)',
+    invName: 'arcotangente (arctan)',
+    notation: 'tan(...)',
+  },
+};
+
+// Funzione inversa goniometrica (arcsin, arccos, arctan) applicata a entrambi i membri.
+function applyInverseTrigBothSides(eq, opId, targetVar) {
+  const info = TRIG_OPS[opId];
+  if (!info) return { ok: false, error: `Operazione trigonometrica sconosciuta: ${opId}.` };
+
+  const leftU = unwrapNeutrals(eq.left);
+  const rightU = unwrapNeutrals(eq.right);
+
+  const leftIsTrig = leftU.type === info.trigType;
+  const rightIsTrig = rightU.type === info.trigType;
+
+  let side = null;
+  let fnNode = null;
+
+  if (leftIsTrig && rightIsTrig) {
+    const sideHas = targetVar ? whichSideHas(eq, targetVar) : null;
+    side = sideHas === 'right' ? 'right' : 'left';
+    fnNode = side === 'left' ? leftU : rightU;
+  } else if (leftIsTrig) {
+    side = 'left';
+    fnNode = leftU;
+  } else if (rightIsTrig) {
+    side = 'right';
+    fnNode = rightU;
+  }
+
+  if (side && fnNode) {
+    const res = applyRule(RULES.invertFunction, eq, { side, fnNode });
+    if (!res.ok) {
+      return { ok: false, error: res.error, hint: res.hint };
+    }
+    let newEq = res.equation;
+    if (targetVar && whichSideHas(newEq, targetVar) === 'right') {
+      newEq = Eq(newEq.right, newEq.left);
+    }
+    return {
+      ok: true,
+      equation: newEq,
+      conditions: res.conditions || [],
+      steps: res.steps || [],
+      note: res.note || null,
+    };
+  }
+
+  // Se la funzione trigonometrica è presente nell'equazione ma non è isolata:
+  const containsInEq = nodeContainsType(eq.left, info.trigType) || nodeContainsType(eq.right, info.trigType);
+  if (containsInEq) {
+    return {
+      ok: false,
+      error: `Per applicare l'${info.invName} devi prima isolare la funzione ${info.fnName} su uno dei due membri!`,
+      hint: `Sposta o dividi prima per i coefficienti o termini che la moltiplicano o la sommano fino ad avere ${info.notation} = ...`,
+    };
+  }
+
+  return {
+    ok: false,
+    error: `Nessuna funzione ${info.fnName} presente nell'equazione da invertire.`,
+    hint: `L'operazione ${info.invName} si applica per liberare l'argomento quando un membro è costituito da ${info.notation}.`,
+  };
+}
+
 // Applica l'operazione scelta dal tastierino.
 // Ritorna { ok:true, equation, conditions, steps, note } oppure { ok:false, error, hint }.
 export function applyKeypadOperation(eq, opId, operandNode, operandText, targetVar) {
@@ -126,6 +242,9 @@ export function applyKeypadOperation(eq, opId, operandNode, operandText, targetV
     return { ok: false, error: 'Nessuna equazione su cui operare.' };
   }
   if (opId === 'sqrt') return applySqrtBothSides(eq, targetVar);
+  if (opId === 'asin' || opId === 'acos' || opId === 'atan') {
+    return applyInverseTrigBothSides(eq, opId, targetVar);
+  }
 
   const ruleKey = RULE_BY_OP[opId];
   if (!ruleKey) return { ok: false, error: `Operazione sconosciuta: ${opId}.` };

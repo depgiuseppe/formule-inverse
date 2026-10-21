@@ -27,7 +27,7 @@ const STORAGE_KEY = 'formuleInverse.userFormulas.v1';
 //   - comandi greci  -> lettere (pi, rho, ...)
 //   - \, \; \! \quad -> rimossi (spazi tipografici)
 
-const GREEK_MAP = {
+export const GREEK_MAP = {
   alpha: 'alpha', beta: 'beta', gamma: 'gamma', delta: 'delta',
   epsilon: 'eps', varepsilon: 'eps', zeta: 'zeta', eta: 'eta',
   theta: 'theta', vartheta: 'theta', iota: 'iota', kappa: 'kappa',
@@ -233,15 +233,46 @@ function storageAvailable() {
 
 const HAS_LS = typeof window !== 'undefined' && storageAvailable();
 
+const CLEARED_KEY = 'formuleInverse.userFormulas.cleared';
+
+export const PRELOADED_USER_FORMULAS = [
+  {
+    id: 'usr-dilatazione-termica-lineare',
+    name: 'Dilatazione termica lineare',
+    formula: 'l = l0 + lam * L0 * ( T-T0)',
+    latex: 'l = l_0 + \\lambda \\cdot L_0 \\cdot ( T-T_0)',
+    topic: 'Le mie formule',
+    isolate: ['l', 'l0', 'lam', 'L0', 'T', 'T0'],
+    conditions: [],
+    difficulty: 3,
+    notes: 'Dilatazione termica lineare: l = l₀ + λ·L₀·(T − T₀).',
+    createdAt: 1700000000000,
+  },
+];
+
 function readRaw() {
-  if (!HAS_LS) return memoryStore ? memoryStore.slice() : [];
+  if (!HAS_LS) {
+    if (memoryStore === null) {
+      memoryStore = PRELOADED_USER_FORMULAS.slice();
+    }
+    return memoryStore.slice();
+  }
   try {
+    const cleared = window.localStorage.getItem(CLEARED_KEY);
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    let list = raw ? JSON.parse(raw) : null;
+    if (!Array.isArray(list)) list = raw ? [] : null;
+
+    if (list === null) {
+      list = cleared ? [] : PRELOADED_USER_FORMULAS.slice();
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    } else if (!cleared && !list.some((f) => f.id === 'usr-dilatazione-termica-lineare' || (f.name && f.name.toLowerCase() === 'dilatazione termica lineare'))) {
+      list.unshift(...PRELOADED_USER_FORMULAS);
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    }
+    return list;
   } catch (e) {
-    return [];
+    return memoryStore ? memoryStore.slice() : [];
   }
 }
 
@@ -268,6 +299,9 @@ export function userFormulaCount() {
 
 /** Salva (o sostituisce) una formula. Ritorna l'oggetto salvato. */
 export function saveUserFormula(entry) {
+  if (HAS_LS) {
+    try { window.localStorage.removeItem(CLEARED_KEY); } catch (e) {}
+  }
   if (!entry || !entry.formula) {
     throw new LatexError('Dati insufficienti per salvare la formula.');
   }
@@ -301,6 +335,9 @@ export function deleteUserFormula(id) {
 
 /** Elimina TUTTE le formule salvate. */
 export function clearUserFormulas() {
+  if (HAS_LS) {
+    try { window.localStorage.setItem(CLEARED_KEY, '1'); } catch (e) {}
+  }
   writeRaw([]);
   memoryStore = [];
 }

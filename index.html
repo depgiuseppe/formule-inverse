@@ -2,7 +2,18 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+<meta name="description" content="Laboratorio didattico per imparare a ricavare le formule inverse in fisica e matematica con i principi di equivalenza.">
+<meta name="theme-color" content="#1e293b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Formule Inverse">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="alternate icon" type="image/png" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <title>Laboratorio di Formule Inverse</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,6 +30,7 @@
     <p class="subtitle">Impara a ricavare le formule inverse applicando i principi di equivalenza in modo rigoroso e interattivo</p>
   </div>
   <div class="header-actions">
+    <button id="btn-install-pwa" class="btn btn-primary" type="button" style="display:none;" title="Installa l'applicazione sul tuo dispositivo Android">📲 Installa App</button>
     <button id="btn-theme" class="btn btn-secondary" type="button" aria-label="Cambia tema chiaro/scuro">🌙 Modalità scura</button>
     <button id="btn-contrast" class="btn btn-secondary" type="button" aria-pressed="false">Alto contrasto</button>
     <button id="btn-help" class="btn btn-secondary" type="button">Guida rapida</button>
@@ -32,12 +44,12 @@
   <section class="panel panel-library" aria-labelledby="h-library">
     <div class="panel-header">
       <h2 id="h-library">A. Libreria delle formule</h2>
-      <span class="panel-badge" id="library-count-badge">176 formule</span>
+      <span class="panel-badge" id="library-count-badge">188 formule</span>
     </div>
 
     <label class="field">
       <span class="field-label">Cerca</span>
-      <input id="library-search" type="search" placeholder="es. velocità, energia, densità, ohm" aria-label="Cerca formula">
+      <input id="library-search" type="search" placeholder="es. stevino, archimede, suono, doppler, ohm..." aria-label="Cerca formula">
     </label>
 
     <div class="filter-row">
@@ -77,8 +89,8 @@
           <input id="custom-formula" type="text" placeholder="E = (m*v^2)/2" aria-label="Inserisci formula personalizzata">
         </label>
         <label class="field">
-          <span class="field-label">Grandezza da isolare</span>
-          <input id="custom-target" type="text" placeholder="m" aria-label="Grandezza da isolare">
+          <span class="field-label">Grandezza da isolare (una sola)</span>
+          <input id="custom-target" type="text" placeholder="es. A" aria-label="Grandezza da isolare (una sola lettera)">
         </label>
         <button id="btn-load-custom" class="btn btn-primary" type="button">Carica formula</button>
         <p id="custom-error" class="error-msg" role="alert" hidden></p>
@@ -102,8 +114,8 @@
           <input id="latex-name" type="text" placeholder="es. Velocità media" aria-label="Nome da assegnare alla formula">
         </label>
         <label class="field">
-          <span class="field-label">Grandezza da isolare (opzionale)</span>
-          <input id="latex-target" type="text" placeholder="es. t" aria-label="Grandezza da isolare">
+          <span class="field-label">Grandezza/e da isolare (opzionale)</span>
+          <input id="latex-target" type="text" placeholder="es. l oppure l, T (lascia vuoto per tutte)" aria-label="Grandezza o grandezze da isolare">
         </label>
         <div id="latex-preview" class="latex-preview" hidden aria-live="polite"></div>
         <p id="latex-error" class="error-msg" role="alert" hidden></p>
@@ -132,14 +144,6 @@
   <section class="panel panel-work" id="workarea" aria-labelledby="h-work">
     <div class="panel-header">
       <h2 id="h-work">B. Area di lavoro</h2>
-      <div class="work-header-tools">
-        <button id="btn-mirror" class="btn-mini" type="button" title="Regola dello specchio: scambia i due membri dell'equazione (A = B ↔ B = A)">🪞 Regola dello specchio</button>
-        <button id="btn-reciprocal" class="btn-mini" type="button" title="Regola dei reciproci: scambia numeratore e denominatore di entrambi i membri (A/B = C/D ↔ B/A = D/C)">🔁 Regola dei reciproci</button>
-        <button id="btn-cross" class="btn-mini" type="button" aria-pressed="false" title="Croce di semplificazione: trascinala su due fattori uguali, uno al numeratore e uno al denominatore, per eliminarli">✗ Croce di semplificazione</button>
-        <button id="btn-toggle-implicit-den" class="btn-mini" type="button" title="Mostra o nascondi i denominatori sottintesi (/1)">👁 Denominatori sottintesi (/1)</button>
-        <button id="btn-copy-formula" class="btn-mini" type="button" title="Copia equazione corrente negli appunti">📋 Copia testo</button>
-        <button id="btn-copy-latex" class="btn-mini" type="button" title="Copia equazione in formato LaTeX">📐 Copia LaTeX</button>
-      </div>
     </div>
 
     <!-- E. Obiettivo -->
@@ -152,14 +156,25 @@
         <span class="target-picker-label">Isola:</span>
         <div class="target-chips" id="target-chips"></div>
       </div>
-      <span id="objective-status" class="status-badge" hidden></span>
+      <div class="objective-status-group">
+        <span id="objective-status" class="status-badge" hidden></span>
+        <button id="btn-retry-exercise" class="btn-retry" type="button" title="Ricomincia questo esercizio dall'inizio (ripristina la formula di partenza)">↺ Ricomincia</button>
+      </div>
     </div>
 
     <div class="mode-row" role="group" aria-label="Modalità di interazione">
       <span class="mode-label">Modalità:</span>
-      <button class="mode-btn active" data-mode="free" type="button" aria-pressed="true" title="Seleziona elementi e scegli operazioni; trascina variabili tra i membri">Libera</button>
-      <button class="mode-btn" data-mode="guided" type="button" aria-pressed="false" title="Il motore ti suggerisce il prossimo passo ottimale">Guidata</button>
-      <button class="mode-btn" data-mode="multi" type="button" aria-pressed="false" title="Vedi il piano completo e risolvi passo-passo o tutto in automatico">Multi-operazione</button>
+      <button class="mode-btn active" data-mode="free" type="button" aria-pressed="true" title="Modalità Libera: interagisci liberamente con l'equazione, trascina variabili o applica operazioni">Libera</button>
+      <button class="mode-btn" data-mode="auto" type="button" aria-pressed="false" title="Modalità Automatica: a ogni clic del mouse il programma esegue una operazione giustificando la regola">Automatica</button>
+    </div>
+
+    <div class="work-header-tools" role="toolbar" aria-label="Regole e strumenti algebrici">
+      <button id="btn-mirror" class="btn-mini" type="button" title="Regola dello specchio: scambia i due membri dell'equazione (A = B ↔ B = A)">🪞 Regola dello specchio</button>
+      <button id="btn-reciprocal" class="btn-mini" type="button" title="Regola dei reciproci: scambia numeratore e denominatore di entrambi i membri (A/B = C/D ↔ B/A = D/C)">🔁 Regola dei reciproci</button>
+      <button id="btn-distribute" class="btn-mini" type="button" title="Proprietà distributiva: sviluppa i prodotti con parentesi, es. a(b − c) = ab − ac">📦 Sviluppa parentesi</button>
+      <button id="btn-factor-common" class="btn-mini" type="button" title="Regola del raccoglimento a fattor comune: ax + ab = a(x + b)">🧩 Raccoglimento a fattori</button>
+      <button id="btn-change-sign" class="btn-mini" type="button" title="Regola del cambio di segno: moltiplica entrambi i membri per −1 cambiando tutti i segni (+ ↔ −)">± Cambio segno</button>
+      <button id="btn-cross" class="btn-mini" type="button" aria-pressed="false" title="Croce di semplificazione: trascinala su due fattori uguali, uno al numeratore e uno al denominatore, per eliminarli">✗ Croce di semplificazione</button>
     </div>
 
     <div class="equation-display-card">
@@ -167,6 +182,18 @@
         <span class="drag-hint-badge">✨ Drag &amp; Drop attivo</span>
         <span class="drag-hint-text">Trascina una variabile dall'altra parte dell'uguale: rilasciala <strong>sotto la linea di frazione</strong> per dividere, o al numeratore per moltiplicare!</span>
       </div>
+      <!-- Banner didattico animato per semplificazione frazione di frazione -->
+      <div class="compound-fraction-banner" id="compound-fraction-banner" hidden role="status" aria-live="polite">
+        <div class="compound-fraction-icon" aria-hidden="true">⚡</div>
+        <div class="compound-fraction-content">
+          <div class="compound-fraction-header">
+            <span class="compound-fraction-title" id="compound-fraction-title">Frazione di frazione rilevata</span>
+            <span class="compound-fraction-badge" id="compound-fraction-step-badge">Passaggio 1 di 2</span>
+          </div>
+          <p class="compound-fraction-msg" id="compound-fraction-msg">Dividere per una frazione equivale a moltiplicare per la reciproca.</p>
+        </div>
+      </div>
+
       <div class="equation-display" id="equation-display" aria-live="polite">
         <p class="placeholder">Nessuna equazione caricata.</p>
       </div>
@@ -175,6 +202,33 @@
         <p class="cross-help" id="cross-help">Trascina la croce su un fattore al numeratore e su uno uguale al denominatore.</p>
       </div>
       <div class="cross-dissolve-layer" id="cross-dissolve-layer" aria-hidden="true"></div>
+
+      <!-- Mini-Fumetto didattico animato per diagnosi degli errori di principio -->
+      <div class="didactic-bubble-anchor" id="didactic-bubble-anchor" hidden>
+        <div class="didactic-bubble" id="didactic-bubble" role="alert" aria-live="assertive">
+          <div class="bubble-arrow"></div>
+          <div class="bubble-header">
+            <span class="bubble-avatar">🧑‍🏫</span>
+            <div class="bubble-header-info">
+              <strong class="bubble-speaker">Tutor delle Formule</strong>
+              <span class="bubble-badge" id="bubble-badge">Principio Violato</span>
+            </div>
+            <button class="bubble-close-btn" id="btn-close-bubble" type="button" aria-label="Chiudi fumetto">✕</button>
+          </div>
+          <div class="bubble-body">
+            <p class="bubble-message" id="bubble-message"></p>
+            <div class="bubble-hint-box" id="bubble-hint-box">
+              <span class="bubble-hint-icon">💡</span>
+              <span class="bubble-hint-text" id="bubble-hint-text"></span>
+            </div>
+          </div>
+          <div class="bubble-footer">
+            <span class="bubble-footer-rule" id="bubble-footer-rule"></span>
+            <button class="btn-bubble-ok" id="btn-bubble-ok" type="button">Ho capito! 👍</button>
+          </div>
+        </div>
+      </div>
+
       <div class="latex-live-bar" id="latex-live-bar" title="Codice LaTeX dinamico della formula attuale">
         <span class="latex-live-label">LaTeX</span>
         <code class="latex-live-code" id="latex-live-code"></code>
@@ -206,6 +260,21 @@
       </div>
     </div>
 
+    <!-- Banner di completamento esercizio con tasto Riprova e Altro esercizio -->
+    <div class="completion-banner" id="completion-banner" hidden>
+      <div class="completion-content">
+        <span class="completion-icon" aria-hidden="true">🏆</span>
+        <div class="completion-text">
+          <strong id="completion-title">Obiettivo Raggiunto!</strong>
+          <span id="completion-subtitle">Hai ricavato con successo la formula inversa.</span>
+        </div>
+      </div>
+      <div class="completion-actions">
+        <button id="btn-completion-retry" class="btn btn-primary btn-completion-action" type="button" title="Ricomincia questo esercizio dall'inizio">🔄 Riprova</button>
+        <button id="btn-completion-next" class="btn btn-secondary btn-completion-action" type="button" title="Carica un nuovo esercizio casuale">🎲 Altro esercizio</button>
+      </div>
+    </div>
+
     <div class="message-box" id="message-box" role="alert" aria-live="assertive" hidden></div>
 
     <!-- Comandi accessibili (interazione guidata o libera) -->
@@ -215,6 +284,37 @@
         <button id="btn-quick-hint" class="btn-hint" type="button" title="Suggerisci la mossa migliore">💡 Suggerimento</button>
       </div>
       <div class="action-buttons" id="action-buttons"></div>
+    </div>
+
+    <!-- Sezione Calcolo Numerico con Unità di Misura (attivata quando l'obiettivo è raggiunto) -->
+    <div class="numerical-calc-card" id="numerical-calc-card" hidden>
+      <div class="calc-header">
+        <div class="calc-header-title">
+          <span class="calc-icon">📐</span>
+          <div>
+            <div class="calc-heading">Laboratorio di Calcolo Numerico</div>
+            <div class="calc-subheading">Inserisci i dati reali per calcolare la grandezza ricavata con le unità SI</div>
+          </div>
+        </div>
+        <div class="calc-header-actions">
+          <button id="btn-calc-sample" class="btn-calc-action" type="button" title="Carica dati realistici di prova">🎲 Dati di esempio</button>
+          <button id="btn-calc-reset" class="btn-calc-action" type="button" title="Pulisci tutti i valori">↺ Resetta</button>
+        </div>
+      </div>
+      <div class="calc-inputs-grid" id="calc-inputs-grid"></div>
+      <div class="calc-result-box" id="calc-result-box">
+        <div class="calc-step-formula" id="calc-step-formula"></div>
+        <div class="calc-result-main" id="calc-result-main">
+          <div class="calc-result-val-wrap">
+            <span class="calc-target-var" id="calc-target-var"></span>
+            <span class="calc-equals">=</span>
+            <span class="calc-final-number" id="calc-final-number">—</span>
+            <span class="calc-final-unit" id="calc-final-unit"></span>
+          </div>
+          <button id="btn-copy-calc-result" class="btn-calc-copy" type="button" title="Copia risultato negli appunti">📋 Copia risultato</button>
+        </div>
+        <div class="calc-error-notice" id="calc-error-notice" hidden></div>
+      </div>
     </div>
   </section>
 

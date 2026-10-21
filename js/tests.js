@@ -8,13 +8,18 @@
 //  - il raggiungimento dell'obiettivo.
 
 import { parseEquation, parseExpression, ParseError } from './parser.js';
-import { toPretty, toLatex, equivalentEq, unwrap, collectVars, clone, canonical, Sin, Ln, Var } from './ast.js';
+import { toPretty, toLatex, equivalentEq, unwrap, unwrapNeutrals, stripNeutrals, collectVars, clone, canonical, Sin, Ln, Var, Num, evalWithEnv, substituteVarsInAst } from './ast.js';
 import { renderEquation, prettyVar } from './render.js';
 import { applyDragMove } from './dragdrop.js';
-import { RULES, applyRule } from './rules.js';
-import { isGoalReached, performAction, suggestNextStep, enumerateElements } from './algebra.js';
+import { RULES, applyRule, findCommonFactor, hasTrigConflict, canDistribute } from './rules.js';
+import { isGoalReached, performAction, suggestNextStep, enumerateElements, ensureTargetOnFirstMember } from './algebra.js';
 import { reciprocalEquation } from './reciprocals.js';
 import { crossCancel } from './cross.js';
+import { applyKeypadOperation } from './operations.js';
+import { filterFormulas, FORMULAS } from './formulas.js';
+import { getQuantityInfo, formatResultNumber } from './physics-units.js';
+import { hasCompoundFraction, transformToReciprocalMul, getCompoundFractionSteps } from './compound-fraction.js';
+import { Div, Sub, Mul, Neg, Eq } from './ast.js';
 
 let counter = 0;
 function test(name, fn) {
@@ -79,6 +84,10 @@ export function runAllTests() {
   results.push(test('Parser: errore su "v = s + " (termine mancante)', () => {
     try { eq('v = s +'); return 'nessun errore lanciato'; }
     catch (e) { return e instanceof ParseError ? true : 'tipo di errore errato'; }
+  }));
+  results.push(test('Parser: errore su "v = s/(0)" (divisione per zero con parentesi)', () => {
+    try { eq('v = s/(0)'); return 'nessun errore lanciato'; }
+    catch (e) { return e instanceof ParseError ? true : 'tipo di errore errato: ' + e.name; }
   }));
 
   // ---- Regole lecite ----
@@ -369,6 +378,21 @@ export function runAllTests() {
     return text.includes('(a') && text.includes('b)') ? true : `reso come ${text}`;
   }));
 
+  results.push(test('Notazione: 1/2 in un prodotto non mostra parentesi (es. U = (1/2)*k*x^2)', () => {
+    const html = renderEquation(eq('U = (1/2)*k*x^2'), {});
+    return !html.includes('node-group-parens') ? true : `contiene ancora parentesi: ${html}`;
+  }));
+
+  results.push(test('Notazione: numeratore/denominatore intero non mostra parentesi superflue (es. (2*v0)/g)', () => {
+    const html = renderEquation(eq('t = (2*v0)/g'), {});
+    return !html.includes('node-group-parens') ? true : `contiene parentesi nel numeratore: ${html}`;
+  }));
+
+  results.push(test('Notazione: frazione elevata a potenza mantiene le parentesi centrate (has-frac)', () => {
+    const html = renderEquation(eq('y = (a/b)^2'), {});
+    return html.includes('node-group-parens') && html.includes('has-frac') ? true : `mancano parentesi has-frac: ${html}`;
+  }));
+
   // ---- Croce di semplificazione ----
   results.push(test('Croce: (2·L)/2 semplifica il 2 e resta L = b', () => {
     const r = crossCancel(eq('(2*L)/2 = b'), 'left/num/Mul0', 'left/den');
@@ -521,6 +545,28 @@ export function runAllTests() {
       : 'atteso m*(v-v0) = J, ottenuto ' + toPretty(res.equation, 0);
   }));
 
+  results.push(test('Regola: proprietà distributiva Doppler fp*v = f*(v - vo) → fp*v = f*v - f*vo', () => {
+    const startEq = eq('fp * v = f * (v - vo)');
+    if (!canDistribute(startEq.right)) return 'atteso canDistribute true per membro destro';
+    const res = applyRule(RULES.distribute, startEq, { side: 'right' });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    return equivalentEq(res.equation, eq('fp * v = f * v - f * vo')) ? true
+      : 'atteso fp*v = f*v - f*vo, ottenuto ' + toPretty(res.equation, 0);
+  }));
+
+  results.push(test('Regola: raccoglimento a fattori per Doppler fp*v - f*v = -f*vo → v*(fp - f) = -f*vo', () => {
+    const startEq = eq('fp * v - f * v = -f * vo');
+    const commonV = findCommonFactor(startEq.left, 'v');
+    if (!commonV || commonV.name !== 'v') return 'atteso fattore comune v, trovato: ' + JSON.stringify(commonV);
+    const res = applyRule(RULES.factorCommon, startEq, { side: 'left', common: commonV, commonText: 'v' });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    return equivalentEq(res.equation, eq('v * (fp - f) = -f * vo')) ? true
+      : 'atteso v*(fp - f) = -f*vo, ottenuto ' + toPretty(res.equation, 0);
+  }));
+
+  results.push(test('Risoluzione: effetto Doppler fp = (f*(v - vo))/v isola v', () =>
+    autoResolve('fp = (f * (v - vo)) / v', 'v')));
+
   results.push(test('Risoluzione: sin(theta) = F/G isola theta', () =>
     autoResolve('sin(theta) = F/G', 'theta')));
 
@@ -548,6 +594,633 @@ export function runAllTests() {
           curr = res.equation;
         }
       }
+    }
+    return true;
+  }));
+
+  results.push(test('Reciproci: x = 0 rifiutato per divisione per zero', () => {
+    const res = reciprocalEquation(eq('x = 0'));
+    return !res.ok ? true : 'accettata ma x=0 non deve essere invertibile';
+  }));
+
+  results.push(test('Regola: invertProportion rifiutata con numeratore o denominatore nullo', () => {
+    const res1 = applyRule(RULES.invertProportion, eq('0/b = c/d'), {});
+    if (res1.ok) return 'accettata inversione con 0 al numeratore';
+    return true;
+  }));
+
+  results.push(test('Regola: powBoth con esponente 0 rifiutata', () => {
+    const res = applyRule(RULES.powBoth, eq('x = y'), { value: Num(0), valueText: '0' });
+    return !res.ok ? true : 'accettata elevazione a potenza 0';
+  }));
+
+  results.push(test('Regola: sqrtBoth con radicando negativo x^2 = -9 rifiutata', () => {
+    const res = applyRule(RULES.sqrtBoth, eq('x^2 = -9'), { side: 'left', insideVar: 'x' });
+    return !res.ok ? true : 'accettata radice di indice pari su radicando negativo';
+  }));
+
+  results.push(test('Tastierino: sqrt su membro negativo x = -4 rifiutata', () => {
+    const res = applyKeypadOperation(eq('x = -4'), 'sqrt', null, null, 'x');
+    return !res.ok ? true : 'accettata radice del tastierino su membro negativo';
+  }));
+
+  results.push(test('Regola: invertFunction sin(x) = 2 rifiutata fuori dal dominio [-1, 1]', () => {
+    const res = applyRule(RULES.invertFunction, eq('sin(x) = 2'), { side: 'left', fnNode: Sin(Var('x')) });
+    return !res.ok ? true : 'accettata arcsin di valore > 1';
+  }));
+
+  results.push(test('Tastierino: arcsin su sin(theta) = F/G libera theta = asin(F/G)', () => {
+    const res = applyKeypadOperation(eq('sin(theta) = F/G'), 'asin', null, null, 'theta');
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    return equivalentEq(res.equation, eq('theta = asin(F/G)')) ? true
+      : 'atteso theta = asin(F/G), ottenuto ' + toPretty(res.equation, 0);
+  }));
+
+  results.push(test('Tastierino: arccos su cos(theta) = a/b libera theta = acos(a/b)', () => {
+    const res = applyKeypadOperation(eq('cos(theta) = a/b'), 'acos', null, null, 'theta');
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    return equivalentEq(res.equation, eq('theta = acos(a/b)')) ? true
+      : 'atteso theta = acos(a/b), ottenuto ' + toPretty(res.equation, 0);
+  }));
+
+  results.push(test('Tastierino: arctan su tan(theta) = mu libera theta = atan(mu)', () => {
+    const res = applyKeypadOperation(eq('tan(theta) = mu'), 'atan', null, null, 'theta');
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    return equivalentEq(res.equation, eq('theta = atan(mu)')) ? true
+      : 'atteso theta = atan(mu), ottenuto ' + toPretty(res.equation, 0);
+  }));
+
+  results.push(test('Tastierino: arcsin rifiutata con spiegazione se sin non e isolato', () => {
+    const res = applyKeypadOperation(eq('v = -A*omega*sin(omega*t)'), 'asin', null, null, 't');
+    if (res.ok) return 'accettata operazione arcsin con sin non isolato';
+    return res.error.includes('isolare la funzione') ? true : 'messaggio inatteso: ' + res.error;
+  }));
+
+  results.push(test('Tastierino: arcsin rifiutata se non c\'e alcuna funzione seno nell\'equazione', () => {
+    const res = applyKeypadOperation(eq('v = s/t'), 'asin', null, null, 's');
+    if (res.ok) return 'accettata arcsin su equazione senza seno';
+    return res.error.includes('Nessuna funzione') ? true : 'messaggio inatteso: ' + res.error;
+  }));
+
+  results.push(test('Croce additiva: a - b - c = a preserva segni negativi -b - c = 0', () => {
+    const e = eq('a - b - c = a');
+    const r = crossCancel(e, 'left/Sub0', 'right');
+    if (!r.ok) return 'rifiutata: ' + r.error;
+    return equivalentEq(r.newEq, eq('-b - c = 0')) ? true
+      : 'atteso -b - c = 0, ottenuto ' + toPretty(r.newEq, 0);
+  }));
+
+  results.push(test('Croce: (s/t)*t = v semplifica t producendo s = v', () => {
+    const e = eq('(s/t)*t = v');
+    const r = crossCancel(e, 'left/Mul0/den', 'left/Mul1');
+    if (!r.ok) return 'rifiutata: ' + r.error;
+    return equivalentEq(r.newEq, eq('s = v')) ? true
+      : 'atteso s = v, ottenuto ' + toPretty(r.newEq, 0);
+  }));
+
+  results.push(test('Notazione: differenze con costanti si presentano come x - 3 e non + -3 o -3 + x', () => {
+    const exprAst = canonical(eq('x - 3 = y').left);
+    const pretty = toPretty(exprAst, 0);
+    if (pretty.includes('+ -') || pretty.startsWith('-3 +')) {
+      return 'notazione non ottimale: ' + pretty;
+    }
+    return true;
+  }));
+
+  results.push(test('Notazione: Ec ed Ep vengono formattati con pedici corretti in LaTeX', () => {
+    const latex = toLatex(eq('Ec = Ep'));
+    if (!latex.includes('E_c') || !latex.includes('E_p')) {
+      return 'LaTeX non contiene pedici corretti: ' + latex;
+    }
+    return true;
+  }));
+
+  results.push(test('Drag: (3/2)*x = y trascinando 3 al denominatore opposto produce (1/2)*x', () => {
+    const res = applyDragMove({
+      currentEq: eq('(3/2)*x = y'),
+      varName: '3',
+      nodeType: 'Num',
+      fromSide: 'left',
+      fromSlot: 'num',
+      targetSide: 'right',
+      targetSlot: 'den',
+    });
+    if (!res.ok) return 'drag fallito: ' + (res.error || '');
+    return equivalentEq(res.newEq, eq('(1/2)*x = y/3')) ? true
+      : 'atteso (1/2)*x = y/3, ottenuto ' + toPretty(res.newEq, 0);
+  }));
+
+  results.push(test('Drag: addendo in numeratore di frazione (a+b)/c = y non puo essere trascinato', () => {
+    const res = applyDragMove({
+      currentEq: eq('(a+b)/c = y'),
+      varName: 'a',
+      nodeType: 'Var',
+      fromSide: 'left',
+      fromSlot: 'num',
+      targetSide: 'right',
+      targetSlot: 'den',
+    });
+    return !res.ok ? true : 'accettato trascinamento addendo da numeratore a frazione!';
+  }));
+
+  results.push(test('Drag: fattore composto tra parentesi fp*v = f*(v + vo) trascinando "v + vo" al denominatore', () => {
+    const e = eq('fp*v = f*(v + vo)');
+    const res = applyDragMove({
+      currentEq: e,
+      varName: 'v + vo',
+      nodeType: 'Add',
+      fromSide: 'right',
+      fromSlot: 'num',
+      targetSide: 'left',
+      targetSlot: 'den',
+    });
+    if (!res.ok) return 'drag fallito: ' + (res.error || '');
+    if (res.newEq.right.type !== 'Var' || res.newEq.right.name !== 'f') {
+      return 'destra non è f: ' + toPretty(res.newEq.right, 0);
+    }
+    const den = unwrap(res.newEq.left.den);
+    if (den.type !== 'Add' || den.args.length !== 2) {
+      return 'denominatore non è Add(v, vo): ' + JSON.stringify(den);
+    }
+    const html = renderEquation(e, { interactive: true });
+    if (!html.includes('data-var-name="v + vo"') || !html.includes('draggable-token')) {
+      return 'HTML non rende (v + vo) come draggable-token: ' + html;
+    }
+    return true;
+  }));
+
+  results.push(test('Drag: denominatore composto (fp*v)/(v + vo) = f trascinando "v + vo" al numeratore', () => {
+    const e = canonical(eq('(fp*v)/(v + vo) = f'));
+    const res = applyDragMove({
+      currentEq: e,
+      varName: 'v + vo',
+      nodeType: 'Add',
+      fromSide: 'left',
+      fromSlot: 'den',
+      targetSide: 'right',
+      targetSlot: 'num',
+    });
+    if (!res.ok) return 'drag dal denominatore fallito: ' + (res.error || '');
+    const right = unwrap(res.newEq.right);
+    if (right.type !== 'Mul' || right.args.length !== 2) {
+      return 'destra non è Mul(f, v + vo): ' + toPretty(right, 0);
+    }
+    const denHtml = renderEquation(e, { interactive: true });
+    if (!denHtml.includes('data-var-name="v + vo"') || !denHtml.includes('data-slot="den"')) {
+      return 'HTML denominatore non ha draggable-token per (v + vo): ' + denHtml;
+    }
+    return true;
+  }));
+
+  results.push(test('Drag: termine intero al secondo membro f*v in fp*v - fp*vs = f*v è trascinabile come blocco 📦', () => {
+    const e = canonical(eq('fp*v - fp*vs = f*v'));
+    const html = renderEquation(e, { interactive: true });
+    if (!html.includes('data-var-name="f*v"') || !html.includes('math-term-group')) {
+      return 'f*v a secondo membro non ha data-var-name="f*v" o math-term-group: ' + html;
+    }
+    const res = applyDragMove({
+      currentEq: e,
+      varName: 'f*v',
+      nodeType: 'Mul',
+      fromSide: 'right',
+      fromSlot: 'num',
+      targetSide: 'left',
+      targetSlot: 'add',
+    });
+    if (!res.ok) return 'spostamento f*v a primo membro fallito: ' + (res.error || '');
+    const right = unwrap(res.newEq.right);
+    if (right.type !== 'Num' || right.value !== 0) {
+      return 'destra non è 0: ' + toPretty(right, 0);
+    }
+    return true;
+  }));
+
+  // ---- Laboratorio Calcolo Numerico & Unita SI ----
+  results.push(test('Calcolo Numerico: evalWithEnv calcola frazione s/v con valori numerici', () => {
+    const expr = parseExpression('s/v');
+    const res = evalWithEnv(expr, { s: 100, v: 20 });
+    return res.ok && res.value === 5 ? true : `atteso 5, ottenuto: ${JSON.stringify(res)}`;
+  }));
+
+  results.push(test('Calcolo Numerico: divisione per zero intercettata correttamente', () => {
+    const expr = parseExpression('s/t');
+    const res = evalWithEnv(expr, { s: 50, t: 0 });
+    return !res.ok && res.error.includes('zero') ? true : `non intercettata divisione per zero: ${JSON.stringify(res)}`;
+  }));
+
+  results.push(test('Calcolo Numerico: radice quadrata e potenze sqrt((2*E)/k)', () => {
+    const expr = parseExpression('sqrt((2*E)/k)');
+    const res = evalWithEnv(expr, { E: 200, k: 4 });
+    return res.ok && res.value === 10 ? true : `atteso 10, ottenuto: ${JSON.stringify(res)}`;
+  }));
+
+  results.push(test('Calcolo Numerico: substituteVarsInAst sostituisce correttamente le variabili', () => {
+    const expr = parseExpression('a + b');
+    const sub = substituteVarsInAst(expr, { a: 3, b: 7 });
+    return sub.args[0].value === 3 && sub.args[1].value === 7 ? true : 'sostituzione fallita';
+  }));
+
+  results.push(test('Unita SI: risoluzione unita e quantita fisiche', () => {
+    const infoS = getQuantityInfo('s');
+    const infoV = getQuantityInfo('v');
+    const infoA = getQuantityInfo('a');
+    return infoS.unit === 'm' && infoV.unit === 'm/s' && infoA.unit === 'm/s²' ? true : 'unita non corrispondenti';
+  }));
+
+  results.push(test('Unita SI: formattazione numeri decimali e scientifici', () => {
+    const f1 = formatResultNumber(4.5);
+    const f2 = formatResultNumber(12);
+    const f3 = formatResultNumber(2.5e6);
+    return f1 === '4.5' && f2 === '12' && f3.includes('10^') ? true : `formattazione inattesa: ${f1}, ${f2}, ${f3}`;
+  }));
+
+  // ---- Fattori con segno meno (es. -A*omega*sin(...)) ----
+  results.push(test('Drag: trasporto fattore A da prodotto con segno meno -A*omega*sin(...) al denominatore', () => {
+    const eq = parseEquation('v = -A*omega*sin(omega*t + phi)');
+    const res = applyDragMove({
+      currentEq: eq,
+      varName: 'A',
+      nodeType: 'Var',
+      fromSide: 'right',
+      fromSlot: 'num',
+      targetSide: 'left',
+      targetSlot: 'den',
+    });
+    if (!res.ok) return `mossa rifiutata: ${res.error}`;
+    const leftPretty = toPretty(res.newEq.left, 0);
+    const rightPretty = toPretty(res.newEq.right, 0);
+    return (leftPretty === 'v/A' || leftPretty === '(v)/A') && rightPretty.startsWith('−') ? true
+      : `risultato inatteso: ${leftPretty} = ${rightPretty}`;
+  }));
+
+  results.push(test('Drag: trasporto fattore -A intero da prodotto al denominatore', () => {
+    const eq = parseEquation('v = -A*omega*sin(omega*t + phi)');
+    const res = applyDragMove({
+      currentEq: eq,
+      varName: '-A',
+      nodeType: 'Var',
+      fromSide: 'right',
+      fromSlot: 'num',
+      targetSide: 'left',
+      targetSlot: 'den',
+    });
+    if (!res.ok) return `mossa rifiutata: ${res.error}`;
+    return true;
+  }));
+
+  results.push(test('Elementi neutri: isGoalReached riconosce 1*x e x*1 come x isolata', () => {
+    const e1 = parseEquation('1*x = y');
+    const e2 = parseEquation('x*1 = y');
+    const e3 = parseEquation('x + 0 = y');
+    if (!isGoalReached(e1, 'x')) return '1*x non riconosciuto come isolato';
+    if (!isGoalReached(e2, 'x')) return 'x*1 non riconosciuto come isolato';
+    if (!isGoalReached(e3, 'x')) return 'x+0 non riconosciuto come isolato';
+    return true;
+  }));
+
+  results.push(test('Elementi neutri: stripNeutrals elimina 1 moltiplicativo e +0 additivo', () => {
+    const e1 = parseEquation('1*x = y + 0');
+    const stripped = stripNeutrals(e1);
+    return equivalentEq(stripped, parseEquation('x = y')) ? true
+      : 'atteso x = y, ottenuto ' + toPretty(stripped, 0);
+  }));
+
+  results.push(test('Elementi neutri: stripNeutrals preserva 1 nelle differenze come 1 - cos(theta)', () => {
+    const e = parseEquation('c*dlam*m = h*(1 - cos(theta))');
+    const stripped = stripNeutrals(e);
+    return toPretty(stripped.right, 0).includes('1') ? true
+      : 'il numero 1 in 1 - cos(theta) è stato rimosso erroneamente: ' + toPretty(stripped, 0);
+  }));
+
+  results.push(test('Drag: trascinando un fattore su membro orizzontale applica il 2° principio (divisione)', () => {
+    const eq = parseEquation('c*dlam*m = h*(1 - cos(theta))');
+    const res = applyDragMove({
+      currentEq: eq,
+      varName: 'h',
+      nodeType: 'Var',
+      fromSide: 'right',
+      fromSlot: 'num',
+      targetSide: 'left',
+      targetSlot: 'num', // rilasciato sul membro di sinistra
+    });
+    if (!res.ok) return 'mossa rifiutata: ' + res.error;
+    if (res.newEq.left.type !== 'Div') return 'la divisione non è stata applicata: ' + toPretty(res.newEq, 0);
+    return true;
+  }));
+
+  results.push(test('Tastierino: arccos con 1*cos(theta) libera theta senza bloccare', () => {
+    const eq = parseEquation('1*cos(theta) = k');
+    const res = applyKeypadOperation(eq, 'acos', null, null, 'theta');
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    return equivalentEq(res.equation, parseEquation('theta = acos(k)')) ? true
+      : 'atteso theta = acos(k), ottenuto ' + toPretty(res.equation, 0);
+  }));
+
+  results.push(test('Regola: cambio segno inverte -x = 5 in x = -5', () => {
+    const res = applyRule(RULES.changeSign, eq('-x = 5'), {});
+    if (!res.ok) return 'regola fallita: ' + res.error;
+    const str = toPretty(res.equation, 0);
+    return str === 'x = -5' ? true : 'atteso x = -5, ottenuto ' + str;
+  }));
+
+  results.push(test('Regola: cambio segno inverte somma algebrica -v = -v0 + a*t', () => {
+    const res = applyRule(RULES.changeSign, eq('-v = -v0 + a*t'), {});
+    if (!res.ok) return 'regola fallita: ' + res.error;
+    return equivalentEq(res.equation, eq('v = v0 - a*t')) ? true : 'atteso v = v0 - a*t, ottenuto ' + toPretty(res.equation, 0);
+  }));
+
+  results.push(test('Regola: cambio segno applicata due volte ritorna all\'equazione originale', () => {
+    const orig = eq('v - v0 = a*t');
+    const step1 = applyRule(RULES.changeSign, orig, {});
+    const step2 = applyRule(RULES.changeSign, step1.equation, {});
+    return equivalentEq(step2.equation, orig) ? true : 'atteso ' + toPretty(orig, 0) + ', ottenuto ' + toPretty(step2.equation, 0);
+  }));
+
+  results.push(test('Raccoglimento: findCommonFactor individua m in J = m*v - m*v0', () => {
+    const common = findCommonFactor(expr('m*v - m*v0'), 'm');
+    return common && common.name === 'm' ? true : 'm non individuata come fattore comune';
+  }));
+
+  results.push(test('Trigonometria: hasTrigConflict individua il conflitto di theta in a = g*(sin(theta) - mu*cos(theta))', () => {
+    const hasConflict = hasTrigConflict(expr('g*(sin(theta) - mu*cos(theta))'), 'theta');
+    return hasConflict ? true : 'conflitto trigonometrico su theta non rilevato';
+  }));
+
+  results.push(test('Trigonometria: suggestNextStep fornisce spiegazione didattica su theta in combinazione lineare', () => {
+    const sug = suggestNextStep(eq('a = g*(sin(theta) - mu*cos(theta))'), 'theta');
+    return !sug.found && sug.message.includes('sin') && sug.message.includes('cos') ? true
+      : 'messaggio didattico non corretto: ' + JSON.stringify(sug);
+  }));
+
+  results.push(test('Risoluzione: mu in a = g*(sin(theta) - mu*cos(theta)) viene isolata correttamente', () => {
+    let curr = eq('a = g*(sin(theta) - mu*cos(theta))');
+    for (let i = 0; i < 8; i++) {
+      if (isGoalReached(curr, 'mu')) break;
+      const sug = suggestNextStep(curr, 'mu');
+      if (!sug.found) return 'passo non trovato al tentativo ' + i;
+      const res = performAction(curr, sug.action);
+      if (!res.ok) return 'azione fallita: ' + res.error;
+      curr = res.equation;
+    }
+    return isGoalReached(curr, 'mu') ? true : 'mu non isolata: ' + toPretty(curr, 0);
+  }));
+
+  results.push(test('Ricerca: "stevino" trova tutte le formule della legge di Stevino', () => {
+    const list = filterFormulas({ search: 'stevino' });
+    const ids = list.map((f) => f.id);
+    if (!ids.includes('ph-rhoghh') || !ids.includes('stevino')) {
+      return `formule stevino mancanti: trovate ${ids.join(', ')}`;
+    }
+    return true;
+  }));
+
+  results.push(test('Ricerca: "archimede" trova spinta di Archimede e condizione di galleggiamento', () => {
+    const list = filterFormulas({ search: 'archimede' });
+    const ids = list.map((f) => f.id);
+    if (!ids.includes('legge-archimede') || !ids.includes('galleggia')) {
+      return `formule archimede mancanti: trovate ${ids.join(', ')}`;
+    }
+    return true;
+  }));
+
+  results.push(test('Ricerca: "suono" restituisce tutte le formule di acustica e onde sonore', () => {
+    const list = filterFormulas({ search: 'suono' });
+    const ids = list.map((f) => f.id);
+    const expected = [
+      'onda-v-lam-f',
+      'onda-periodo-frequenza',
+      'onda-v-lam-T',
+      'doppler-avvicinamento-sorgente',
+      'doppler-allontanamento-sorgente',
+      'doppler-avvicinamento-osservatore',
+      'doppler-allontanamento-osservatore',
+      'eco-suono',
+      'intensita-sonora',
+      'battimenti-sonori',
+      'canne-organo-aperte',
+      'corda-armonica',
+    ];
+    for (const exp of expected) {
+      if (!ids.includes(exp)) return `formula suono '${exp}' non trovata per query 'suono'`;
+    }
+    return list.length >= 12 ? true : `trovate solo ${list.length} formule`;
+  }));
+
+  results.push(test('Ricerca: "doppler" trova le formule dell\'effetto Doppler', () => {
+    const list = filterFormulas({ search: 'doppler' });
+    const ids = list.map((f) => f.id);
+    if (!ids.includes('doppler-avvicinamento-sorgente') || !ids.includes('doppler-avvicinamento-osservatore')) {
+      return `formule doppler mancanti: ${ids.join(', ')}`;
+    }
+    return true;
+  }));
+
+  results.push(test('Ricerca: "eco" trova la formula di riflessione ed eco del suono', () => {
+    const list = filterFormulas({ search: 'eco' });
+    const ids = list.map((f) => f.id);
+    if (!ids.includes('eco-suono')) return `formula eco mancante: ${ids.join(', ')}`;
+    return true;
+  }));
+
+  results.push(test('Ricerca: normalizzazione con accenti e maiuscole "velocità del suono"', () => {
+    const list = filterFormulas({ search: 'Velocità del Suono' });
+    const ids = list.map((f) => f.id);
+    if (!ids.includes('onda-v-lam-f')) return `formula v=lam*f mancante con ricerca accentata: ${ids.join(', ')}`;
+    return true;
+  }));
+
+  results.push(test('Ricerca: fallback globale se argomento selezionato non contiene la formula cercata', () => {
+    // L'utente aveva selezionato 'cinematica' ma cerca 'stevino'
+    const list = filterFormulas({ topic: 'cinematica', search: 'stevino' });
+    const ids = list.map((f) => f.id);
+    if (!ids.includes('ph-rhoghh') && !ids.includes('stevino')) {
+      return `fallback globale fallito: trovate ${ids.join(', ')}`;
+    }
+    return true;
+  }));
+
+  results.push(test('Frazione di frazione: hasCompoundFraction riconosce frazioni di frazione e frazioni normali', () => {
+    const normal = eq('v = s/t');
+    if (hasCompoundFraction(normal.right)) return 's/t scambiata per frazione di frazione';
+
+    const A = Sub(Mul(Var('fp'), Var('p')), Var('f'));
+    const B = Mul(Var('f'), Var('vo'));
+    const compoundDoppler = Neg(Div(Num(1), Div(A, B)));
+    if (!hasCompoundFraction(compoundDoppler)) return 'Doppler -1 / ((fp - f)/(f*vo)) non riconosciuta come frazione di frazione';
+
+    const c2 = Div(Num(1), Div(Var('a'), Var('b')));
+    if (!hasCompoundFraction(c2)) return '1 / (a/b) non riconosciuta';
+
+    const c3 = Div(Div(Var('a'), Var('b')), Var('c'));
+    if (!hasCompoundFraction(c3)) return '(a/b) / c non riconosciuta';
+
+    const c4 = Div(Div(Var('a'), Var('b')), Div(Var('c'), Var('d')));
+    if (!hasCompoundFraction(c4)) return '(a/b) / (c/d) non riconosciuta';
+
+    return true;
+  }));
+
+  results.push(test('Frazione di frazione: transformToReciprocalMul inverte il denominatore in moltiplicazione per la reciproca', () => {
+    const c1 = Div(Num(1), Div(Var('a'), Var('b')));
+    const s1 = transformToReciprocalMul(c1);
+    if (toPretty(s1, 0) !== '1·(b/a)') return `atteso 1·(b/a), ottenuto ${toPretty(s1, 0)}`;
+
+    const A = Sub(Mul(Var('fp'), Var('p')), Var('f'));
+    const B = Mul(Var('f'), Var('vo'));
+    const compoundDoppler = Neg(Div(Num(1), Div(A, B)));
+    const s2 = transformToReciprocalMul(compoundDoppler);
+    if (toPretty(s2, 0) !== '−1·(f·vo/(fp·p − f))') {
+      return `atteso −1·(f·vo/(fp·p − f)), ottenuto ${toPretty(s2, 0)}`;
+    }
+    return true;
+  }));
+
+  results.push(test('Frazione di frazione: getCompoundFractionSteps genera la sequenza didattica lenta a 3 passaggi', () => {
+    const A = Sub(Mul(Var('fp'), Var('p')), Var('f'));
+    const B = Mul(Var('f'), Var('vo'));
+    const dopplerEq = Eq(Var('v'), Neg(Div(Num(1), Div(A, B))));
+
+    const steps = getCompoundFractionSteps(dopplerEq, 'v');
+    if (!steps) return 'getCompoundFractionSteps ha restituito null per formula Doppler con frazione di frazione';
+    if (steps.targetVar !== 'v') return `targetVar errato: ${steps.targetVar}`;
+    if (steps.step1Pretty !== 'v = −1/((fp·p − f)/(f·vo))') return `step 1 errato: ${steps.step1Pretty}`;
+    if (steps.step2Pretty !== 'v = −1·(f·vo/(fp·p − f))') return `step 2 errato: ${steps.step2Pretty}`;
+    if (steps.step3Pretty !== 'v = −f·vo/(fp·p − f)') return `step 3 errato: ${steps.step3Pretty}`;
+
+    const normalEq = eq('v = s/t');
+    const noSteps = getCompoundFractionSteps(normalEq, 'v');
+    if (noSteps !== null) return 'atteso null per formula normale v = s/t';
+
+    return true;
+  }));
+
+  results.push(test('Obiettivo: isGoalReached rifiuta variabile presente in entrambi i membri (es. vo + fp*v/f = v)', () => {
+    const dopplerEq = eq('vo + (fp*v)/f = v');
+    if (isGoalReached(dopplerEq, 'v') !== false) {
+      return 'vo + (fp*v)/f = v non deve essere considerata risolta per v!';
+    }
+    const sug = suggestNextStep(dopplerEq, 'v');
+    if (!sug.found || sug.action.id === 'swap') {
+      return 'suggestNextStep non deve proporre lo swap su una formula non ancora risolta: ' + JSON.stringify(sug);
+    }
+    return true;
+  }));
+
+  results.push(test('Obiettivo: isGoalReached rifiuta variabile con segno negativo (es. -v0 = a*t - v o -x = 5)', () => {
+    const negEq = eq('-v0 = a*t - v');
+    if (isGoalReached(negEq, 'v0') !== false) {
+      return '-v0 = a*t - v non deve essere considerata risolta per v0!';
+    }
+    const negX = eq('-x = 5');
+    if (isGoalReached(negX, 'x') !== false) {
+      return '-x = 5 non deve essere considerata risolta per x!';
+    }
+    const sug = suggestNextStep(negEq, 'v0');
+    if (!sug.found || sug.action.ruleKey !== 'mulBoth') {
+      return 'suggestNextStep deve proporre di moltiplicare per -1: ' + JSON.stringify(sug);
+    }
+    return true;
+  }));
+
+  results.push(test('Obiettivo: ensureTargetOnFirstMember isola sempre la grandezza al primo membro', () => {
+    const eRight = eq('s/t = v');
+    const flipped = ensureTargetOnFirstMember(eRight, 'v');
+    if (toPretty(flipped, 0) !== 'v = s/t') {
+      return 'Atteso v = s/t, ottenuto: ' + toPretty(flipped, 0);
+    }
+
+    const eBoth = eq('vo + (fp*v)/f = v');
+    const unchangedBoth = ensureTargetOnFirstMember(eBoth, 'v');
+    if (toPretty(unchangedBoth, 0) !== toPretty(eBoth, 0)) {
+      return 'Formula con v in ambo i membri non deve essere invertita!';
+    }
+    return true;
+  }));
+
+  results.push(test('Drag: fattore composto tra parentesi (fp - f) in v*(fp - f) = -fp*vs è trascinabile per dividere', () => {
+    const e = eq('v*(fp - f) = -fp*vs');
+    const html = renderEquation(e, { interactive: true });
+    if (!html.includes('data-var-name="fp − f"') && !html.includes('data-var-name="fp - f"')) {
+      return 'HTML non rende (fp - f) come draggable: ' + html;
+    }
+    if (html.includes('data-var-name="v*fp − f"') || html.includes('data-var-name="v*fp - f"')) {
+      return 'HTML non deve generare la sintassi corrotta v*fp - f: ' + html;
+    }
+    const res = applyDragMove({
+      currentEq: e,
+      varName: 'fp - f',
+      nodeType: 'Sub',
+      fromSide: 'left',
+      fromSlot: 'num',
+      targetSide: 'right',
+      targetSlot: 'den',
+    });
+    if (!res.ok) return 'drag di fp - f fallito: ' + (res.error || '');
+    if (toPretty(res.newEq, 0) !== 'v = −fp·vs/(fp − f)') {
+      return 'formula risultante errata: ' + toPretty(res.newEq, 0);
+    }
+    if (!isGoalReached(res.newEq, 'v')) {
+      return 'l\'equazione risultante v = ... deve raggiungere l\'obiettivo!';
+    }
+    return true;
+  }));
+
+  results.push(test('Drag: fp*vs e (fp-f) possono essere mossi in croce in blocco', () => {
+    const e = eq('v*(fp - f) = fp*vs');
+    const html = renderEquation(e, { interactive: true });
+    if (!html.includes('data-var-name="fp − f"') && !html.includes('data-var-name="fp - f"')) {
+      return 'HTML non rende (fp - f) come draggable: ' + html;
+    }
+    if (!html.includes('data-var-name="fp*vs"') && !html.includes('data-var-name="fp·vs"')) {
+      return 'HTML non rende fp*vs come blocco draggable: ' + html;
+    }
+
+    // 1. Sposto (fp - f) al denominatore di destra
+    const r1 = applyDragMove({
+      currentEq: e,
+      varName: 'fp - f',
+      nodeType: 'Sub',
+      fromSide: 'left',
+      fromSlot: 'num',
+      targetSide: 'right',
+      targetSlot: 'den',
+    });
+    if (!r1.ok) return 'spostamento in croce di (fp - f) fallito: ' + (r1.error || '');
+    if (toPretty(r1.newEq, 0) !== 'v = fp·vs/(fp − f)') {
+      return 'risultato errato per (fp - f): ' + toPretty(r1.newEq, 0);
+    }
+    if (!isGoalReached(r1.newEq, 'v')) {
+      return 'v deve risultare isolata al primo membro dopo lo spostamento di (fp - f)!';
+    }
+
+    // 2. Sposto fp*vs al denominatore di sinistra
+    const r2 = applyDragMove({
+      currentEq: e,
+      varName: 'fp*vs',
+      nodeType: 'Mul',
+      fromSide: 'right',
+      fromSlot: 'num',
+      targetSide: 'left',
+      targetSlot: 'den',
+    });
+    if (!r2.ok) return 'spostamento in croce di fp*vs fallito: ' + (r2.error || '');
+    if (toPretty(r2.newEq, 0) !== 'v·(fp − f)/(fp·vs) = 1') {
+      return 'risultato errato per fp*vs: ' + toPretty(r2.newEq, 0);
+    }
+
+    // 3. Sposto fp*vs dal denominatore di sinistra al numeratore di destra
+    const r3 = applyDragMove({
+      currentEq: r2.newEq,
+      varName: 'fp*vs',
+      nodeType: 'Mul',
+      fromSide: 'left',
+      fromSlot: 'den',
+      targetSide: 'right',
+      targetSlot: 'num',
+    });
+    if (!r3.ok) return 'ritorno in croce di fp*vs fallito: ' + (r3.error || '');
+    if (toPretty(r3.newEq, 0) !== 'v·(fp − f) = fp·vs') {
+      return 'ritorno errato: ' + toPretty(r3.newEq, 0);
     }
     return true;
   }));

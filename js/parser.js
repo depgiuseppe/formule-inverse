@@ -25,6 +25,7 @@
 import {
   Num, Var, Add, Sub, Mul, Div, Pow, Sqrt, Neg, Group, Eq,
   Sin, Cos, Tan, Ln, Asin, Acos, Atan, Exp,
+  unwrap, isIdenticallyZero,
 } from './ast.js';
 
 // Funzioni supportate: nome (minuscolo) -> costruttore di nodo.
@@ -275,13 +276,15 @@ export function parseExpression(input) {
 // Verifica che nessun denominatore sia una costante identicamente nulla.
 function assertNoZeroDenominator(node) {
   switch (node.type) {
-    case 'Div':
-      if (node.den.type === 'Num' && node.den.value === 0) {
+    case 'Div': {
+      const denUnwrapped = unwrap(node.den);
+      if ((denUnwrapped.type === 'Num' && denUnwrapped.value === 0) || isIdenticallyZero(node.den)) {
         throw new ParseError('La formula contiene una divisione per zero (denominatore = 0).');
       }
       assertNoZeroDenominator(node.num);
       assertNoZeroDenominator(node.den);
       break;
+    }
     case 'Add':
     case 'Sub':
     case 'Mul':

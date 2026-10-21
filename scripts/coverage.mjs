@@ -44,7 +44,6 @@ export const KNOWN_UNSUPPORTED = [
   { formula: 's-vt-half-at2', target: 't', reason: 'equazione di secondo grado in t (t compare come t e come t²): serve la formula risolutiva' },
   { formula: 'theta-legge-oraria', target: 't', reason: 'equazione di secondo grado in t (t e t²): serve la formula risolutiva' },
   { formula: 'mas-velocita', target: 'omega', reason: 'la grandezza compare sia fuori sia dentro la funzione sin: non è ricavabile in forma chiusa' },
-  { formula: 'piano-accel-attrito', target: 'theta', reason: "l'angolo compare in sin e in cos: non è ricavabile con una sola funzione inversa" },
   { formula: 'invariante-energia-impulso', target: 'c', reason: 'la grandezza compare al quadrato dentro due prodotti: servirebbe un raccoglimento sotto potenza' },
 ];
 

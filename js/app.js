@@ -4,24 +4,28 @@
 import { parseEquation, ParseError } from './parser.js';
 import {
   clone, toPretty, toLatex, unwrap, collectVars, equivalentEq, Eq,
+  isVar, evalWithEnv, substituteVarsInAst, stripNeutrals, structurallyEqual,
 } from './ast.js';
 import { reciprocalEquation } from './reciprocals.js';
 import { KEYPAD_OPERATIONS, equationKeypadTokens, parseOperand, applyKeypadOperation } from './operations.js';
-import { crossCancel } from './cross.js';
+import { crossCancel, analyseElementId } from './cross.js';
 import {
   isGoalReached, findElement, availableActions, globalActions,
-  performAction, suggestNextStep, mergeConditions,
+  performAction, suggestNextStep, mergeConditions, whichSideHas, hasDistributableSum,
+  isolatedSide, ensureTargetOnFirstMember,
 } from './algebra.js';
+import { hasCompoundFraction, getCompoundFractionSteps } from './compound-fraction.js';
 import {
   filterFormulas, getFormulaById, randomExercise, TOPICS,
 } from './formulas.js';
 import { getExplanation } from './explanations.js';
-import { renderEquation, prettyVar } from './render.js';
-import { RULES } from './rules.js';
+import { renderEquation, renderNode, prettyVar } from './render.js';
+import { RULES, applyRule, negateExpr, findCommonFactor, hasTrigConflict, canDistribute } from './rules.js';
 import { setupEquationDragAndDrop, highlightDropzones, clearDropzonesHighlight, applyDragMove, initDragArrow, updateDragArrow, hideDragArrow } from './dragdrop.js';
 import { runAllTests, formatTestResults } from './tests.js';
+import { getQuantityInfo, formatResultNumber } from './physics-units.js';
 import {
-  latexToSyntax, LatexError,
+  latexToSyntax, LatexError, GREEK_MAP,
   saveUserFormula, getUserFormulas, deleteUserFormula,
   clearUserFormulas, exportUserFormulasJSON, importUserFormulasJSON,
 } from './formula-db.js';
@@ -46,6 +50,8 @@ const state = {
   crossMode: false,
   crossPicked: [],
   clickDragToken: null,
+  isAnimatingCompoundFraction: false,
+  compoundAnimTimers: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -53,6 +59,7 @@ const state = {
 // ---------------------------------------------------------------------------
 const $ = (sel) => document.querySelector(sel);
 const dom = {
+  btnInstallPwa: $('#btn-install-pwa'),
   libraryList: $('#library-list'),
   librarySearch: $('#library-search'),
   libraryTopic: $('#library-topic'),
@@ -62,15 +69,25 @@ const dom = {
   objectiveText: $('#objective-text'),
   objectiveStatus: $('#objective-status'),
   objectiveBox: $('#objective-box'),
-  btnCopyFormula: $('#btn-copy-formula'),
-  btnCopyLatex: $('#btn-copy-latex'),
+  btnRetryExercise: $('#btn-retry-exercise'),
+  completionBanner: $('#completion-banner'),
+  completionTitle: $('#completion-title'),
+  completionSubtitle: $('#completion-subtitle'),
+  btnCompletionRetry: $('#btn-completion-retry'),
+  btnCompletionNext: $('#btn-completion-next'),
   btnMirror: $('#btn-mirror'),
   btnReciprocal: $('#btn-reciprocal'),
+  btnDistribute: $('#btn-distribute'),
+  btnFactorCommon: $('#btn-factor-common'),
+  btnChangeSign: $('#btn-change-sign'),
   btnCross: $('#btn-cross'),
+  compoundFractionBanner: $('#compound-fraction-banner'),
+  compoundFractionTitle: $('#compound-fraction-title'),
+  compoundFractionStepBadge: $('#compound-fraction-step-badge'),
+  compoundFractionMsg: $('#compound-fraction-msg'),
   crossLayer: $('#cross-layer'),
   crossHandle: $('#cross-handle'),
   crossDissolveLayer: $('#cross-dissolve-layer'),
-  btnToggleImplicitDen: $('#btn-toggle-implicit-den'),
   equationDisplay: $('#equation-display'),
   keypadOps: $('#keypad-ops'),
   keypadOperands: $('#keypad-operands'),
@@ -131,6 +148,28 @@ const dom = {
   btnClearFormulas: $('#btn-clear-formulas'),
   jsonArea: $('#json-area'),
   storageError: $('#storage-error'),
+  // --- Didactic Bubble (Fumetto Diagnosi) ---
+  didacticBubbleAnchor: $('#didactic-bubble-anchor'),
+  didacticBubble: $('#didactic-bubble'),
+  bubbleBadge: $('#bubble-badge'),
+  bubbleMessage: $('#bubble-message'),
+  bubbleHintBox: $('#bubble-hint-box'),
+  bubbleHintText: $('#bubble-hint-text'),
+  bubbleFooterRule: $('#bubble-footer-rule'),
+  btnCloseBubble: $('#btn-close-bubble'),
+  btnBubbleOk: $('#btn-bubble-ok'),
+  // --- Calcolo numerico con Unità SI ---
+  numericalCalcCard: $('#numerical-calc-card'),
+  btnCalcSample: $('#btn-calc-sample'),
+  btnCalcReset: $('#btn-calc-reset'),
+  calcInputsGrid: $('#calc-inputs-grid'),
+  calcResultBox: $('#calc-result-box'),
+  calcStepFormula: $('#calc-step-formula'),
+  calcTargetVar: $('#calc-target-var'),
+  calcFinalNumber: $('#calc-final-number'),
+  calcFinalUnit: $('#calc-final-unit'),
+  btnCopyCalcResult: $('#btn-copy-calc-result'),
+  calcErrorNotice: $('#calc-error-notice'),
 };
 
 // ---------------------------------------------------------------------------
@@ -151,7 +190,65 @@ function init() {
   renderMyFormulas();
   if (dom.crossLayer) dom.crossLayer.hidden = true; // mantenuto per compatibilità ma non mostrato
   initDragArrow();
+  initPwa();
   loadFormula(getFormulaById('v-st'), 't');
+}
+
+// ---------------------------------------------------------------------------
+// PWA (Progressive Web App): Service Worker & Install Prompt per Android
+// ---------------------------------------------------------------------------
+let deferredInstallPrompt = null;
+
+function initPwa() {
+  if ('serviceWorker' in navigator && (window.location.protocol.startsWith('http') || window.location.protocol === 'file:')) {
+    if (window.location.protocol.startsWith('http')) {
+      navigator.serviceWorker.register('./sw.js').then((reg) => {
+        reg.onupdatefound = () => {
+          const installingWorker = reg.installing;
+          if (installingWorker) {
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                showMessage('Nuova versione disponibile! Ricarica la pagina per aggiornare.', 'info');
+              }
+            };
+          }
+        };
+      }).catch((err) => {
+        console.debug('Service Worker non registrato:', err);
+      });
+    }
+  }
+
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if (dom.btnInstallPwa && !isStandalone) {
+      dom.btnInstallPwa.style.display = 'inline-flex';
+    }
+  });
+
+  if (dom.btnInstallPwa) {
+    dom.btnInstallPwa.addEventListener('click', async () => {
+      if (!deferredInstallPrompt) return;
+      dom.btnInstallPwa.style.display = 'none';
+      deferredInstallPrompt.prompt();
+      try {
+        const choice = await deferredInstallPrompt.userChoice;
+        if (choice && choice.outcome === 'accepted') {
+          showMessage('🎉 Installazione avviata! Troverai l\'app sulla schermata Home.', 'success');
+        }
+      } catch (_) {}
+      deferredInstallPrompt = null;
+    });
+  }
+
+  window.addEventListener('appinstalled', () => {
+    if (dom.btnInstallPwa) dom.btnInstallPwa.style.display = 'none';
+    deferredInstallPrompt = null;
+    showMessage('🎉 "Formule Inverse" è ora installata sul tuo dispositivo!', 'success');
+  });
 }
 
 function populateTopics() {
@@ -179,6 +276,11 @@ function renderLibrary() {
   const search = dom.librarySearch ? dom.librarySearch.value.trim() : '';
   const difficulty = dom.libraryDifficulty ? dom.libraryDifficulty.value : '';
   const list = filterFormulas({ topic, search, difficulty });
+
+  // Se la ricerca per testo ha fatto fallback globale, sincronizza il selettore
+  if (topic && search && list.length > 0 && list.some((f) => f.topic !== topic)) {
+    if (dom.libraryTopic) dom.libraryTopic.value = '';
+  }
 
   if (dom.libraryCountBadge) {
     dom.libraryCountBadge.textContent = list.length + (list.length === 1 ? ' formula' : ' formule');
@@ -277,7 +379,10 @@ function triviallyIsolated(formulaStr, v) {
 }
 
 function bindLibraryEvents() {
-  if (dom.librarySearch) dom.librarySearch.addEventListener('input', renderLibrary);
+  if (dom.librarySearch) {
+    dom.librarySearch.addEventListener('input', renderLibrary);
+    dom.librarySearch.addEventListener('search', renderLibrary);
+  }
   if (dom.libraryTopic) dom.libraryTopic.addEventListener('change', renderLibrary);
   if (dom.libraryDifficulty) dom.libraryDifficulty.addEventListener('change', renderLibrary);
   if (dom.btnRandom) {
@@ -292,6 +397,7 @@ function bindLibraryEvents() {
 // Caricamento di una formula
 // ---------------------------------------------------------------------------
 function loadFormula(formulaEntry, targetVar) {
+  cancelCompoundFractionAnimation();
   let eq;
   try {
     eq = parseEquation(formulaEntry.formula);
@@ -342,6 +448,13 @@ function loadFormula(formulaEntry, targetVar) {
   clearMessage();
   clearPreview();
   clearSelection();
+  dismissDidacticBubble();
+  if (state.goalReached && checkAndAnimateCompoundFraction()) {
+    return;
+  }
+  if (state.mode === 'auto') {
+    showAutoMode();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -371,6 +484,42 @@ function renderEquationView() {
   attachDropzoneClickHandlers();
   renderConditions();
   renderKeypad();
+  const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
+  if (card) card.classList.toggle('is-auto-mode', state.mode === 'auto');
+  if (state.mode === 'auto') {
+    const hintBadge = document.querySelector('.drag-hint-badge');
+    const hintText = document.querySelector('.drag-hint-text');
+    if (hintBadge && hintText) {
+      hintBadge.textContent = '⚡ Modalità Automatica';
+      hintText.innerHTML = '<strong>Fai clic ovunque con il mouse</strong> (sull\'equazione o sul pulsante) per eseguire il passaggio con la giustificazione della regola!';
+    }
+  }
+  scheduleNeutralCleanup();
+}
+
+let _neutralCleanupTimer = null;
+function scheduleNeutralCleanup() {
+  if (_neutralCleanupTimer) clearTimeout(_neutralCleanupTimer);
+  _neutralCleanupTimer = setTimeout(() => {
+    if (!state.currentEq) return;
+    const cleaned = stripNeutrals(state.currentEq);
+    if (!structurallyEqual(cleaned, state.currentEq)) {
+      const wraps = dom.equationDisplay ? dom.equationDisplay.querySelectorAll('.neutral-fade-wrap') : [];
+      if (wraps.length > 0) {
+        wraps.forEach((w) => {
+          w.classList.add('var-exploding');
+          spawnVariableExplosion(w, 'gold');
+        });
+        setTimeout(() => {
+          state.currentEq = cleaned;
+          renderEquationView();
+        }, 400);
+      } else {
+        state.currentEq = cleaned;
+        renderEquationView();
+      }
+    }
+  }, 1600);
 }
 
 // ---------------------------------------------------------------------------
@@ -394,18 +543,6 @@ function renderKeypad() {
     dom.keypadOps.appendChild(btn);
   }
 
-  // Pulsante semplificazione incrociata (nel tastierino, non flottante)
-  const crossKbdBtn = document.createElement('button');
-  crossKbdBtn.type = 'button';
-  crossKbdBtn.className = 'keypad-op keypad-cross-btn' + (state.crossMode ? ' active' : '');
-  crossKbdBtn.textContent = '✕/';
-  crossKbdBtn.title = 'Semplifica: fattori uguali num./den., termini opposti, o stessa grandezza su entrambi i membri';
-  crossKbdBtn.setAttribute('aria-label', crossKbdBtn.title);
-  crossKbdBtn.setAttribute('aria-pressed', state.crossMode ? 'true' : 'false');
-  crossKbdBtn.disabled = !state.currentEq;
-  crossKbdBtn.addEventListener('click', () => toggleCrossMode());
-  dom.keypadOps.appendChild(crossKbdBtn);
-
   dom.keypadOperands.innerHTML = '';
   if (!state.currentEq) {
     dom.keypadOperands.innerHTML = '<p class="placeholder small">Carica una formula per usare il tastierino.</p>';
@@ -419,7 +556,7 @@ function renderKeypad() {
     btn.type = 'button';
     btn.className = 'keypad-operand keypad-letter';
     btn.textContent = prettyVar(name);
-    btn.title = `Usa ${name}`;
+    btn.title = `Applica ${name}`;
     btn.addEventListener('click', () => handleKeypadOperandClick(name));
     dom.keypadOperands.appendChild(btn);
   }
@@ -428,7 +565,7 @@ function renderKeypad() {
     btn.type = 'button';
     btn.className = 'keypad-operand keypad-number';
     btn.textContent = String(value);
-    btn.title = `Usa ${value}`;
+    btn.title = `Applica ${value}`;
     btn.addEventListener('click', () => handleKeypadOperandClick(String(value)));
     dom.keypadOperands.appendChild(btn);
   }
@@ -438,7 +575,7 @@ function renderKeypad() {
   custom.className = 'keypad-custom';
   custom.innerHTML =
     '<input class="keypad-custom-value" type="text" inputmode="numeric" placeholder="n" aria-label="Altro numero o grandezza" size="3">' +
-    '<button type="button" class="btn-mini keypad-custom-apply">usa</button>';
+    '<button type="button" class="btn-mini keypad-custom-apply" title="Applica all\'equazione">Applica</button>';
   dom.keypadOperands.appendChild(custom);
   const input = custom.querySelector('.keypad-custom-value');
   const applyBtn = custom.querySelector('.keypad-custom-apply');
@@ -466,7 +603,7 @@ function updateKeypadHint() {
   }
   const op = KEYPAD_OPERATIONS.find((o) => o.id === state.keypadOp);
   dom.keypadHint.textContent = op && !op.needsOperand
-    ? 'Premi di nuovo per applicare la radice quadrata a entrambi i membri.'
+    ? `Premi di nuovo per applicare ${op.label} a entrambi i membri.`
     : `Operazione ${op ? op.label : ''} scelta: ora tocca una grandezza o un numero.`;
 }
 
@@ -474,7 +611,7 @@ function handleKeypadOpClick(op) {
   if (!state.currentEq) return;
   if (state.keypadOp === op.id) {
     // Secondo clic sulla stessa operazione senza operando: la annulla,
-    // tranne per le operazioni che non richiedono un operando (radice).
+    // tranne per le operazioni che non richiedono un operando (radice, inverse trigonometriche).
     if (op.needsOperand) {
       state.keypadOp = null;
       renderKeypad();
@@ -491,7 +628,7 @@ function handleKeypadOpClick(op) {
 function handleKeypadOperandClick(text) {
   if (!state.currentEq) return;
   if (!state.keypadOp) {
-    showMessage('Prima scegli un\'operazione nel tastierino (+ − × ÷ ^ √), poi la grandezza o il numero.', 'info');
+    showMessage('Prima scegli un\'operazione nel tastierino, poi la grandezza o il numero.', 'info');
     return;
   }
   applyKeypadMove(state.keypadOp, parseOperand(text), text);
@@ -556,12 +693,11 @@ function applyKeypadMove(opId, operandNode, operandText) {
   if (res.note) showMessage(res.note, 'info');
 
   if (state.goalReached) {
+    if (checkAndAnimateCompoundFraction()) return;
     playSuccessChime();
     showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
-  } else if (state.mode === 'guided') {
-    showGuidedSuggestion();
-  } else if (state.mode === 'multi') {
-    showMultiMode();
+  } else if (state.mode === 'auto') {
+    showAutoMode();
   }
 }
 
@@ -600,7 +736,13 @@ function enterClickDragMode(tokenEl) {
   tokenEl.classList.add('token-in-flight');
   dom.equationDisplay.classList.add('is-dragging-equation', 'is-click-drag-mode');
   highlightDropzones(dom.equationDisplay, state.clickDragToken);
-  showMessage(`"${prettyVar(varName)}" selezionato — clicca la destinazione (denominatore o membro opposto) per applicare il trasporto. Riclicca per annullare.`, 'info');
+  showMessage(`"${prettyVar(varName)}" selezionato — clicca la destinazione (denominatore o membro opposto) per applicare il trasporto, oppure scegli un'operazione in basso. Riclicca per annullare.`, 'info');
+  const foundEl = findElement(state.currentEq, tokenEl.dataset.id);
+  if (foundEl) {
+    state.selectedId = tokenEl.dataset.id;
+    const actions = availableActions(state.currentEq, foundEl, state.targetVar);
+    renderActions(foundEl, actions);
+  }
 }
 
 function exitClickDragMode() {
@@ -634,6 +776,10 @@ function attachEquationHandlers() {
   dom.equationDisplay.querySelectorAll('.math-node').forEach((el) => {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (state.mode === 'auto') {
+        executeNextAutoStep();
+        return;
+      }
       if (state.crossMode) { crossPickToken(el.dataset.id, el); return; }
 
       // Click-drag: se l'elemento è un token draggable
@@ -671,6 +817,10 @@ function attachEquationHandlers() {
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
+        if (state.mode === 'auto') {
+          executeNextAutoStep();
+          return;
+        }
         if (state.crossMode) crossPickToken(el.dataset.id, el);
         else selectElement(el.dataset.id);
       }
@@ -681,8 +831,21 @@ function attachEquationHandlers() {
 function attachDropzoneClickHandlers() {
   dom.equationDisplay.querySelectorAll('.dropzone').forEach((dz) => {
     dz.addEventListener('click', (e) => {
+      if (state.mode === 'auto') {
+        executeNextAutoStep();
+        return;
+      }
       if (!state.clickDragToken) return;
-      if (dz.dataset.side === state.clickDragToken.fromSide) return;
+      if (dz.dataset.side === state.clickDragToken.fromSide) {
+        if (state.clickDragToken.fromSlot === 'num' && dz.dataset.slot === 'den') {
+          const oppMember = state.clickDragToken.fromSide === 'right' ? 'primo membro (sotto la linea di frazione a sinistra)' : 'secondo membro (sotto la linea di frazione a destra)';
+          showMessage(`Non puoi spostare "${prettyVar(state.clickDragToken.varName)}" al denominatore dello stesso membro! Per il 2° principio di equivalenza, se dividi per esso va al denominatore del membro OPPOSTO (${oppMember}).`, 'warning');
+        } else {
+          showMessage(`Trascina o clicca sul membro opposto per applicare la regola del trasporto!`, 'info');
+        }
+        flashTokenRejected(state.clickDragToken.varName, state.clickDragToken.fromSide);
+        return;
+      }
       e.stopPropagation();
       applyClickDragToDropzone(dz);
     });
@@ -711,11 +874,14 @@ function toggleCrossMode(force) {
     dom.btnCross.classList.toggle('active', state.crossMode);
     dom.btnCross.setAttribute('aria-pressed', state.crossMode ? 'true' : 'false');
   }
+  if (dom.crossLayer) {
+    dom.crossLayer.hidden = !state.crossMode;
+  }
   const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
   if (card) card.classList.toggle('cross-mode', state.crossMode);
   clearCrossMarks();
   if (state.crossMode) {
-    showMessage('✕/ Semplificazione attiva — clicca due elementi da eliminare (fattori num./den., termini opposti o stessa grandezza su entrambi i membri), poi premi Conferma.', 'info');
+    showMessage('✕/ Semplificazione attiva — clicca due elementi da eliminare (fattori num./den., termini opposti o stessa grandezza su entrambi i membri).', 'info');
   }
 }
 
@@ -738,7 +904,7 @@ function crossPickToken(id, element) {
     showMessage('Primo elemento selezionato — ora scegli il secondo da semplificare.', 'info');
     return;
   }
-  // Due elementi selezionati: verifica e mostra anteprima
+  // Due elementi selezionati: verifica ed esegui la semplificazione
   const [idA, idB] = state.crossPicked;
   const res = crossCancel(state.currentEq, idA, idB);
   if (!res.ok) {
@@ -748,24 +914,131 @@ function crossPickToken(id, element) {
     showInvalidMove(res.error, res.hint, { label: 'Semplificazione' });
     return;
   }
-  // Mostra anteprima e attendi conferma (Invio o tasto Conferma)
-  state.pendingMove = { kind: 'cross', idA, idB, result: res };
-  dom.previewBox.hidden = false;
-  dom.previewText.innerHTML =
-    `Semplifica <strong>"${escapeHtml(res.cancelled)}"</strong> → ` +
-    `<span class="preview-eq">${escapeHtml(toPretty(res.newEq, 0))}</span>`;
-  dom.btnConfirm.focus();
-  showMessage(`"${res.cancelled}" pronto per la semplificazione — premi Conferma o Invio.`, 'info');
+  dissolveThenApplyCross(idA, idB, res);
+}
+
+// Genera una spettacolare onda d'urto ad anello e particelle di scintille
+function spawnVariableExplosion(el, colorScheme = 'neon') {
+  const layer = dom.crossDissolveLayer;
+  if (!el || !layer) return;
+  const layerRect = layer.getBoundingClientRect();
+  const rect = el.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) return;
+
+  const cx = rect.left + rect.width / 2 - layerRect.left;
+  const cy = rect.top + rect.height / 2 - layerRect.top;
+
+  // 1. Onda d'urto ad anello
+  const shockwave = document.createElement('div');
+  shockwave.className = 'explosion-shockwave';
+  shockwave.style.left = `${cx}px`;
+  shockwave.style.top = `${cy}px`;
+  layer.appendChild(shockwave);
+
+  // 2. Particelle ed esplosione di scintille
+  const palette = colorScheme === 'gold'
+    ? ['#fbbf24', '#f59e0b', '#fb7185', '#38bdf8', '#ffffff']
+    : ['#38bdf8', '#818cf8', '#c084fc', '#f43f5e', '#34d399', '#fbbf24'];
+  const symbols = ['✦', '★', '●', '✦', '▲', '◆', '✨'];
+
+  const count = 12;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'explosion-particle';
+    const angle = (i / count) * 2 * Math.PI + (Math.random() - 0.5) * 0.4;
+    const distance = 28 + Math.random() * 42;
+    const dx = Math.cos(angle) * distance;
+    const dy = Math.sin(angle) * distance;
+    const color = palette[i % palette.length];
+    const size = 11 + Math.random() * 9;
+
+    p.style.left = `${cx}px`;
+    p.style.top = `${cy}px`;
+    p.style.color = color;
+    p.style.fontSize = `${size}px`;
+    p.style.setProperty('--dx', `${dx}px`);
+    p.style.setProperty('--dy', `${dy}px`);
+    p.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+
+    layer.appendChild(p);
+  }
+
+  setTimeout(() => {
+    shockwave.remove();
+    layer.querySelectorAll('.explosion-particle').forEach((p) => p.remove());
+  }, 750);
+}
+
+// Coriandoli e scintille celebrative al raggiungimento dell'obiettivo
+function spawnVictoryConfetti() {
+  const layer = dom.crossDissolveLayer;
+  if (!layer) return;
+  const layerRect = layer.getBoundingClientRect();
+  const width = layerRect.width || 600;
+  const height = layerRect.height || 200;
+
+  const colors = ['#38bdf8', '#ec4899', '#a855f7', '#fbbf24', '#10b981', '#6366f1'];
+  const symbols = ['★', '✦', '🎉', '✨', '◆', '●'];
+
+  for (let i = 0; i < 26; i++) {
+    const p = document.createElement('div');
+    p.className = 'explosion-particle victory-particle';
+    const startX = Math.random() * width;
+    const startY = height * 0.2 + Math.random() * (height * 0.6);
+    const angle = (Math.random() * Math.PI) - (Math.PI / 2);
+    const distance = 40 + Math.random() * 85;
+    const dx = Math.cos(angle) * distance;
+    const dy = Math.sin(angle) * distance;
+    const color = colors[Math.floor(Math.random() * colors.length)];
+
+    p.style.left = `${startX}px`;
+    p.style.top = `${startY}px`;
+    p.style.color = color;
+    p.style.fontSize = `${12 + Math.random() * 12}px`;
+    p.style.setProperty('--dx', `${dx}px`);
+    p.style.setProperty('--dy', `${dy}px`);
+    p.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+
+    layer.appendChild(p);
+  }
+
+  setTimeout(() => {
+    layer.querySelectorAll('.victory-particle').forEach((p) => p.remove());
+  }, 950);
+}
+
+// Cerca nel DOM i fattori numeratore/denominatore che stanno per essere cancellati
+function findCancellableDomElements(action) {
+  if (!dom.equationDisplay || !action) return [];
+  if (action.ruleKey !== 'cancelFactor' && action.id !== 'cancel-factor') return [];
+  let denText = '';
+  try {
+    const ctx = action.build ? action.build({}) : {};
+    denText = (ctx.denText || '').trim();
+  } catch {}
+  if (!denText) return [];
+
+  const found = [];
+  dom.equationDisplay.querySelectorAll('.math-node').forEach((el) => {
+    const txt = (el.textContent || '').trim();
+    if (txt === denText || el.dataset.varName === denText) {
+      found.push(el);
+    }
+  });
+  return found;
 }
 
 function dissolveThenApplyCross(idA, idB, res) {
   clearCrossMarks(); clearPreview(); playSoundExplosion();
 
-  // Anima in dissolvi gli elementi selezionati
+  // Anima in dissolvi gli elementi selezionati con esplosione particellare
   const elA = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idA)}"]`);
   const elB = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idB)}"]`);
   [elA, elB].forEach((el) => {
-    if (el) el.classList.add('cross-dissolving');
+    if (el) {
+      el.classList.add('cross-dissolving', 'var-exploding');
+      spawnVariableExplosion(el);
+    }
   });
 
   setTimeout(() => {
@@ -798,12 +1071,12 @@ function dissolveThenApplyCross(idA, idB, res) {
     toggleCrossMode(false);
 
     if (state.goalReached) {
+      if (checkAndAnimateCompoundFraction()) return;
       playSuccessChime();
+      spawnVictoryConfetti();
       showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
-    } else if (state.mode === 'guided') {
-      showGuidedSuggestion();
-    } else if (state.mode === 'multi') {
-      showMultiMode();
+    } else if (state.mode === 'auto') {
+      showAutoMode();
     }
   }, 460);
 }
@@ -932,7 +1205,7 @@ function bindCrossDrag() {
 
 // Callback per il drag and drop: valuta e applica immediatamente al rilascio (senza tasto di conferma)
 function applyDragResult(result) {
-  if (!result) return;
+  if (!result || state.isAnimatingCompoundFraction) return;
 
   // Se la mossa non è valida: mostra subito l'errore spiegandone il motivo matematico
   if (!result.ok) {
@@ -950,9 +1223,14 @@ function applyDragResult(result) {
   // Mossa valida: suono + applica
   if (result.principle === 'first') playSoundTransport();
   else playSoundFraction();
+  dismissDidacticBubble();
 
   clearPreview();
-  state.currentEq = result.newEq;
+  let nextEq = result.newEq;
+  if (isGoalReached(nextEq, state.targetVar)) {
+    nextEq = ensureTargetOnFirstMember(nextEq, state.targetVar);
+  }
+  state.currentEq = nextEq;
   state.conditions = mergeConditions(state.conditions, result.conditions || []);
   state.selectedId = null;
 
@@ -962,14 +1240,14 @@ function applyDragResult(result) {
     explanation: null,
   };
   const pseudoResult = {
-    equation: result.newEq,
+    equation: nextEq,
     rule: pseudoRule,
     steps: result.steps || [],
     conditions: result.conditions || [],
   };
 
   pushHistory({
-    equation: clone(result.newEq),
+    equation: clone(nextEq),
     ruleName: result.ruleName,
     rulePrinciple: result.rulePrinciple,
     ruleId: null,
@@ -987,12 +1265,11 @@ function applyDragResult(result) {
   showMessage(`✓ ${result.ruleName}!`, 'success');
 
   if (state.goalReached) {
+    if (checkAndAnimateCompoundFraction()) return;
     playSuccessChime();
     showMessage(`🎉 Ottimo lavoro! La grandezza ${prettyVar(state.targetVar)} è isolata con successo!`, 'success');
-  } else if (state.mode === 'guided') {
-    showGuidedSuggestion();
-  } else if (state.mode === 'multi') {
-    showMultiMode();
+  } else if (state.mode === 'auto') {
+    showAutoMode();
   }
 }
 
@@ -1047,12 +1324,216 @@ function applyReciprocalRule() {
   clearMessage();
   showMessage('🔁 Regola dei reciproci applicata a entrambi i membri!', 'success');
   if (state.goalReached) {
+    if (checkAndAnimateCompoundFraction()) return;
     playSuccessChime();
+    spawnVictoryConfetti();
     showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
-  } else if (state.mode === 'guided') {
-    showGuidedSuggestion();
-  } else if (state.mode === 'multi') {
-    showMultiMode();
+  } else if (state.mode === 'auto') {
+    showAutoMode();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Regola della proprietà distributiva (sviluppa le parentesi)
+// ---------------------------------------------------------------------------
+function applyDistributeRule() {
+  if (!state.currentEq) return;
+  const eq = state.currentEq;
+
+  const leftDist = canDistribute(eq.left);
+  const rightDist = canDistribute(eq.right);
+
+  if (!leftDist && !rightDist) {
+    showMessage('Non ci sono prodotti con parentesi (somme o differenze) da sviluppare.', 'info');
+    return;
+  }
+
+  let chosenSide = null;
+  if (state.selectedId) {
+    const selInfo = analyseElementId(state.selectedId);
+    if (selInfo && selInfo.side) {
+      if (selInfo.side === 'left' && leftDist) chosenSide = 'left';
+      if (selInfo.side === 'right' && rightDist) chosenSide = 'right';
+    }
+  }
+
+  if (!chosenSide) {
+    const targetLeft = hasDistributableSum(eq.left, state.targetVar);
+    const targetRight = hasDistributableSum(eq.right, state.targetVar);
+    if (targetRight && !targetLeft && rightDist) chosenSide = 'right';
+    else if (targetLeft && !targetRight && leftDist) chosenSide = 'left';
+    else if (rightDist && !leftDist) chosenSide = 'right';
+    else if (leftDist && !rightDist) chosenSide = 'left';
+    else chosenSide = 'right';
+  }
+
+  playSoundTransport();
+  const res = applyRule(RULES.distribute, eq, { side: chosenSide });
+  if (!res.ok) {
+    showInvalidMove(res.error, res.hint);
+    return;
+  }
+
+  state.currentEq = res.equation;
+  state.selectedId = null;
+  clearPreview();
+
+  const rule = RULES.distribute;
+  pushHistory({
+    equation: clone(res.equation),
+    ruleName: rule.name,
+    rulePrinciple: rule.principle,
+    ruleId: 'distribute',
+    steps: [`Sviluppo le parentesi con la proprietà distributiva al ${chosenSide === 'left' ? 'primo' : 'secondo'} membro: ${toPretty(eq, 0)} → ${toPretty(res.equation, 0)}.`],
+    conditions: state.conditions.slice(),
+    explanationKey: 'distribute',
+    note: null,
+    verified: true,
+  }, false);
+
+  updateObjective();
+  renderEquationView();
+  showRulePanel(rule, { steps: ['Sviluppate le parentesi con la proprietà distributiva'], conditions: [] }, res.equation);
+  clearMessage();
+  showMessage('📦 Proprietà distributiva applicata: parentesi sviluppate!', 'success');
+  if (state.goalReached) {
+    if (checkAndAnimateCompoundFraction()) return;
+    playSuccessChime();
+    spawnVictoryConfetti();
+    showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
+  } else if (state.mode === 'auto') {
+    showAutoMode();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Regola del raccoglimento a fattor comune
+// ---------------------------------------------------------------------------
+function applyFactorCommonRule() {
+  if (!state.currentEq) return;
+  const eq = state.currentEq;
+
+  const targetSide = whichSideHas(eq, state.targetVar) || 'right';
+  const sidesToCheck = targetSide === 'both' ? ['right', 'left'] : [targetSide, targetSide === 'left' ? 'right' : 'left'];
+
+  let foundSide = null;
+  let commonNode = null;
+
+  for (const s of sidesToCheck) {
+    const member = s === 'left' ? eq.left : eq.right;
+    const common = findCommonFactor(member, state.targetVar);
+    if (common) {
+      foundSide = s;
+      commonNode = common;
+      break;
+    }
+  }
+
+  if (!commonNode) {
+    for (const s of sidesToCheck) {
+      const member = s === 'left' ? eq.left : eq.right;
+      const common = findCommonFactor(member, null);
+      if (common) {
+        foundSide = s;
+        commonNode = common;
+        break;
+      }
+    }
+  }
+
+  if (!commonNode) {
+    const member = targetSide === 'left' ? eq.left : eq.right;
+    if (hasTrigConflict(member, state.targetVar)) {
+      showMessage(`⚠️ Non è possibile raccogliere ${prettyVar(state.targetVar)} a fattor comune: ${prettyVar(state.targetVar)} è l'argomento di funzioni trigonometriche distinte (sin e cos), non un fattore moltiplicativo.`, 'warning');
+      return;
+    }
+    showMessage('Nessun fattore comune trovato da raccogliere tra tutti i termini del membro.', 'info');
+    return;
+  }
+
+  playSoundTransport();
+  const commonText = toPretty(commonNode, 0);
+  const res = applyRule(RULES.factorCommon, eq, { side: foundSide, common: commonNode, commonText });
+  if (!res.ok) {
+    showInvalidMove(res.error, res.hint);
+    return;
+  }
+
+  state.currentEq = res.equation;
+  state.selectedId = null;
+  clearPreview();
+
+  const rule = RULES.factorCommon;
+  pushHistory({
+    equation: clone(res.equation),
+    ruleName: rule.name,
+    rulePrinciple: rule.principle,
+    ruleId: 'factorCommon',
+    steps: [`Raccolgo ${commonText} a fattor comune al ${foundSide === 'left' ? 'primo' : 'secondo'} membro: ${toPretty(eq, 0)} → ${toPretty(res.equation, 0)}.`],
+    conditions: state.conditions.slice(),
+    explanationKey: null,
+    note: null,
+    verified: true,
+  }, false);
+
+  updateObjective();
+  renderEquationView();
+  showRulePanel(rule, { steps: [`Raccolto ${commonText} a fattor comune`], conditions: [] }, res.equation);
+  clearMessage();
+  showMessage(`🧩 Raccoglimento a fattor comune applicato: ${commonText} messo in evidenza!`, 'success');
+  if (state.goalReached) {
+    if (checkAndAnimateCompoundFraction()) return;
+    playSuccessChime();
+    spawnVictoryConfetti();
+    showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
+  } else if (state.mode === 'auto') {
+    showAutoMode();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Regola del cambio di segno (moltiplicazione per -1 di entrambi i membri)
+// ---------------------------------------------------------------------------
+function applyChangeSignRule() {
+  if (!state.currentEq) return;
+  playSoundTransport();
+  const eq = state.currentEq;
+  const newEq = Eq(negateExpr(eq.left), negateExpr(eq.right));
+
+  state.currentEq = newEq;
+  state.selectedId = null;
+  clearPreview();
+
+  const rule = {
+    id: 'changeSign',
+    name: 'Regola del cambio di segno',
+    principle: 'Secondo principio di equivalenza: moltiplicando entrambi i membri per −1, tutti i segni si invertono (+ ↔ −).',
+    explanation: null,
+  };
+  pushHistory({
+    equation: clone(newEq),
+    ruleName: rule.name,
+    rulePrinciple: rule.principle,
+    ruleId: 'changeSign',
+    steps: [`Moltiplico entrambi i membri per −1: ${toPretty(eq, 0)} → ${toPretty(newEq, 0)}.`],
+    conditions: state.conditions.slice(),
+    explanationKey: null,
+    note: null,
+    verified: true,
+  }, false);
+
+  updateObjective();
+  renderEquationView();
+  showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
+  clearMessage();
+  showMessage('± Regola del cambio di segno applicata: tutti i segni invertiti!', 'success');
+  if (state.goalReached) {
+    if (checkAndAnimateCompoundFraction()) return;
+    playSuccessChime();
+    spawnVictoryConfetti();
+    showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
+  } else if (state.mode === 'auto') {
+    showAutoMode();
   }
 }
 
@@ -1113,7 +1594,7 @@ function renderActions(element, specificActions) {
 function addValueOps(actions, element) {
   const node = unwrap(element.node);
   const text = toPretty(node, 0);
-  if (node.type === 'Var' || node.type === 'Div' || node.type === 'Mul') {
+  if (node.type === 'Var' || node.type === 'Div' || node.type === 'Mul' || node.type === 'Add' || node.type === 'Sub' || node.type === 'Group') {
     actions.push({
       id: 'mul-both', label: `Moltiplica entrambi i membri per "${text}"`,
       description: 'Secondo principio di equivalenza.', ruleKey: 'mulBoth',
@@ -1214,7 +1695,9 @@ function confirmMove() {
     showRulePanel(pseudoRule, pseudoResult, res.newEq);
     clearMessage();
     if (state.goalReached) {
+      if (checkAndAnimateCompoundFraction()) return;
       playSuccessChime();
+      spawnVictoryConfetti();
       showMessage(`🎉 Ottimo lavoro! La grandezza ${prettyVar(state.targetVar)} è isolata con successo!`, 'success');
     }
     return;
@@ -1248,12 +1731,12 @@ function confirmMove() {
   showRulePanel(rule, result, state.currentEq);
   clearMessage();
   if (state.goalReached) {
+    if (checkAndAnimateCompoundFraction()) return;
     playSuccessChime();
+    spawnVictoryConfetti();
     showMessage(`🎉 Ottimo lavoro! La grandezza ${prettyVar(state.targetVar)} è isolata con successo!`, 'success');
-  } else if (state.mode === 'guided') {
-    showGuidedSuggestion();
-  } else if (state.mode === 'multi') {
-    showMultiMode();
+  } else if (state.mode === 'auto') {
+    showAutoMode();
   }
 }
 
@@ -1274,6 +1757,69 @@ function flashTokenRejected(varName, side) {
   setTimeout(() => el.classList.remove('token-rejected'), 600);
 }
 
+let bubbleTimeout = null;
+
+function showDidacticBubble({ error, hint, action }) {
+  if (!dom.didacticBubbleAnchor) return;
+  if (bubbleTimeout) {
+    clearTimeout(bubbleTimeout);
+    bubbleTimeout = null;
+  }
+
+  const errLow = (error || '').toLowerCase();
+  let badgeText = 'Principio di Equivalenza';
+  let ruleReminder = 'Ricorda di applicare correttamente i principi di equivalenza delle equazioni.';
+
+  if (errLow.includes('fa parte di una somma') || errLow.includes('non è un fattore') || errLow.includes('dividere') || errLow.includes('moltiplicare')) {
+    badgeText = '2° Principio (Fattori e Prodotti)';
+    ruleReminder = 'Secondo principio: puoi dividere entrambi i membri solo per un fattore che moltiplica l\'intero membro!';
+  } else if (errLow.includes('additivo') || errLow.includes('trasporto') || errLow.includes('segno') || errLow.includes('trascina la variabile')) {
+    badgeText = '1° Principio (Regola del Trasporto)';
+    ruleReminder = 'Primo principio: spostando un addendo all\'altro membro, esso cambia di segno (+ diventa −, − diventa +).';
+  } else if (errLow.includes('zero') || errLow.includes('≠ 0')) {
+    badgeText = 'Condizione di Esistenza (≠ 0)';
+    ruleReminder = 'Attenzione: la divisione per zero non è definita nei numeri reali.';
+  }
+
+  if (dom.bubbleBadge) dom.bubbleBadge.textContent = badgeText;
+  if (dom.bubbleMessage) dom.bubbleMessage.textContent = error || 'Operazione non consentita.';
+
+  if (dom.bubbleHintBox && dom.bubbleHintText) {
+    if (hint) {
+      dom.bubbleHintText.textContent = hint;
+      dom.bubbleHintBox.hidden = false;
+    } else {
+      dom.bubbleHintBox.hidden = true;
+    }
+  }
+
+  if (dom.bubbleFooterRule) dom.bubbleFooterRule.textContent = ruleReminder;
+
+  dom.didacticBubbleAnchor.hidden = false;
+  if (dom.didacticBubble) dom.didacticBubble.classList.remove('bubble-closing');
+
+  bubbleTimeout = setTimeout(() => {
+    dismissDidacticBubble();
+  }, 8000);
+}
+
+function dismissDidacticBubble() {
+  if (!dom.didacticBubbleAnchor || dom.didacticBubbleAnchor.hidden) return;
+  if (bubbleTimeout) {
+    clearTimeout(bubbleTimeout);
+    bubbleTimeout = null;
+  }
+  if (dom.didacticBubble) {
+    dom.didacticBubble.classList.add('bubble-closing');
+    setTimeout(() => {
+      if (dom.didacticBubbleAnchor) dom.didacticBubbleAnchor.hidden = true;
+      if (dom.didacticBubble) dom.didacticBubble.classList.remove('bubble-closing');
+    }, 220);
+  } else {
+    dom.didacticBubbleAnchor.hidden = true;
+  }
+}
+
 function showInvalidMove(error, hint, action) {
   playSoundInvalid();
   const parts = [];
@@ -1281,6 +1827,7 @@ function showInvalidMove(error, hint, action) {
   if (hint) parts.push('Suggerimento: ' + hint);
   if (action) parts.push('Regola tentata: ' + action.label);
   showMessage(parts.join(' '), 'error');
+  showDidacticBubble({ error, hint, action });
   pushHistory({
     equation: clone(state.currentEq),
     ruleName: 'Tentativo non valido',
@@ -1298,27 +1845,27 @@ function showInvalidMove(error, hint, action) {
 // ---------------------------------------------------------------------------
 function showRulePanel(rule, result, afterEq) {
   const ex = rule ? getExplanation(rule.explanation) : null;
-  let html = `<div class="rule-name">${escapeHtml(rule ? rule.name : 'Trasformazione')}</div>`;
+  let html = `<div class="rule-name">📜 ${escapeHtml(rule ? rule.name : 'Trasformazione')}</div>`;
 
   if (ex) {
-    html += `<div class="rule-section"><strong>Spiegazione intuitiva</strong><p>${escapeHtml(ex.intuitiva)}</p></div>`;
-    html += `<div class="rule-section"><strong>Principio di equivalenza</strong><p>${escapeHtml(ex.principio)}</p></div>`;
-    html += `<div class="rule-section"><strong>Perché è corretta</strong><p>${escapeHtml(ex.perche)}</p></div>`;
+    html += `<div class="rule-section"><strong>💡 Spiegazione intuitiva</strong><p>${escapeHtml(ex.intuitiva)}</p></div>`;
+    html += `<div class="rule-section"><strong>⚖️ Principio di equivalenza</strong><p>${escapeHtml(ex.principio)}</p></div>`;
+    html += `<div class="rule-section"><strong>🎯 Perché è corretta</strong><p>${escapeHtml(ex.perche)}</p></div>`;
   } else if (rule && rule.principle) {
-    html += `<div class="rule-section"><strong>Principio</strong><p>${escapeHtml(rule.principle)}</p></div>`;
+    html += `<div class="rule-section"><strong>⚖️ Principio matematico</strong><p>${escapeHtml(rule.principle)}</p></div>`;
   }
 
   if (result.steps && result.steps.length) {
-    html += `<div class="rule-section"><strong>Operazione svolta</strong><ul class="steps-list">${result.steps.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ul></div>`;
+    html += `<div class="rule-section"><strong>⚙️ Operazione svolta</strong><ul class="steps-list">${result.steps.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ul></div>`;
   }
 
-  html += `<div class="rule-section rule-eq"><strong>Equazione dopo</strong><div class="rule-math">${renderEquation(afterEq, {})}</div></div>`;
+  html += `<div class="rule-section rule-eq"><strong>📐 Equazione dopo</strong><div class="rule-math">${renderEquation(afterEq, {})}</div></div>`;
 
   if (result.conditions && result.conditions.length) {
-    html += `<div class="rule-section conditions"><strong>Condizioni di validità richieste</strong><ul>${result.conditions.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul></div>`;
+    html += `<div class="rule-section conditions"><strong>🔍 Condizioni di validità richieste</strong><ul>${result.conditions.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul></div>`;
   }
   if (ex && ex.attenzione && ex.attenzione.length) {
-    html += `<div class="rule-section warning"><strong>Attenzione</strong><ul>${ex.attenzione.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul></div>`;
+    html += `<div class="rule-section warning"><strong>⚠️ Attenzione</strong><ul>${ex.attenzione.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul></div>`;
   }
   if (result.note) {
     html += `<div class="rule-section warning"><p>${escapeHtml(result.note)}</p></div>`;
@@ -1338,17 +1885,196 @@ function updateRulePanelInitial(formulaEntry) {
 }
 
 // ---------------------------------------------------------------------------
-// E. Obiettivo
+// Animazione Didattica Frazioni di Frazione
+// ---------------------------------------------------------------------------
+function cancelCompoundFractionAnimation() {
+  if (state.compoundAnimTimers && state.compoundAnimTimers.length) {
+    for (const t of state.compoundAnimTimers) clearTimeout(t);
+    state.compoundAnimTimers = [];
+  }
+  state.isAnimatingCompoundFraction = false;
+  if (dom.equationDisplay) {
+    dom.equationDisplay.classList.remove('compound-anim-step1', 'compound-anim-step2', 'compound-anim-step3');
+  }
+  if (dom.compoundFractionBanner) {
+    dom.compoundFractionBanner.hidden = true;
+  }
+}
+
+function checkAndAnimateCompoundFraction(onComplete) {
+  if (state.isAnimatingCompoundFraction) return false;
+  if (!state.currentEq || !state.targetVar) return false;
+  if (!isGoalReached(state.currentEq, state.targetVar)) return false;
+
+  const steps = getCompoundFractionSteps(state.currentEq, state.targetVar);
+  if (!steps) return false;
+
+  startCompoundFractionAnimation(steps, onComplete);
+  return true;
+}
+
+function startCompoundFractionAnimation(steps, onComplete) {
+  cancelCompoundFractionAnimation();
+  state.isAnimatingCompoundFraction = true;
+
+  if (dom.completionBanner) dom.completionBanner.hidden = true;
+
+  if (dom.compoundFractionBanner) {
+    dom.compoundFractionBanner.hidden = false;
+    if (dom.compoundFractionStepBadge) dom.compoundFractionStepBadge.textContent = 'Passaggio 1 di 2';
+    if (dom.compoundFractionTitle) dom.compoundFractionTitle.textContent = 'Frazione di frazione rilevata';
+    if (dom.compoundFractionMsg) {
+      dom.compoundFractionMsg.textContent = 'La formula presenta una frazione al denominatore. Dividere per una frazione equivale a moltiplicare per la sua reciproca (inversa).';
+    }
+  }
+
+  if (dom.equationDisplay) {
+    dom.equationDisplay.classList.remove('compound-anim-step2', 'compound-anim-step3');
+    dom.equationDisplay.classList.add('compound-anim-step1');
+  }
+
+  state.currentEq = steps.step1Eq;
+  renderEquationView();
+  updateObjective();
+
+  // Timer 1: Passaggio 2 - Inversione e moltiplicazione per la reciproca (dopo 2.2s di osservazione)
+  const t1 = setTimeout(() => {
+    if (!state.isAnimatingCompoundFraction) return;
+
+    playSoundFraction();
+    state.currentEq = steps.step2Eq;
+    renderEquationView();
+
+    if (dom.compoundFractionBanner) {
+      if (dom.compoundFractionStepBadge) dom.compoundFractionStepBadge.textContent = 'Passaggio 2 di 2';
+      if (dom.compoundFractionTitle) dom.compoundFractionTitle.textContent = 'Inversione del denominatore';
+      if (dom.compoundFractionMsg) {
+        dom.compoundFractionMsg.textContent = 'Moltiplichiamo il numeratore per la frazione reciproca del denominatore: la frazione si capovolge.';
+      }
+    }
+
+    if (dom.equationDisplay) {
+      dom.equationDisplay.classList.remove('compound-anim-step1');
+      dom.equationDisplay.classList.add('compound-anim-step2');
+    }
+
+    // Timer 2: Passaggio 3 - Semplificazione in frazione normale canonica (dopo altri 2.5s)
+    const t2 = setTimeout(() => {
+      if (!state.isAnimatingCompoundFraction) return;
+
+      playSuccessChime();
+      spawnVictoryConfetti();
+      state.currentEq = steps.step3Eq;
+      state.isAnimatingCompoundFraction = false;
+      renderEquationView();
+
+      const rule = {
+        name: 'Semplificazione frazione di frazione',
+        principle: 'Dividere per una frazione equivale a moltiplicare per la sua reciproca (inversa): a / (b/c) = (a · c) / b.',
+        explanation: null,
+      };
+
+      pushHistory({
+        equation: clone(steps.step3Eq),
+        ruleName: rule.name,
+        rulePrinciple: rule.principle,
+        ruleId: 'compound_frac_simplify',
+        steps: [
+          `Frazione di frazione rilevata: ${steps.step1Pretty}`,
+          `Moltiplicazione per la reciproca: ${steps.step2Pretty}`,
+          `Frazione normale semplificata: ${steps.step3Pretty}`,
+        ],
+        conditions: (state.conditions || []).slice(),
+        explanationKey: null,
+        note: 'Semplificazione automatica frazione di frazione',
+        verified: true,
+      }, false);
+
+      if (dom.compoundFractionBanner) {
+        if (dom.compoundFractionStepBadge) dom.compoundFractionStepBadge.textContent = 'Completato ✓';
+        if (dom.compoundFractionTitle) dom.compoundFractionTitle.textContent = 'Frazione normale ottenuta!';
+        if (dom.compoundFractionMsg) {
+          dom.compoundFractionMsg.textContent = `Formula finale semplificata: ${steps.step3Pretty}.`;
+        }
+      }
+
+      if (dom.equationDisplay) {
+        dom.equationDisplay.classList.remove('compound-anim-step2');
+        dom.equationDisplay.classList.add('compound-anim-step3');
+      }
+
+      updateObjective();
+      showMessage(`🎉 Frazione di frazione semplificata! Formula inversa finale ricavata con successo.`, 'success');
+
+      // Timer 3: Dissolve del banner dopo 3.2s
+      const t3 = setTimeout(() => {
+        if (dom.compoundFractionBanner) dom.compoundFractionBanner.hidden = true;
+        if (dom.equationDisplay) dom.equationDisplay.classList.remove('compound-anim-step3');
+        if (typeof onComplete === 'function') onComplete();
+      }, 3200);
+
+      state.compoundAnimTimers.push(t3);
+    }, 2500);
+
+    state.compoundAnimTimers.push(t2);
+  }, 2200);
+
+  state.compoundAnimTimers.push(t1);
+}
+
+// ---------------------------------------------------------------------------
+// E. Obiettivo & Laboratorio di Calcolo Numerico
 // ---------------------------------------------------------------------------
 function updateObjective() {
   const f = state.baseFormula;
   const t = prettyVar(state.targetVar);
   dom.objectiveText.textContent = f ? `ricavare ${t} — ${f.name} (${f.formula})` : `ricavare ${t}`;
   state.goalReached = isGoalReached(state.currentEq, state.targetVar);
+
+  if (state.goalReached && state.currentEq && state.currentEq.type === 'Eq') {
+    const flipped = ensureTargetOnFirstMember(state.currentEq, state.targetVar);
+    if (flipped !== state.currentEq) {
+      state.currentEq = flipped;
+      if (dom.equationDisplay) {
+        dom.equationDisplay.innerHTML = renderEquation(state.currentEq, {
+          selectedId: state.selectedId,
+          targetVar: state.targetVar,
+          interactive: true,
+          showImplicitDen: state.showImplicitDen,
+        });
+        if (dom.latexLiveCode) dom.latexLiveCode.textContent = toLatex(state.currentEq);
+      }
+    }
+  }
+
+  const resSide = state.currentEq && state.currentEq.type === 'Eq'
+    ? (isolatedSide(state.currentEq.left, state.targetVar) ? state.currentEq.right : (isolatedSide(state.currentEq.right, state.targetVar) ? state.currentEq.left : null))
+    : null;
+  const hasCompound = hasCompoundFraction(resSide);
+  const isFullySolved = state.goalReached && !hasCompound && !state.isAnimatingCompoundFraction;
+
   dom.objectiveStatus.hidden = false;
-  dom.objectiveStatus.textContent = state.goalReached ? '✓ Raggiunto' : '● In corso';
-  dom.objectiveStatus.className = 'status-badge ' + (state.goalReached ? 'status-success' : 'status-progress');
-  dom.objectiveBox.classList.toggle('objective-done', state.goalReached);
+  if (state.isAnimatingCompoundFraction) {
+    dom.objectiveStatus.textContent = '⚡ Semplificazione...';
+    dom.objectiveStatus.className = 'status-badge status-progress';
+    dom.objectiveBox.classList.remove('objective-done');
+  } else {
+    dom.objectiveStatus.textContent = isFullySolved ? '✓ Raggiunto' : '● In corso';
+    dom.objectiveStatus.className = 'status-badge ' + (isFullySolved ? 'status-success' : 'status-progress');
+    dom.objectiveBox.classList.toggle('objective-done', isFullySolved);
+  }
+
+  // Visibilità tasto ricomincia (sempre attivo quando c'è una formula caricata) e banner di completamento
+  if (dom.btnRetryExercise) dom.btnRetryExercise.hidden = !state.startEq;
+  if (dom.completionBanner) {
+    dom.completionBanner.hidden = !isFullySolved;
+    if (isFullySolved) {
+      if (dom.completionTitle) dom.completionTitle.textContent = `🏆 Ottimo lavoro! Hai isolato ${t}`;
+      if (dom.completionSubtitle) {
+        dom.completionSubtitle.textContent = `Formula inversa ricavata con successo: ${toPretty(state.currentEq, 0)}.`;
+      }
+    }
+  }
 
   // Popola i chips per cambiare obiettivo in qualsiasi momento
   if (dom.objectiveTargetPicker && f && f.isolate) {
@@ -1366,19 +2092,200 @@ function updateObjective() {
   } else if (dom.objectiveTargetPicker) {
     dom.objectiveTargetPicker.hidden = true;
   }
+
+  updateNumericalCalculator();
 }
 
 function setTargetVar(v) {
   state.targetVar = v;
+  dismissDidacticBubble();
   updateObjective();
   renderEquationView();
   clearMessage();
   if (state.goalReached) {
+    if (checkAndAnimateCompoundFraction()) return;
     playSuccessChime();
     showMessage(`🎉 Ottimo! La grandezza ${prettyVar(v)} è già isolata!`, 'success');
   } else {
     showMessage(`🎯 Nuovo obiettivo impostato: isolare ${prettyVar(v)}.`, 'info');
   }
+}
+
+// ---------------------------------------------------------------------------
+// Laboratorio di Calcolo Numerico con Unità SI
+// ---------------------------------------------------------------------------
+function getSolvedExpression() {
+  if (!state.currentEq || !state.targetVar) return null;
+  const leftRaw = unwrap(state.currentEq.left);
+  const rightRaw = unwrap(state.currentEq.right);
+
+  if (isVar(leftRaw) && leftRaw.name === state.targetVar) {
+    return rightRaw;
+  }
+  if (isVar(rightRaw) && rightRaw.name === state.targetVar) {
+    return leftRaw;
+  }
+  return null;
+}
+
+function updateNumericalCalculator() {
+  if (!dom.numericalCalcCard) return;
+
+  if (!state.goalReached) {
+    dom.numericalCalcCard.hidden = true;
+    return;
+  }
+
+  const solvedExpr = getSolvedExpression();
+  if (!solvedExpr) {
+    dom.numericalCalcCard.hidden = true;
+    return;
+  }
+
+  dom.numericalCalcCard.hidden = false;
+
+  const targetInfo = getQuantityInfo(state.targetVar, state.baseFormula);
+  if (dom.calcTargetVar) dom.calcTargetVar.textContent = prettyVar(state.targetVar);
+  if (dom.calcFinalUnit) dom.calcFinalUnit.textContent = targetInfo.unit;
+
+  const freeVars = Array.from(collectVars(solvedExpr)).filter(
+    (v) => v !== state.targetVar && v !== 'pi' && v !== 'π' && v !== 'e'
+  );
+
+  renderCalculatorInputs(freeVars, solvedExpr);
+}
+
+function renderCalculatorInputs(freeVars, solvedExpr) {
+  if (!dom.calcInputsGrid) return;
+  dom.calcInputsGrid.innerHTML = '';
+
+  if (freeVars.length === 0) {
+    const evalRes = evalWithEnv(solvedExpr, {});
+    const valStr = evalRes.ok ? formatResultNumber(evalRes.value) : '—';
+    if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = valStr;
+    if (dom.calcStepFormula) dom.calcStepFormula.textContent = `${prettyVar(state.targetVar)} = ${valStr}`;
+    return;
+  }
+
+  freeVars.forEach((v) => {
+    const qInfo = getQuantityInfo(v, state.baseFormula);
+    const item = document.createElement('div');
+    item.className = 'calc-input-item';
+    item.innerHTML = `
+      <div class="calc-input-meta">
+        <span class="calc-input-symbol">${prettyVar(v)}</span>
+        <span class="calc-input-label" title="${escapeHtml(qInfo.name)}">${escapeHtml(qInfo.name)}</span>
+      </div>
+      <div class="calc-input-row">
+        <input type="number" step="any" class="calc-num-input" data-var="${escapeHtml(v)}" placeholder="0" />
+        <span class="calc-unit-badge">${escapeHtml(qInfo.unit)}</span>
+      </div>
+    `;
+
+    const input = item.querySelector('.calc-num-input');
+    input.addEventListener('input', () => runNumericalCalculation(solvedExpr));
+    dom.calcInputsGrid.appendChild(item);
+  });
+
+  populateCalculatorSamples(freeVars, solvedExpr);
+}
+
+function populateCalculatorSamples(freeVars, solvedExpr) {
+  if (!dom.calcInputsGrid) return;
+  const inputs = dom.calcInputsGrid.querySelectorAll('.calc-num-input');
+  inputs.forEach((input) => {
+    const v = input.dataset.var;
+    const qInfo = getQuantityInfo(v, state.baseFormula);
+    input.value = qInfo.sample !== undefined ? qInfo.sample : 1;
+  });
+  runNumericalCalculation(solvedExpr);
+}
+
+function resetCalculatorInputs(solvedExpr) {
+  if (!dom.calcInputsGrid) return;
+  const inputs = dom.calcInputsGrid.querySelectorAll('.calc-num-input');
+  inputs.forEach((input) => {
+    input.value = '';
+  });
+  runNumericalCalculation(solvedExpr);
+}
+
+function runNumericalCalculation(solvedExpr) {
+  if (!dom.calcInputsGrid) return;
+  const inputs = dom.calcInputsGrid.querySelectorAll('.calc-num-input');
+  const env = {};
+  let anyEmpty = false;
+
+  inputs.forEach((input) => {
+    const v = input.dataset.var;
+    const val = input.value.trim();
+    if (val === '') {
+      anyEmpty = true;
+    } else {
+      env[v] = parseFloat(val);
+    }
+  });
+
+  const targetInfo = getQuantityInfo(state.targetVar, state.baseFormula);
+
+  if (anyEmpty) {
+    if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = '—';
+    if (dom.calcStepFormula) dom.calcStepFormula.textContent = 'Inserisci tutte le grandezze per visualizzare il calcolo numerico.';
+    if (dom.calcErrorNotice) dom.calcErrorNotice.hidden = true;
+    return;
+  }
+
+  const evalRes = evalWithEnv(solvedExpr, env);
+  if (evalRes.ok) {
+    const formatted = formatResultNumber(evalRes.value);
+    if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = formatted;
+    if (dom.calcErrorNotice) dom.calcErrorNotice.hidden = true;
+
+    try {
+      const substitutedAst = substituteVarsInAst(solvedExpr, env);
+      const substitutedHtml = renderNode(substitutedAst, 'calc-step', { interactive: false });
+      if (dom.calcStepFormula) {
+        dom.calcStepFormula.innerHTML = `
+          <span class="calc-step-var">${prettyVar(state.targetVar)}</span>
+          <span class="calc-step-eq">=</span>
+          <span class="calc-step-expr">${substitutedHtml}</span>
+          <span class="calc-step-eq">=</span>
+          <strong>${formatted}</strong>
+          <span class="calc-step-unit">${targetInfo.unit}</span>
+        `;
+      }
+    } catch {
+      if (dom.calcStepFormula) {
+        dom.calcStepFormula.textContent = `${prettyVar(state.targetVar)} = ${formatted} ${targetInfo.unit}`;
+      }
+    }
+  } else {
+    if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = 'Non calcolabile';
+    if (dom.calcErrorNotice) {
+      dom.calcErrorNotice.textContent = `⚠️ Impossibile completare il calcolo: ${evalRes.error || 'Errore nei valori numerici'}`;
+      dom.calcErrorNotice.hidden = false;
+    }
+    if (dom.calcStepFormula) dom.calcStepFormula.textContent = 'Verifica i valori inseriti.';
+  }
+}
+
+function copyCalculatorResult() {
+  const val = dom.calcFinalNumber ? dom.calcFinalNumber.textContent.trim() : '';
+  const unit = dom.calcFinalUnit ? dom.calcFinalUnit.textContent.trim() : '';
+  const target = prettyVar(state.targetVar);
+  if (!val || val === '—' || val === 'Non calcolabile') {
+    showMessage('Nessun valore valido da copiare.', 'warning');
+    return;
+  }
+  const text = `${target} = ${val} ${unit}`;
+  navigator.clipboard.writeText(text).then(() => {
+    const oldText = dom.btnCopyCalcResult.textContent;
+    dom.btnCopyCalcResult.textContent = '✓ Copiato!';
+    setTimeout(() => { if (dom.btnCopyCalcResult) dom.btnCopyCalcResult.textContent = oldText; }, 1800);
+    showMessage(`Copiato negli appunti: ${text}`, 'success');
+  }).catch(() => {
+    showMessage(`Risultato: ${text}`, 'info');
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1431,6 +2338,7 @@ function renderHistory() {
 }
 
 function goToHistory(i) {
+  cancelCompoundFractionAnimation();
   if (i < 0 || i >= state.history.length) return;
   if (state.history[i].failed) {
     showMessage("Questo è un tentativo non valido: l'equazione non è cambiata.", 'info');
@@ -1486,26 +2394,35 @@ function redo() {
 }
 
 function resetExercise() {
+  cancelCompoundFractionAnimation();
   if (!state.startEq) return;
+  playSoundClick();
+  dismissDidacticBubble();
+  clearSelection();
+  clearPreview();
+  if (state.baseFormula && state.targetVar) {
+    loadFormula(state.baseFormula, state.targetVar);
+    showMessage("Esercizio ricominciato dall'inizio.", 'info');
+    return;
+  }
   state.history = [];
   state.historyIndex = -1;
   state.currentEq = clone(state.startEq);
-  state.conditions = (state.baseFormula.conditions || []).slice();
+  state.conditions = (state.baseFormula && state.baseFormula.conditions ? state.baseFormula.conditions : state.conditions || []).slice();
   state.selectedId = null;
-  clearPreview();
   pushHistory({
     equation: clone(state.startEq),
     ruleName: 'Formula di partenza',
-    rulePrinciple: state.baseFormula.formula,
+    rulePrinciple: state.baseFormula ? state.baseFormula.formula : toPretty(state.startEq, 0),
     steps: [],
     conditions: state.conditions.slice(),
     explanationKey: null,
-    note: state.baseFormula.hypotheses || null,
+    note: (state.baseFormula && state.baseFormula.hypotheses) || null,
     verified: true,
   }, true);
   updateObjective();
   renderEquationView();
-  updateRulePanelInitial(state.baseFormula);
+  if (state.baseFormula) updateRulePanelInitial(state.baseFormula);
   clearMessage();
   showMessage("Esercizio ricominciato dall'inizio.", 'info');
 }
@@ -1541,29 +2458,97 @@ function clearSelection() {
   }
 }
 
+function retryCurrentExercise() {
+  cancelCompoundFractionAnimation();
+  playSoundClick();
+  dismissDidacticBubble();
+  clearSelection();
+  clearPreview();
+  if (state.baseFormula && state.targetVar) {
+    loadFormula(state.baseFormula, state.targetVar);
+    showMessage(`🔄 Esercizio riavviato! Riprova a ricavare ${prettyVar(state.targetVar)}.`, 'info');
+  } else if (state.startEq && state.targetVar) {
+    loadFormula({
+      id: 'custom-' + Date.now(),
+      topic: 'formula personalizzata',
+      name: 'formula personalizzata',
+      formula: toPretty(state.startEq, 0),
+      isolate: [state.targetVar],
+      conditions: state.conditions ? state.conditions.slice() : [],
+      difficulty: 3,
+    }, state.targetVar);
+    showMessage(`🔄 Esercizio riavviato! Riprova a ricavare ${prettyVar(state.targetVar)}.`, 'info');
+  } else if (state.startEq) {
+    resetExercise();
+  }
+}
+
 function bindWorkAreaEvents() {
+  const eqCard = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
+  if (eqCard) {
+    eqCard.addEventListener('click', (e) => {
+      if (state.mode !== 'auto') return;
+      if (e.target.closest('.cross-layer, .didactic-bubble-anchor, .btn-mini, .close-btn, button')) return;
+      executeNextAutoStep();
+    });
+  }
   dom.equationDisplay.addEventListener('click', (e) => {
+    if (state.mode === 'auto') {
+      executeNextAutoStep();
+      return;
+    }
     if (e.target === dom.equationDisplay) clearSelection();
   });
   dom.btnConfirm.addEventListener('click', confirmMove);
   dom.btnCancel.addEventListener('click', cancelPreview);
   if (dom.btnMirror) dom.btnMirror.addEventListener('click', applyMirrorRule);
   if (dom.btnReciprocal) dom.btnReciprocal.addEventListener('click', applyReciprocalRule);
-  if (dom.btnCopyFormula) dom.btnCopyFormula.addEventListener('click', copyFormulaText);
+  if (dom.btnDistribute) dom.btnDistribute.addEventListener('click', applyDistributeRule);
+  if (dom.btnFactorCommon) dom.btnFactorCommon.addEventListener('click', applyFactorCommonRule);
+  if (dom.btnChangeSign) dom.btnChangeSign.addEventListener('click', applyChangeSignRule);
   if (dom.btnCross) dom.btnCross.addEventListener('click', () => toggleCrossMode());
   bindCrossDrag();
-  if (dom.btnCopyLatex) dom.btnCopyLatex.addEventListener('click', copyLatexFormula);
   if (dom.btnCopyLatexInline) dom.btnCopyLatexInline.addEventListener('click', copyLatexFormula);
   if (dom.btnQuickHint) dom.btnQuickHint.addEventListener('click', triggerQuickHint);
-  if (dom.btnToggleImplicitDen) {
-    dom.btnToggleImplicitDen.addEventListener('click', () => {
-      state.showImplicitDen = !state.showImplicitDen;
-      dom.btnToggleImplicitDen.classList.toggle('active', state.showImplicitDen);
-      dom.btnToggleImplicitDen.title = state.showImplicitDen
-        ? 'Nascondi denominatori sottintesi'
-        : 'Mostra denominatori sottintesi (/1)';
-      renderEquationView();
+  if (dom.btnRetryExercise) dom.btnRetryExercise.addEventListener('click', retryCurrentExercise);
+  if (dom.btnCompletionRetry) dom.btnCompletionRetry.addEventListener('click', retryCurrentExercise);
+  if (dom.btnCompletionNext) {
+    dom.btnCompletionNext.addEventListener('click', () => {
+      playSoundClick();
+      const { id, target } = randomExercise();
+      loadFormula(getFormulaById(id), target);
     });
+  }
+  // Eventi per Didactic Bubble (Fumetto)
+  if (dom.btnCloseBubble) dom.btnCloseBubble.addEventListener('click', dismissDidacticBubble);
+  if (dom.btnBubbleOk) {
+    dom.btnBubbleOk.addEventListener('click', () => {
+      playSoundClick();
+      dismissDidacticBubble();
+    });
+  }
+  // Eventi per Laboratorio di Calcolo Numerico
+  if (dom.btnCalcSample) {
+    dom.btnCalcSample.addEventListener('click', () => {
+      playSoundClick();
+      const solvedExpr = getSolvedExpression();
+      if (!solvedExpr) return;
+      const freeVars = Array.from(collectVars(solvedExpr)).filter(
+        (v) => v !== state.targetVar && v !== 'pi' && v !== 'π' && v !== 'e'
+      );
+      populateCalculatorSamples(freeVars, solvedExpr);
+    });
+  }
+  if (dom.btnCalcReset) {
+    dom.btnCalcReset.addEventListener('click', () => {
+      playSoundClick();
+      const solvedExpr = getSolvedExpression();
+      if (!solvedExpr) return;
+      resetCalculatorInputs(solvedExpr);
+    });
+  }
+  if (dom.btnCopyCalcResult) {
+    dom.btnCopyCalcResult.addEventListener('click', copyCalculatorResult);
   }
 }
 
@@ -1597,6 +2582,7 @@ function applyMirrorRule() {
   showMessage('🪞 Regola dello specchio applicata: se A = B allora B = A!', 'success');
   if (state.goalReached) {
     playSuccessChime();
+    spawnVictoryConfetti();
     showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata!`, 'success');
   }
 }
@@ -1615,96 +2601,198 @@ function bindModeEvents() {
       btn.setAttribute('aria-pressed', 'true');
       state.mode = btn.dataset.mode;
       const modeDesc = {
-        free: '🔓 Modalità Libera: clicca un elemento dell\'equazione per vedere le operazioni disponibili, oppure trascina variabili e fattori.',
-        guided: '💡 Modalità Guidata: il sistema ti suggerisce ogni passaggio. Segui i consigli o esplora tu stesso.',
-        multi: '⚡ Modalità Multi-operazione: vedi il piano completo di risoluzione e scegli se eseguire un passo alla volta o tutto in automatico.',
+        free: '🔓 Modalità Libera: interagisci liberamente trascinando variabili e applicando operazioni.',
+        auto: '⚡ Modalità Automatica: a ogni clic del mouse il programma esegue una operazione giustificando la regola.',
       };
       showMessage(modeDesc[state.mode] || '', 'info');
-      if (state.mode === 'guided') showGuidedSuggestion();
-      else if (state.mode === 'multi') showMultiMode();
-      else { renderEquationView(); clearSelection(); }
+      const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
+      if (card) card.classList.toggle('is-auto-mode', state.mode === 'auto');
+      if (state.mode === 'auto') {
+        showAutoMode();
+      } else {
+        const hintBadge = document.querySelector('.drag-hint-badge');
+        const hintText = document.querySelector('.drag-hint-text');
+        if (hintBadge && hintText) {
+          hintBadge.textContent = '✨ Modalità Libera';
+          hintText.innerHTML = 'Trascina una variabile dall\'altra parte dell\'uguale: rilasciala <strong>sotto la linea di frazione</strong> per dividere, o al numeratore per moltiplicare!';
+        }
+        renderEquationView();
+        clearSelection();
+      }
     });
   });
 }
 
-function showGuidedSuggestion() {
-  if (!state.currentEq) return;
-  if (state.goalReached) { showMessage('Obiettivo raggiunto! Non ci sono altri passi necessari.', 'success'); return; }
-  const sug = suggestNextStep(state.currentEq, state.targetVar);
-  if (!sug.found) { showMessage(sug.message, 'info'); return; }
+let _isAutoStepping = false;
 
-  dom.actionHint.textContent = 'Modalità guidata — passo consigliato:';
-  dom.actionButtons.innerHTML = '';
-  const btn = document.createElement('button');
-  btn.className = 'action-btn guided';
-  btn.type = 'button';
-  btn.innerHTML = `<span class="action-label">${escapeHtml(sug.action.label)}</span>
-    <span class="action-desc">${escapeHtml(sug.reason)}</span>`;
-  btn.addEventListener('click', () => previewAction(sug.action));
-  dom.actionButtons.appendChild(btn);
-  showMessage('Suggerimento: ' + sug.reason, 'info');
+function executeNextAutoStep() {
+  if (_isAutoStepping) return;
+  _isAutoStepping = true;
+  setTimeout(() => { _isAutoStepping = false; }, 250);
+
+  if (!state.currentEq) {
+    showMessage('Seleziona prima una formula dalla libreria per iniziare.', 'info');
+    return;
+  }
+  if (state.goalReached) {
+    playSuccessChime();
+    showMessage(`🎉 Obiettivo già raggiunto! La grandezza ${prettyVar(state.targetVar)} è isolata.`, 'success');
+    return;
+  }
+
+  const sug = suggestNextStep(state.currentEq, state.targetVar);
+  if (!sug.found) {
+    showMessage(sug.message || 'Nessun ulteriore passaggio automatico trovato.', 'info');
+    return;
+  }
+
+  const res = performAction(state.currentEq, sug.action, { target: state.targetVar });
+  if (!res.ok) {
+    showInvalidMove(res.error, res.hint, { label: sug.action.label });
+    return;
+  }
+
+  // Se l'operazione cancella fattori, mostra l'esplosione animata prima di applicarla
+  const cancellables = findCancellableDomElements(sug.action);
+  if (cancellables.length > 0) {
+    playSoundExplosion();
+    cancellables.forEach((el) => {
+      el.classList.add('var-exploding', 'cross-dissolving');
+      spawnVariableExplosion(el);
+    });
+    setTimeout(() => {
+      applyAutoStepState(sug, res);
+    }, 420);
+    return;
+  }
+
+  applyAutoStepState(sug, res);
 }
 
-// ---------------------------------------------------------------------------
-// Modalità Multi-operazione (Risoluzione guidata passo-passo)
-// ---------------------------------------------------------------------------
-function showMultiMode() {
-  if (!state.currentEq) return;
+function applyAutoStepState(sug, res) {
+  playSoundForRule(sug.action.ruleKey);
+
+  let nextEq = res.equation;
+  if (isGoalReached(nextEq, state.targetVar)) {
+    nextEq = ensureTargetOnFirstMember(nextEq, state.targetVar);
+  }
+  state.currentEq = nextEq;
+  state.conditions = mergeConditions(state.conditions, res.conditions || []);
+  state.selectedId = null;
+  clearPreview();
+
+  state.goalReached = isGoalReached(state.currentEq, state.targetVar);
+
+  const rule = res.rule || {
+    id: sug.action.ruleKey || sug.action.id,
+    name: res.ruleName || sug.action.label,
+    principle: res.rulePrinciple || sug.reason || 'Principio di equivalenza delle equazioni.',
+    explanation: res.explanationKey || null,
+  };
+
+  pushHistory({
+    equation: clone(nextEq),
+    ruleName: rule.name || sug.action.label,
+    rulePrinciple: rule.principle || res.rulePrinciple || '',
+    ruleId: rule.id || sug.action.id,
+    steps: res.steps || (sug.reason ? [sug.reason] : []),
+    conditions: (res.conditions || []).slice(),
+    explanationKey: rule.explanation || null,
+    note: res.note || sug.reason || null,
+    verified: true,
+  }, false);
+
+  updateObjective();
+  renderEquationView();
+  showRulePanel(rule, res, state.currentEq);
+  animateOperationBadge(sug.action.label, sug.action.operandText);
+  clearMessage();
+
   if (state.goalReached) {
-    showMessage('Obiettivo già raggiunto! La grandezza ' + prettyVar(state.targetVar) + ' è isolata.', 'success');
-    if (dom.actionButtons) dom.actionButtons.innerHTML = '';
+    if (checkAndAnimateCompoundFraction()) return;
+    playSuccessChime();
+    spawnVictoryConfetti();
+    showMessage(`🎉 Ottimo! La grandezza ${prettyVar(state.targetVar)} è isolata con successo! Regola: ${rule.name}`, 'success');
+  } else {
+    showMessage(`✓ ${sug.action.label}: ${sug.reason || rule.principle}`, 'success');
+  }
+
+  showAutoMode();
+}
+
+function showAutoMode() {
+  if (!state.currentEq) return;
+
+  const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
+  if (card) card.classList.add('is-auto-mode');
+
+  const hintBadge = document.querySelector('.drag-hint-badge');
+  const hintText = document.querySelector('.drag-hint-text');
+  if (hintBadge && hintText) {
+    hintBadge.textContent = '⚡ Modalità Automatica';
+    hintText.innerHTML = '<strong>Fai clic ovunque con il mouse</strong> (sull\'equazione o sul pulsante in basso) per eseguire il passaggio successivo!';
+  }
+
+  if (state.goalReached) {
+    if (dom.actionHint) dom.actionHint.textContent = 'Modalità Automatica:';
+    if (dom.actionButtons) {
+      dom.actionButtons.innerHTML = `
+        <div class="auto-mode-finished">
+          <div class="auto-success-header">🎉 Formula isolata con successo!</div>
+          <p>La grandezza <strong>${prettyVar(state.targetVar)}</strong> è stata completamente isolata. Puoi cambiare la grandezza da isolare in alto o selezionare un'altra formula dalla libreria.</p>
+        </div>
+      `;
+    }
     return;
   }
 
+  const sug = suggestNextStep(state.currentEq, state.targetVar);
   const roadmap = computeRoadmap(state.currentEq, state.targetVar);
-  dom.actionHint.textContent = `Modalità Multi-operazione (${roadmap.length} passaggi stimati per isolare ${prettyVar(state.targetVar)}):`;
+
+  if (dom.actionHint) {
+    dom.actionHint.textContent = `Modalità Automatica — A ogni clic del mouse il programma esegue un'operazione (${roadmap.length} passaggi stimati):`;
+  }
+
+  if (!dom.actionButtons) return;
   dom.actionButtons.innerHTML = '';
 
-  if (roadmap.length === 0) {
-    dom.actionButtons.innerHTML = '<p class="placeholder small">Nessuna sequenza automatica diretta trovata per questa formula. Prova a selezionare un elemento in modalità Libera.</p>';
+  if (!sug.found) {
+    dom.actionButtons.innerHTML = `<p class="placeholder small">${escapeHtml(sug.message || 'Nessuna sequenza automatica diretta trovata per questa formula.')}</p>`;
     return;
   }
 
-  const topControls = document.createElement('div');
-  topControls.className = 'multi-controls';
-
-  const btnNext = document.createElement('button');
-  btnNext.className = 'action-btn guided';
-  btnNext.type = 'button';
-  btnNext.innerHTML = `<span class="action-label">▶ Esegui prossimo passo: ${escapeHtml(roadmap[0].action.label)}</span>
-    <span class="action-desc">${escapeHtml(roadmap[0].reason)}</span>`;
-  btnNext.addEventListener('click', () => {
-    previewAction(roadmap[0].action);
-  });
-  topControls.appendChild(btnNext);
-
-  const btnAuto = document.createElement('button');
-  btnAuto.className = 'action-btn auto-solve';
-  btnAuto.type = 'button';
-  btnAuto.innerHTML = `<span class="action-label">⚡ Risolvi tutto automaticamente</span>
-    <span class="action-desc">Applica tutti i passaggi matematici in sequenza animata.</span>`;
-  btnAuto.addEventListener('click', () => autoSolveRoadmap());
-  topControls.appendChild(btnAuto);
-
-  dom.actionButtons.appendChild(topControls);
-
-  const roadmapCard = document.createElement('div');
-  roadmapCard.className = 'roadmap-card';
-  roadmapCard.innerHTML = `
-    <div class="roadmap-header">Piano di risoluzione simbolica:</div>
-    <ol class="roadmap-list">
-      ${roadmap.map((s, idx) => `
-        <li class="roadmap-item ${idx === 0 ? 'roadmap-current' : ''}">
-          <span class="roadmap-step-num">${idx + 1}</span>
-          <div class="roadmap-step-content">
-            <strong>${escapeHtml(s.action.label)}</strong>
-            <p>${escapeHtml(s.reason)}</p>
-          </div>
-        </li>
-      `).join('')}
-    </ol>
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'action-btn auto-step-btn';
+  nextBtn.type = 'button';
+  nextBtn.innerHTML = `
+    <span class="action-label">🖱️ Fai clic per eseguire: ${escapeHtml(sug.action.label)}</span>
+    <span class="action-desc"><strong>Giustificazione della regola:</strong> ${escapeHtml(sug.reason || sug.action.description || '')}</span>
   `;
-  dom.actionButtons.appendChild(roadmapCard);
+  nextBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    executeNextAutoStep();
+  });
+  dom.actionButtons.appendChild(nextBtn);
+
+  if (roadmap.length > 0) {
+    const roadmapCard = document.createElement('div');
+    roadmapCard.className = 'roadmap-card';
+    roadmapCard.innerHTML = `
+      <div class="roadmap-header">Piano di risoluzione (passaggi rimanenti):</div>
+      <ol class="roadmap-list">
+        ${roadmap.map((s, idx) => `
+          <li class="roadmap-item ${idx === 0 ? 'roadmap-current' : ''}">
+            <span class="roadmap-step-num">${idx + 1}</span>
+            <div class="roadmap-step-content">
+              <strong>${escapeHtml(s.action.label)}</strong>
+              <p>${escapeHtml(s.reason || s.action.description || '')}</p>
+            </div>
+          </li>
+        `).join('')}
+      </ol>
+    `;
+    dom.actionButtons.appendChild(roadmapCard);
+  }
 }
 
 function computeRoadmap(startEquation, target) {
@@ -1715,34 +2803,12 @@ function computeRoadmap(startEquation, target) {
     const sug = suggestNextStep(curr, target);
     if (!sug.found) break;
     steps.push(sug);
-    const res = performAction(curr, sug.action);
+    const res = performAction(curr, sug.action, { target });
     if (!res.ok) break;
     curr = res.equation;
     iter++;
   }
   return steps;
-}
-
-let autoSolveTimer = null;
-function autoSolveRoadmap() {
-  if (state.goalReached) return;
-  const sug = suggestNextStep(state.currentEq, state.targetVar);
-  if (!sug.found) {
-    showMessage('Risoluzione completata o nessun ulteriore passaggio diretto.', 'info');
-    return;
-  }
-  const res = performAction(state.currentEq, sug.action);
-  if (!res.ok) {
-    showMessage('Errore nel passaggio: ' + res.error, 'error');
-    return;
-  }
-  state.pendingMove = { action: sug.action, result: res };
-  confirmMove();
-
-  if (!state.goalReached && state.mode === 'multi') {
-    if (autoSolveTimer) clearTimeout(autoSolveTimer);
-    autoSolveTimer = setTimeout(autoSolveRoadmap, 500);
-  }
 }
 
 function triggerQuickHint() {
@@ -1784,15 +2850,28 @@ function loadCustomFormula() {
 
   const vars = collectVars(eq);
   let t = target;
+  let multipleSpecified = false;
+  if (t && (t.includes(',') || t.includes(';'))) {
+    const parts = t.split(/[,;\s]+/).filter(Boolean);
+    const validParts = parts.filter((p) => vars.has(p) || [...vars].some((v) => v.toLowerCase() === p.toLowerCase()));
+    if (validParts.length > 0) {
+      t = [...vars].find((v) => v.toLowerCase() === validParts[0].toLowerCase()) || validParts[0];
+      multipleSpecified = true;
+    } else {
+      showCustomError(`Inserisci una sola grandezza da isolare alla volta (es. "${[...vars][0]}"). Grandezze presenti: ${[...vars].join(', ')}.`);
+      return;
+    }
+  }
+
   if (!t) {
     const L = unwrap(eq.left);
     if (L.type === 'Var') t = L.name;
-    else { showCustomError('Specifica la grandezza da isolare.'); return; }
+    else { showCustomError('Specifica la grandezza da isolare (una sola lettera, es. ' + [...vars][0] + ').'); return; }
   }
   if (!vars.has(t)) {
     const alt = [...vars].find((v) => v.toLowerCase() === t.toLowerCase());
     if (alt) t = alt;
-    else { showCustomError(`La grandezza "${t}" non compare nella formula. Grandezze presenti: ${[...vars].join(', ')}.`); return; }
+    else { showCustomError(`La grandezza "${t}" non compare nella formula. Inserisci una sola grandezza presente: ${[...vars].join(', ')}.`); return; }
   }
 
   loadFormula({
@@ -1805,7 +2884,11 @@ function loadCustomFormula() {
     difficulty: 3,
     notes: 'Formula inserita manualmente.',
   }, t);
-  showMessage(`Formula personalizzata caricata. Obiettivo: isolare ${prettyVar(t)}.`, 'success');
+  if (multipleSpecified) {
+    showMessage(`È possibile isolare una sola grandezza alla volta: impostato obiettivo su "${prettyVar(t)}". Puoi cambiare grandezza da isolare in qualsiasi momento dall'interfaccia!`, 'info');
+  } else {
+    showMessage(`Formula personalizzata caricata. Obiettivo: isolare ${prettyVar(t)}.`, 'success');
+  }
 }
 
 function showCustomError(msg) {
@@ -1940,6 +3023,23 @@ function playSoundInvalid() {
     gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.38);
     [osc1, osc2].forEach(o => { o.connect(gain); o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.4); });
     gain.connect(ctx.destination);
+  } catch {}
+}
+
+function playSoundClick() {
+  try {
+    const ctx = _audioCtx(); if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.08);
   } catch {}
 }
 
@@ -2146,29 +3246,54 @@ function previewLatex() {
       '<span class="conv-label">Sintassi per l\'editor</span>' +
       '<div class="conv-code">' + escapeHtml(syntax) + '</div>' +
       '<span class="conv-label" style="margin-top:.5rem">Anteprima</span>' +
-      '<div class="math-eq">' + mathHtml + '</div>';
+      '<div class="latex-math-preview">' + mathHtml + '</div>';
   }
   return syntax;
 }
 
 function argsEmpty(t) { return !t; }
 
+function resolveVar(token, vars) {
+  if (vars.has(token)) return token;
+  const clean = token.replace(/^\\/, '');
+  if (vars.has(clean)) return clean;
+  const lower = clean.toLowerCase();
+  const greek = GREEK_MAP && GREEK_MAP[lower];
+  if (greek && vars.has(greek)) return greek;
+  const alt = [...vars].find((v) => v.toLowerCase() === lower);
+  if (alt) return alt;
+  return null;
+}
+
 function saveLatex() {
   const syntax = previewLatex();
   if (!syntax) return;
 
   const name = (dom.latexName.value || '').trim() || 'formula da LaTeX';
-  let target = (dom.latexTarget.value || '').trim();
+  const targetRaw = (dom.latexTarget.value || '').trim();
 
   let eq;
   try { eq = parseEquation(syntax); }
   catch (e) { showLatexError('Errore di sintassi: ' + e.message); return; }
 
   const vars = collectVars(eq);
-  if (target && !vars.has(target)) {
-    const alt = [...vars].find((v) => v.toLowerCase() === target.toLowerCase());
-    if (alt) target = alt;
-    else { showLatexError(`La grandezza "${target}" non compare nella formula. Presenti: ${[...vars].join(', ')}.`); return; }
+  let isolateList = [...vars];
+
+  if (targetRaw) {
+    const parts = targetRaw.split(/[,;\s]+/).filter(Boolean);
+    const resolved = [];
+    for (const p of parts) {
+      const match = resolveVar(p, vars);
+      if (match) {
+        if (!resolved.includes(match)) resolved.push(match);
+      } else {
+        showLatexError(`La grandezza "${p}" non compare nella formula. Presenti: ${[...vars].join(', ')}.`);
+        return;
+      }
+    }
+    if (resolved.length > 0) {
+      isolateList = resolved;
+    }
   }
 
   try {
@@ -2177,7 +3302,7 @@ function saveLatex() {
       formula: syntax,
       latex: (dom.latexInput.value || '').trim(),
       topic: 'Le mie formule',
-      isolate: target ? [target] : [...vars],
+      isolate: isolateList,
       conditions: [],
       difficulty: 3,
       notes: 'Importata da LaTeX.',

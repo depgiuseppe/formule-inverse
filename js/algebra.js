@@ -10,10 +10,10 @@
 import {
   Num, Var, Add, Sub, Mul, Div, Pow, Sqrt, Neg, Group, Eq,
   Sin, Cos, Tan, Ln, Asin, Acos, Atan, Exp,
-  unwrap, canonical, isNum, equivalentExpr, equivalentEq, collectVars, toPretty,
+  unwrap, unwrapNeutrals, canonical, isNum, equivalentExpr, equivalentEq, collectVars, toPretty,
   isIdenticallyZero, clone, FUNC_INFO,
 } from './ast.js';
-import { RULES, applyRule, additiveTerms, cancelFractionFactor, findCommonFactorInFraction } from './rules.js';
+import { RULES, applyRule, additiveTerms, cancelFractionFactor, findCommonFactorInFraction, hasTrigConflict, canDistribute, findCommonFactor } from './rules.js';
 
 // ---------------------------------------------------------------------------
 // Stato/contesto di lavoro
@@ -24,25 +24,45 @@ import { RULES, applyRule, additiveTerms, cancelFractionFactor, findCommonFactor
 // ---------------------------------------------------------------------------
 // 1) Obiettivo raggiunto?
 // ---------------------------------------------------------------------------
-// La variabile `target` è isolata se compare in un solo membro e da solo
-// (ovvero quel membro è esattamente la variabile, o ±variabile, o la variabile
-// a primo membro dopo lo scambio). Consideriamo raggiunto l'obiettivo quando
-// un membro è della forma  target  oppure  (target)  oppure  ±target.
+// La variabile `target` è isolata se e solo se compare da sola su un membro
+// e NON compare affatto nell'altro membro. Se compare in entrambi i membri,
+// non è mai considerata isolata.
 export function isGoalReached(eq, target) {
-  return isolatedSide(eq.left, target) || isolatedSide(eq.right, target);
+  if (!eq || eq.type !== 'Eq' || !target) return false;
+  const inL = collectVars(eq.left).has(target);
+  const inR = collectVars(eq.right).has(target);
+  if (inL && inR) return false;
+
+  const leftIso = isolatedSide(eq.left, target);
+  const rightIso = isolatedSide(eq.right, target);
+
+  return (leftIso && !inR) || (rightIso && !inL);
+}
+
+// Assicura che la grandezza isolata si trovi al primo membro (membro sinistro).
+// Se la grandezza è isolata al secondo membro e assente dal primo, inverte
+// simmetricamente i due membri (A = B <=> B = A).
+export function ensureTargetOnFirstMember(eq, target) {
+  if (!eq || eq.type !== 'Eq' || !target) return eq;
+  const inL = collectVars(eq.left).has(target);
+  const inR = collectVars(eq.right).has(target);
+  if (inL && inR) return eq;
+  if (isolatedSide(eq.right, target) && !inL) {
+    return Eq(eq.right, eq.left);
+  }
+  return eq;
 }
 
 export function isolatedSide(node, target) {
-  node = unwrap(node);
+  node = unwrapNeutrals(node);
   if (node.type === 'Var' && node.name === target) return true;
-  if (node.type === 'Neg') return isolatedSide(node.arg, target);
   if (node.type === 'Mul' && node.args.length === 2) {
-    // forma ±1 * target
+    // forma 1 * target
     const [a, b] = node.args;
     const aC = isNum(unwrap(a)) ? unwrap(a).value : null;
     const bC = isNum(unwrap(b)) ? unwrap(b).value : null;
-    if (aC === -1) return isolatedSide(b, target);
-    if (bC === -1) return isolatedSide(a, target);
+    if (aC === 1) return isolatedSide(b, target);
+    if (bC === 1) return isolatedSide(a, target);
   }
   return false;
 }
@@ -114,7 +134,8 @@ function walk(node, side, out, id, ctx) {
       break;
     }
     case 'Neg': {
-      walk(node.arg, side, out, id + '/arg', childCtx('argomento'));
+      const innerRole = (ctx.role === 'fattore' || ctx.role === 'termine') ? ctx.role : 'argomento';
+      walk(node.arg, side, out, id + '/arg', childCtx(innerRole));
       break;
     }
     case 'Group': {
@@ -169,12 +190,17 @@ export function availableActions(eq, element, target) {
     const member = side === 'left' ? eq.left : eq.right;
     const memberU = unwrap(member);
     if (memberU.type === 'Mul' && memberU.args.length >= 2) {
-      const found = memberU.args.some((f) => equivalentExpr(f, node));
-      if (found) {
+      const isSubFactor = memberU.args.some((f) => {
+        if (equivalentExpr(f, node)) return true;
+        const u = unwrap(f);
+        return u.type === 'Neg' && equivalentExpr(u.arg, node);
+      });
+      const isWhole = equivalentExpr(memberU, node);
+      if (isSubFactor || isWhole) {
         actions.push({
           id: 'move-factor',
-          label: `Trasporta il fattore "${nodeText}" come divisore`,
-          description: 'Dividi entrambi i membri per il fattore (secondo principio, richiede ' + nodeText + ' ≠ 0).',
+          label: `Trasporta "${nodeText}" al denominatore opposto (divisione in croce)`,
+          description: 'Dividi entrambi i membri per ' + nodeText + ' (secondo principio, richiede ' + nodeText + ' ≠ 0).',
           ruleKey: 'moveFactor',
           build: () => ({ factor: node, side, factorText: nodeText }),
         });
@@ -282,9 +308,29 @@ export function availableActions(eq, element, target) {
     }
   }
 
-  // --- Aggiungi/sottrai una quantità: se esiste un termine numerico dall'altra parte ---
-  // (lo offriamo quando il selettore vuole "portare" un valore; aggiunta libera
-  //  è gestita dal pannello azioni generiche sotto)
+  // --- Se il membro corrente ha prodotti da sviluppare (proprietà distributiva) ---
+  if (canDistribute(member)) {
+    actions.push({
+      id: 'distribute',
+      label: `Sviluppa le parentesi al ${side === 'left' ? 'primo' : 'secondo'} membro (proprietà distributiva)`,
+      description: 'Moltiplica il fattore per ciascun termine nella parentesi: a(b ± c) = ab ± ac.',
+      ruleKey: 'distribute',
+      build: () => ({ side }),
+    });
+  }
+
+  // --- Se il membro corrente ha un fattore comune da raccogliere ---
+  const memberCommon = findCommonFactor(member, target) || findCommonFactor(member, null);
+  if (memberCommon) {
+    const cText = toPretty(memberCommon, 0);
+    actions.push({
+      id: 'factor-common',
+      label: `Raccogli "${cText}" a fattor comune al ${side === 'left' ? 'primo' : 'secondo'} membro`,
+      description: `Mette in evidenza il fattore comune ${cText}: ax + ab = a(x + b).`,
+      ruleKey: 'factorCommon',
+      build: () => ({ side, common: memberCommon, commonText: cText }),
+    });
+  }
 
   return actions;
 }
@@ -330,6 +376,34 @@ export function globalActions(eq, target) {
     ruleKey: 'reciprocalBoth',
     build: () => ({}),
   });
+
+  // Proprietà distributiva (se una parte contiene prodotti con parentesi)
+  const distSide = canDistribute(eq.right) ? 'right' : (canDistribute(eq.left) ? 'left' : null);
+  if (distSide) {
+    actions.push({
+      id: 'distribute',
+      label: `Sviluppa le parentesi al ${distSide === 'left' ? 'primo' : 'secondo'} membro`,
+      description: 'Applica la proprietà distributiva a(b ± c) = ab ± ac.',
+      ruleKey: 'distribute',
+      build: () => ({ side: distSide }),
+    });
+  }
+
+  // Raccoglimento a fattor comune
+  const commonFactorLeft = findCommonFactor(eq.left, target) || findCommonFactor(eq.left, null);
+  const commonFactorRight = findCommonFactor(eq.right, target) || findCommonFactor(eq.right, null);
+  const factorSide = commonFactorLeft ? 'left' : (commonFactorRight ? 'right' : null);
+  const commonNode = commonFactorLeft || commonFactorRight;
+  if (factorSide && commonNode) {
+    const commonText = toPretty(commonNode, 0);
+    actions.push({
+      id: 'factor-common',
+      label: `Raccogli "${commonText}" a fattor comune al ${factorSide === 'left' ? 'primo' : 'secondo'} membro`,
+      description: `Mette in evidenza il fattore comune: ax + ab = a(x + b).`,
+      ruleKey: 'factorCommon',
+      build: () => ({ side: factorSide, common: commonNode, commonText }),
+    });
+  }
 
   return actions;
 }
@@ -457,7 +531,7 @@ export function equationsEquivalent(eqA, eqB) {
 // Vero se nel membro c'è un prodotto che contiene una somma in cui compare
 // la grandezza cercata: in quel caso conviene applicare la proprietà
 // distributiva prima di procedere (i termini con la grandezza si separano).
-function hasDistributableSum(node, target) {
+export function hasDistributableSum(node, target) {
   const u = unwrap(node);
   if (u.type === 'Mul') {
     if (u.args.some((a) => {
@@ -600,6 +674,15 @@ export function suggestNextStep(eq, target) {
   const member = side === 'left' ? eq.left : eq.right;
   const other = side === 'left' ? eq.right : eq.left;
   const mU = unwrap(member);
+
+  // Se la grandezza è intrappolata simultaneamente in sin e cos (es. a = g*(sin(theta) - mu*cos(theta))),
+  // non è isolabile con i principi di equivalenza elementari né raccoglibile a fattor comune.
+  if (hasTrigConflict(member, target)) {
+    return {
+      found: false,
+      message: `La grandezza ${target} compare sia all'interno di sin(${target}) sia di cos(${target}). Non è possibile raccoglierla a fattor comune perché ${target} è l'argomento delle funzioni trigonometriche (sin(${target}) ≠ sin · ${target}) e l'equazione non è isolabile con i soli principi di equivalenza elementari.`,
+    };
+  }
 
   // Caso 0: segno negativo davanti al membro con la grandezza cercata.
   // Si moltiplicano entrambi i membri per −1 per liberare l'espressione.

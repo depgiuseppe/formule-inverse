@@ -1,0 +1,64 @@
+{
+  "id": "it.formuleinverse.app",
+  "name": "Laboratorio di Formule Inverse",
+  "short_name": "Formule Inverse",
+  "description": "Applicazione didattica interattiva per imparare a ricavare le formule inverse in fisica e matematica con i principi di equivalenza.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#1e293b",
+  "lang": "it",
+  "dir": "ltr",
+  "categories": ["education", "math", "physics"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Modalità Libera",
+      "short_name": "Libera",
+      "description": "Risolvi formule inverse in modalità libera con drag & drop",
+      "url": "./index.html?mode=free",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Modalità Automatica",
+      "short_name": "Automatica",
+      "description": "Risoluzione guidata passo-passo con giustificazione delle regole",
+      "url": "./index.html?mode=auto",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

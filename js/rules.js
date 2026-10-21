@@ -14,8 +14,8 @@
 import {
   Num, Var, Add, Sub, Mul, Div, Pow, Sqrt, Neg, Group, Eq,
   Sin, Cos, Tan, Ln, Asin, Acos, Atan, Exp,
-  unwrap, canonical, isNum, isVar, equivalentExpr, evalConst, isIdenticallyZero,
-  FUNC_INFO,
+  unwrap, unwrapNeutrals, canonical, isNum, isVar, equivalentExpr, evalConst, isIdenticallyZero,
+  collectVars, FUNC_INFO,
 } from './ast.js';
 
 export class RuleError extends Error {
@@ -176,8 +176,6 @@ export const ruleMoveAdditiveTerm = {
     // Conserviamo i SEGNI dei termini rimanenti: rebuildSum si aspetta
     // oggetti { node, sign }, non semplici nodi.
     const matched = fromTerms[idx];
-    // Conserviamo i SEGNI dei termini rimanenti: rebuildSum si aspetta
-    // oggetti { node, sign }, non semplici nodi.
     const remaining = fromTerms.filter((_, i) => i !== idx);
     const leftOver = remaining.length === 0 ? Num(0) : rebuildSum(remaining);
 
@@ -212,8 +210,15 @@ export const ruleMoveFactor = {
 
     // Il fattore deve comparire davvero tra i fattori moltiplicativi del membro.
     const factList = factorsOf(from);
-    const idx = factList.findIndex((f) => equivalentExpr(f, fact));
+    let idx = factList.findIndex((f) => equivalentExpr(f, fact));
     if (idx < 0) {
+      idx = factList.findIndex((f) => {
+        const u = unwrap(f);
+        return u.type === 'Neg' && equivalentExpr(u.arg, fact);
+      });
+    }
+    const isWhole = equivalentExpr(from, fact);
+    if (idx < 0 && !isWhole) {
       throw new RuleError(
         'Il fattore selezionato non è un fattore moltiplicativo di quel membro.',
         'Puoi trasportare solo elementi che moltiplicano l\'intero membro, non termini di una somma.'
@@ -305,6 +310,55 @@ export const ruleReciprocalBothSides = {
   },
 };
 
+// 9b) REGOLA DEL CAMBIO DI SEGNO (moltiplicazione per −1 di entrambi i membri)
+export function negateExpr(node) {
+  node = unwrap(node);
+  if (!node) return node;
+  if (node.type === 'Num') {
+    return Num(-node.value);
+  }
+  if (node.type === 'Neg') {
+    return unwrap(node.arg);
+  }
+  if (node.type === 'Add' || node.type === 'Sub') {
+    const terms = additiveTerms(node);
+    const flipped = terms.map((t) => ({
+      sign: t.sign === '-' ? '+' : '-',
+      node: t.node,
+    }));
+    return canonical(rebuildSum(flipped));
+  }
+  if (node.type === 'Div') {
+    const newNum = negateExpr(node.num);
+    return canonical(Div(newNum, node.den));
+  }
+  if (node.type === 'Mul') {
+    const first = unwrap(node.args[0]);
+    if (first.type === 'Num') {
+      const newFirst = Num(-first.value);
+      return canonical(Mul(newFirst, ...node.args.slice(1)));
+    }
+    return canonical(Neg(node));
+  }
+  return canonical(Neg(node));
+}
+
+export const ruleChangeSign = {
+  id: 'change-sign',
+  name: 'Regola del cambio di segno (moltiplicazione per −1)',
+  principle: 'Secondo principio di equivalenza: moltiplicando entrambi i membri per −1, tutti i segni si invertono (+ ↔ −).',
+  explanation: 'change-sign',
+  apply(eq) {
+    const newLeft = negateExpr(eq.left);
+    const newRight = negateExpr(eq.right);
+    return {
+      equation: Eq(newLeft, newRight),
+      conditions: [],
+      steps: ['Moltiplico entrambi i membri per −1 (inversione di segno di tutti i termini).'],
+    };
+  },
+};
+
 // 10) INVERSIONE DI UNA PROPORZIONE (reciproco di entrambi i membri di una frazione)
 // Vietato invertire un solo membro.
 export const ruleInvertProportion = {
@@ -319,6 +373,12 @@ export const ruleInvertProportion = {
       throw new RuleError(
         'L\'inversione si applica solo quando entrambi i membri sono rapporti frazionari; non si inverte mai un solo membro.',
         'Porta entrambi i membri in forma frazionaria oppure usa il reciproco di entrambi i membri.'
+      );
+    }
+    if (isIdenticallyZero(L.num) || isIdenticallyZero(R.num) || isIdenticallyZero(L.den) || isIdenticallyZero(R.den)) {
+      throw new RuleError(
+        'Non si può invertire una frazione con numeratore o denominatore nullo: la divisione per zero non è definita.',
+        'Tutti i termini della proporzione devono essere diversi da zero.'
       );
     }
     return { ok: true };
@@ -358,6 +418,13 @@ export const ruleSqrtBothSides = {
       throw new RuleError(
         'La radice di indice pari si applica direttamente solo quando un membro è una potenza con esponente pari (x², x⁴, …).',
         'Isola prima la potenza a esponente pari su un membro.'
+      );
+    }
+    const constOther = evalConst(other);
+    if (constOther.ok && constOther.value < 0) {
+      throw new RuleError(
+        'Non si può estrarre una radice di indice pari da un radicando strettamente negativo nel campo reale.',
+        'L\'equazione non ammette soluzioni reali.'
       );
     }
     const n = found.exp;
@@ -427,6 +494,12 @@ export const rulePowBothSides = {
   explanation: 'pow-both',
   apply(eq, ctx) {
     const n = ctx.value;
+    if (isIdenticallyZero(n)) {
+      throw new RuleError(
+        'Elevare entrambi i membri alla potenza 0 distrugge l\'informazione dell\'equazione (1 = 1): non è una trasformazione utile.',
+        'Scegli un esponente diverso da zero.'
+      );
+    }
     const newEq = Eq(simplify(Pow(eq.left, n)), simplify(Pow(eq.right, n)));
     return {
       equation: newEq,
@@ -532,9 +605,9 @@ export const ruleInvertFunction = {
   apply(eq, ctx) {
     // ctx.side = 'left'|'right' : membro che contiene f(arg) da "liberare".
     const { side } = ctx;
-    const withFn = unwrap(side === 'left' ? eq.left : eq.right);
-    const other = unwrap(side === 'left' ? eq.right : eq.left);
-    const fnNode = ctx.fnNode ? unwrap(ctx.fnNode) : extractFunc(withFn);
+    const withFn = unwrapNeutrals(side === 'left' ? eq.left : eq.right);
+    const other = unwrapNeutrals(side === 'left' ? eq.right : eq.left);
+    const fnNode = ctx.fnNode ? unwrapNeutrals(ctx.fnNode) : extractFunc(withFn);
     if (!fnNode) {
       throw new RuleError(
         'Nessuna funzione invertibile selezionata.',
@@ -546,6 +619,15 @@ export const ruleInvertFunction = {
     const info = FUNC_INFO[key];
     if (!info || !info.inverse) {
       throw new RuleError(`La funzione "${key}" non è invertibile in questo modo.`);
+    }
+    if (key === 'sin' || key === 'cos') {
+      const ev = evalConst(other);
+      if (ev.ok && (ev.value < -1 || ev.value > 1)) {
+        throw new RuleError(
+          `Non si può applicare l'inversa ${info.inverse}: il valore ${ev.value} è fuori dall'intervallo [−1, 1], quindi l'equazione non ammette soluzioni reali.`,
+          'Le funzioni seno e coseno assumono solo valori compresi tra −1 e 1.'
+        );
+      }
     }
     const invCtor = { asin: Asin, acos: Acos, atan: Atan, exp: Exp }[info.inverse];
 
@@ -614,7 +696,7 @@ function powExponent(node) {
 // Cerca un nodo funzione trascendente (sin/cos/tan/ln) nel sottoalbero, con un
 // argomento che contiene la variabile obiettivo; ritorna il nodo funzione o null.
 function extractFunc(node, targetVar) {
-  node = unwrap(node);
+  node = unwrapNeutrals(node);
   if (['Sin', 'Cos', 'Tan', 'Ln'].includes(node.type)) return node;
   if (node.type === 'Group') return extractFunc(node.arg, targetVar);
   return null;
@@ -650,13 +732,19 @@ function extractOddPower(node, targetVar) {
 export function additiveTerms(node) {
   node = unwrap(node);
   if (node.type === 'Add') {
-    return node.args.map((a) => ({ node: unwrap(a), sign: '+' }));
+    return node.args.map((a) => {
+      const u = unwrap(a);
+      if (u.type === 'Neg') return { node: unwrap(u.arg), sign: '-' };
+      if (u.type === 'Num' && u.value < 0) return { node: Num(-u.value), sign: '-' };
+      return { node: u, sign: '+' };
+    });
   }
   if (node.type === 'Sub') {
     const out = [{ node: unwrap(node.args[0]), sign: '+' }];
     for (let i = 1; i < node.args.length; i++) {
       const arg = unwrap(node.args[i]);
-      if (arg.type === 'Neg') out.push({ node: arg.arg, sign: '-' });
+      if (arg.type === 'Neg') out.push({ node: unwrap(arg.arg), sign: '-' });
+      else if (arg.type === 'Num' && arg.value < 0) out.push({ node: Num(-arg.value), sign: '-' });
       else out.push({ node: arg, sign: '-' });
     }
     return out;
@@ -795,7 +883,30 @@ function distribute(node) {
   }
 }
 
-function factorOut(node, common) {
+export function canDistribute(node) {
+  if (!node) return false;
+  const u = unwrap(node);
+  if (u.type === 'Mul') {
+    const hasSumArg = u.args.some((a) => {
+      const w = unwrap(a);
+      return w.type === 'Add' || w.type === 'Sub';
+    });
+    if (hasSumArg) return true;
+    return u.args.some(canDistribute);
+  }
+  if (u.type === 'Add' || u.type === 'Sub') {
+    return (u.args || []).some(canDistribute);
+  }
+  if (u.type === 'Div') {
+    return canDistribute(u.num) || canDistribute(u.den);
+  }
+  if (u.type === 'Neg' || u.type === 'Group') {
+    return canDistribute(u.arg);
+  }
+  return false;
+}
+
+export function factorOut(node, common) {
   node = unwrap(node);
   if (node.type !== 'Add' && node.type !== 'Sub') return null;
   const terms = additiveTerms(node);
@@ -807,6 +918,60 @@ function factorOut(node, common) {
   }
   const inner = rebuildSum(others);
   return Mul(common, Group(inner));
+}
+
+export function findCommonFactor(expr, preferredVar = null) {
+  expr = unwrap(expr);
+  if (!expr || (expr.type !== 'Add' && expr.type !== 'Sub')) return null;
+  const terms = additiveTerms(expr);
+  if (terms.length < 2) return null;
+
+  if (preferredVar) {
+    const prefNode = Var(preferredVar);
+    if (factorOut(expr, prefNode)) return prefNode;
+  }
+
+  const firstFactors = getFactorsOfTerm(terms[0].node);
+  for (const f of firstFactors) {
+    if (factorOut(expr, f)) return f;
+  }
+  return null;
+}
+
+function getFactorsOfTerm(term) {
+  term = unwrap(term);
+  if (term.type === 'Neg') term = unwrap(term.arg);
+  if (term.type === 'Var' || term.type === 'Num') return [term];
+  if (term.type === 'Mul') {
+    return term.args.map((a) => unwrap(a)).filter((a) => a.type === 'Var' || a.type === 'Num');
+  }
+  if (term.type === 'Div') {
+    return getFactorsOfTerm(term.num);
+  }
+  return [];
+}
+
+export function hasTrigConflict(member, target) {
+  if (!member || !target) return false;
+  const vars = collectVars(member);
+  if (!vars.has(target)) return false;
+  let hasSin = false;
+  let hasCos = false;
+  function walk(n) {
+    if (!n) return;
+    const u = unwrap(n);
+    if (u.type === 'Sin' && collectVars(u.arg).has(target)) hasSin = true;
+    if (u.type === 'Cos' && collectVars(u.arg).has(target)) hasCos = true;
+    if (u.type === 'Add' || u.type === 'Sub' || u.type === 'Mul') {
+      (u.args || [u.left, u.right]).forEach(walk);
+    } else if (u.type === 'Div') {
+      walk(u.num); walk(u.den);
+    } else if (u.type === 'Neg' || u.type === 'Group') {
+      walk(u.arg);
+    }
+  }
+  walk(member);
+  return hasSin && hasCos;
 }
 
 // Se `expr` è del tipo common * rest, ritorna rest; altrimenti se expr == common
@@ -858,6 +1023,7 @@ export const RULES = {
   crossMultiply: ruleCrossMultiply,
   swapSides: ruleSwapSides,
   reciprocalBoth: ruleReciprocalBothSides,
+  changeSign: ruleChangeSign,
   invertProportion: ruleInvertProportion,
   sqrtBoth: ruleSqrtBothSides,
   rootOddBoth: ruleRootOddBothSides,

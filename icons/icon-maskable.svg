@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGradMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#1e1b4b" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="glowGradMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#c084fc" />
+    </linearGradient>
+    <filter id="shadowMask" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.45" />
+    </filter>
+  </defs>
+
+  <!-- Full bleed square for Android maskable icon -->
+  <rect width="512" height="512" fill="url(#bgGradMask)" />
+
+  <!-- Content scaled down to fit comfortably in the 80% safe center area (r=205px) -->
+  <g transform="translate(51, 51) scale(0.8)">
+    <g filter="url(#shadowMask)">
+      <!-- Main variable 'x' -->
+      <text x="110" y="310" font-family="-apple-system, BlinkMacSystemFont, 'Outfit', 'Inter', sans-serif" font-size="140" font-weight="800" fill="#38bdf8" text-anchor="middle">x</text>
+
+      <!-- Equal sign '=' -->
+      <text x="210" y="295" font-family="-apple-system, BlinkMacSystemFont, 'Outfit', 'Inter', sans-serif" font-size="110" font-weight="700" fill="#94a3b8" text-anchor="middle">=</text>
+
+      <!-- Fraction numerator 's' -->
+      <text x="350" y="210" font-family="-apple-system, BlinkMacSystemFont, 'Outfit', 'Inter', sans-serif" font-size="110" font-weight="700" fill="#f8fafc" text-anchor="middle">s</text>
+
+      <!-- Fraction line -->
+      <line x1="280" y1="245" x2="420" y2="245" stroke="url(#glowGradMask)" stroke-width="12" stroke-linecap="round" />
+
+      <!-- Fraction denominator 't' -->
+      <text x="350" y="360" font-family="-apple-system, BlinkMacSystemFont, 'Outfit', 'Inter', sans-serif" font-size="110" font-weight="700" fill="#f8fafc" text-anchor="middle">t</text>
+    </g>
+
+    <g fill="none" stroke="#38bdf8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.95">
+      <path d="M 60 75 L 85 75 L 75 105 L 105 105 L 65 145 L 75 115 L 55 115 Z" fill="#f59e0b" stroke="none" />
+      <path d="M 190 100 Q 256 70 322 100" />
+      <path d="M 310 90 L 325 100 L 312 112" />
+      <path d="M 322 412 Q 256 442 190 412" stroke="#818cf8" />
+      <path d="M 202 400 L 187 412 L 200 424" stroke="#818cf8" />
+    </g>
+
+    <text x="256" y="470" font-family="-apple-system, BlinkMacSystemFont, 'Inter', sans-serif" font-size="28" font-weight="700" letter-spacing="3" fill="#94a3b8" text-anchor="middle" opacity="0.85">FORMULE INVERSE</text>
+  </g>
+</svg>

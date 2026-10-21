@@ -23,6 +23,7 @@ export const TOPICS = [
   'idrodinamica',
   'termologia',
   'termodinamica',
+  'onde e acustica',
   'elettricità',
   'elettrostatica',
   'magnetostatica',
@@ -64,7 +65,7 @@ export const FORMULAS = [
   },
   {
     id: 's-half-at2', topic: 'cinematica', name: 'spazio (moto accelerato, da fermo)',
-    formula: 's = (1/2)*a*t^2', isolate: ['s', 'a', 't'], difficulty: 3,
+    formula: 's = 1/2*a*t^2', isolate: ['s', 'a', 't'], difficulty: 3,
     conditions: [],
     hypotheses: 'Velocità iniziale nulla.',
   },
@@ -107,7 +108,7 @@ export const FORMULAS = [
   },
   {
     id: 'Ec', topic: 'lavoro, energia e potenza', name: 'energia cinetica',
-    formula: 'Ec = (1/2)*m*v^2', isolate: ['Ec', 'm', 'v'], difficulty: 3,
+    formula: 'Ec = 1/2*m*v^2', isolate: ['Ec', 'm', 'v'], difficulty: 3,
     conditions: [],
     notes: 'Per ricavare v serve la radice quadrata e il segno ±.',
   },
@@ -134,15 +135,20 @@ export const FORMULAS = [
     conditions: ['V ≠ 0'],
   },
   {
-    id: 'ph-rhoghh', topic: 'pressione e fluidostatica', name: 'pressione idrostatica',
+    id: 'ph-rhoghh', topic: 'pressione e fluidostatica', name: 'pressione idrostatica (legge di Stevino)',
     formula: 'p = rho*g*h', isolate: ['p', 'rho', 'g', 'h'], difficulty: 2,
     conditions: [],
-    hypotheses: 'Legge di Stevino.',
+    hypotheses: 'Legge di Stevino: la pressione idrostatica dipende dalla densità del fluido, da g e dalla profondità h.',
+    notes: 'Legge di Stevino per fluidi incomprimibili.',
+    tags: ['stevino', 'stevin', 'idrostatica', 'pressione', 'fluido', 'liquido', 'profondita', 'colonna'],
   },
   {
-    id: 'legge-archimede', topic: 'pressione e fluidostatica', name: 'spinta di Archimede',
+    id: 'legge-archimede', topic: 'pressione e fluidostatica', name: 'spinta di Archimede (principio di Archimede)',
     formula: 'S = rho*g*V', isolate: ['S', 'rho', 'g', 'V'], difficulty: 3,
     conditions: [],
+    hypotheses: 'Principio di Archimede: la spinta verso l\'alto è pari al peso del volume di fluido spostato.',
+    notes: 'Principio di Archimede per corpi immersi in un fluido.',
+    tags: ['archimede', 'spinta', 'galleggiamento', 'idrostatica', 'peso apparente', 'volume immerso', 'fluido', 'densita'],
   },
 
   // --- ELETTRICITÀ ---
@@ -283,18 +289,120 @@ export function getFormulaById(id) {
   return BY_ID[id] || null;
 }
 
-// Filtra per argomento, difficoltà e testo di ricerca.
+// Dizionario semantico di sinonimi, scienziati e argomenti per ricerca flessibile
+const SEARCH_SYNONYMS = {
+  stevino: ['stevino', 'stevin', 'idrostatica', 'pressione idrostatica', 'profondita', 'liquido', 'fluido', 'p0'],
+  archimede: ['archimede', 'spinta', 'galleggiamento', 'galleggia', 'galleggiare', 'peso apparente', 'volume immerso', 'fluido'],
+  suono: ['suono', 'acustica', 'sonoro', 'sonora', 'sonori', 'sonore', 'acustico', 'acustici', 'acustiche', 'doppler', 'eco', 'sonar', 'rumore', 'decibel', 'battimenti', 'canna d organo', 'canne d organo', 'corda vibrante', 'mersenne', 'frequenza', 'lunghezza d onda', 'onda sonora', 'onde sonore', 'velocita del suono'],
+  acustica: ['suono', 'acustica', 'sonoro', 'sonora', 'doppler', 'eco', 'sonar', 'frequenza sonora', 'decibel'],
+  doppler: ['doppler', 'effetto doppler', 'suono', 'sorgente in moto', 'osservatore in moto', 'ambulanza', 'sirena', 'frequenza percepita'],
+  eco: ['eco', 'sonar', 'riflessione', 'suono', 'acustica', 'distanza ostacolo'],
+  newton: ['newton', 'seconda legge', 'terza legge', 'dinamica', 'forza', 'gravitazione'],
+  hooke: ['hooke', 'molla', 'elastica', 'elasticita', 'allungamento'],
+  ohm: ['ohm', 'resistenza', 'resistivita', 'circuiti', 'differenza di potenziale'],
+  coulomb: ['coulomb', 'elettrostatica', 'carica elettrica'],
+  joule: ['joule', 'effetto joule', 'calore'],
+  torricelli: ['torricelli', 'efflusso', 'caduta libera'],
+  keplero: ['keplero', 'orbita', 'periodo orbitale', 'pianeti'],
+  snell: ['snell', 'rifrazione', 'ottica', 'indice di rifrazione'],
+  bernoulli: ['bernoulli', 'idrodinamica', 'fluido in moto'],
+  pascal: ['pascal', 'torchio idraulico', 'pistone'],
+  lorentz: ['lorentz', 'relativita', 'forza di lorentz'],
+  faraday: ['faraday', 'neumann', 'lenz', 'induzione', 'flusso magnetico'],
+  ampere: ['ampere', 'biot savart', 'campo magnetico'],
+  carnot: ['carnot', 'rendimento', 'macchina termica'],
+  onda: ['onda', 'onde', 'propagazione', 'lunghezza d onda', 'frequenza', 'periodo', 'suono'],
+  onde: ['onda', 'onde', 'propagazione', 'lunghezza d onda', 'frequenza', 'periodo', 'suono'],
+};
+
+const STOP_WORDS = new Set([
+  'di', 'del', 'dello', 'della', 'dei', 'degli', 'delle',
+  'da', 'dal', 'dallo', 'dalla', 'dai', 'dagli', 'dalle',
+  'in', 'nel', 'nello', 'nella', 'nei', 'negli', 'nelle',
+  'con', 'su', 'sul', 'sullo', 'sulla', 'sui', 'sugli', 'sulle',
+  'per', 'tra', 'fra', 'il', 'lo', 'la', 'i', 'gli', 'le',
+  'un', 'uno', 'una', 'd', 'l'
+]);
+
+function normalizeText(str) {
+  if (!str) return '';
+  return String(str)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // rimuove accenti/diacritici (es. velocità -> velocita)
+    .toLowerCase()
+    .replace(/[^a-z0-9_\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildSearchCorpus(f) {
+  const parts = [
+    f.id || '',
+    f.name || '',
+    f.formula || '',
+    f.topic || '',
+    ...(f.isolate || []),
+    f.hypotheses || '',
+    f.notes || '',
+    ...(f.tags || []),
+    ...(f.aliases || []),
+    ...(f.keywords || []),
+  ];
+  return normalizeText(parts.join(' '));
+}
+
+// Filtra per argomento, difficoltà e testo di ricerca con tolleranza semantica.
 export function filterFormulas({ topic, search, difficulty } = {}) {
-  return FORMULAS.filter((f) => {
-    if (topic && f.topic !== topic) return false;
+  const normSearch = normalizeText(search);
+  const rawTokens = normSearch ? normSearch.split(' ').filter(Boolean) : [];
+  const filteredTokens = rawTokens.filter((t) => !STOP_WORDS.has(t));
+  const searchTokens = filteredTokens.length > 0 ? filteredTokens : rawTokens;
+
+  const matchesFormula = (f) => {
     if (difficulty && String(f.difficulty) !== String(difficulty)) return false;
-    if (search) {
-      const s = search.toLowerCase();
-      const hay = (f.name + ' ' + f.formula + ' ' + f.topic + ' ' + f.isolate.join(' ')).toLowerCase();
-      if (!hay.includes(s)) return false;
+
+    if (searchTokens.length > 0) {
+      const corpus = buildSearchCorpus(f);
+      const allTokensMatch = searchTokens.every((token) => {
+        if (corpus.includes(token)) return true;
+
+        // Verifica sinonimi associati al token ricercato
+        const synonyms = SEARCH_SYNONYMS[token];
+        if (synonyms && synonyms.some((syn) => corpus.includes(normalizeText(syn)))) {
+          return true;
+        }
+
+        // Verifica se il topic corrisponde
+        if (token === 'suono' && (f.topic === 'onde e acustica' || f.topic === 'onde e suono' || corpus.includes('suono') || corpus.includes('acustic') || corpus.includes('doppler'))) {
+          return true;
+        }
+        if (token === 'acustica' && (f.topic === 'onde e acustica' || f.topic === 'onde e suono' || corpus.includes('suono') || corpus.includes('acustic'))) {
+          return true;
+        }
+
+        return false;
+      });
+
+      if (!allTokensMatch) return false;
     }
     return true;
-  });
+  };
+
+  // Se è specificato un argomento filtro:
+  if (topic) {
+    const inTopicList = FORMULAS.filter((f) => f.topic === topic && matchesFormula(f));
+    // Se la ricerca testuale produce 0 risultati nel topic selezionato ma trova formule altrove,
+    // esegui fallback globale per non bloccare l'utente su un dropdown impostato in precedenza
+    if (inTopicList.length === 0 && searchTokens.length > 0) {
+      const globalList = FORMULAS.filter(matchesFormula);
+      if (globalList.length > 0) {
+        return globalList;
+      }
+    }
+    return inTopicList;
+  }
+
+  return FORMULAS.filter(matchesFormula);
 }
 
 // Sceglie un esercizio casuale. Evita di chiedere di isolare una grandezza

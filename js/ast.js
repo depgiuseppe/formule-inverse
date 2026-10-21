@@ -211,6 +211,129 @@ function evalFunc(type, x) {
   }
 }
 
+/**
+ * Valuta un'espressione AST con un dizionario di valori per le variabili (env = { s: 100, v: 20 }).
+ * Restituisce { ok: true, value: number } oppure { ok: false, error?: string, missing?: string }.
+ */
+export function evalWithEnv(node, env = {}) {
+  if (!node) return { ok: false, error: 'Nodo vuoto' };
+  switch (node.type) {
+    case 'Num':
+      return { ok: true, value: node.value };
+    case 'Var': {
+      if (node.name === 'pi' || node.name === 'π') return { ok: true, value: Math.PI };
+      if (node.name === 'e') return { ok: true, value: Math.E };
+      if (env[node.name] !== undefined && env[node.name] !== null && env[node.name] !== '') {
+        const val = Number(env[node.name]);
+        if (Number.isFinite(val)) return { ok: true, value: val };
+      }
+      return { ok: false, missing: node.name };
+    }
+    case 'Add': {
+      const vals = node.args.map((a) => evalWithEnv(a, env));
+      const failed = vals.find((v) => !v.ok);
+      if (failed) return failed;
+      return { ok: true, value: vals.reduce((s, v) => s + v.value, 0) };
+    }
+    case 'Sub': {
+      const vals = node.args.map((a) => evalWithEnv(a, env));
+      const failed = vals.find((v) => !v.ok);
+      if (failed) return failed;
+      let acc = vals[0].value;
+      for (let i = 1; i < vals.length; i++) acc -= vals[i].value;
+      return { ok: true, value: acc };
+    }
+    case 'Mul': {
+      const vals = node.args.map((a) => evalWithEnv(a, env));
+      const failed = vals.find((v) => !v.ok);
+      if (failed) return failed;
+      return { ok: true, value: vals.reduce((s, v) => s * v.value, 1) };
+    }
+    case 'Div': {
+      const a = evalWithEnv(node.num, env);
+      if (!a.ok) return a;
+      const b = evalWithEnv(node.den, env);
+      if (!b.ok) return b;
+      if (b.value === 0) return { ok: false, error: 'Divisione per zero (denominatore nullo)' };
+      const val = a.value / b.value;
+      if (!Number.isFinite(val)) return { ok: false, error: 'Risultato non finito' };
+      return { ok: true, value: val };
+    }
+    case 'Pow': {
+      const a = evalWithEnv(node.base, env);
+      if (!a.ok) return a;
+      const b = evalWithEnv(node.exp, env);
+      if (!b.ok) return b;
+      const val = Math.pow(a.value, b.value);
+      if (!Number.isFinite(val) || isNaN(val)) return { ok: false, error: 'Potenza non calcolabile nei reali' };
+      return { ok: true, value: val };
+    }
+    case 'Sqrt': {
+      const a = evalWithEnv(node.arg, env);
+      if (!a.ok) return a;
+      if (a.value < 0) return { ok: false, error: 'Radice quadrata di numero negativo' };
+      return { ok: true, value: Math.sqrt(a.value) };
+    }
+    case 'Sin': case 'Cos': case 'Tan': case 'Ln':
+    case 'Asin': case 'Acos': case 'Atan': case 'Exp': {
+      const a = evalWithEnv(node.arg, env);
+      if (!a.ok) return a;
+      const val = evalFunc(node.type, a.value);
+      if (!Number.isFinite(val) || isNaN(val)) return { ok: false, error: `Errore nel calcolo di ${node.type}` };
+      return { ok: true, value: val };
+    }
+    case 'Neg': {
+      const a = evalWithEnv(node.arg, env);
+      if (!a.ok) return a;
+      return { ok: true, value: -a.value };
+    }
+    case 'Group':
+      return evalWithEnv(node.arg, env);
+    default:
+      return { ok: false, error: 'Nodo non supportato per la valutazione' };
+  }
+}
+
+/**
+ * Sostituisce i nodi Var con nodi Num in base ai valori forniti in env.
+ */
+export function substituteVarsInAst(node, env = {}) {
+  if (!node) return node;
+  switch (node.type) {
+    case 'Num':
+      return node;
+    case 'Var': {
+      if (node.name === 'pi' || node.name === 'π' || node.name === 'e') return node;
+      if (env[node.name] !== undefined && env[node.name] !== null && env[node.name] !== '') {
+        const val = Number(env[node.name]);
+        if (Number.isFinite(val)) return { type: 'Num', value: val };
+      }
+      return node;
+    }
+    case 'Add':
+      return { type: 'Add', args: node.args.map((a) => substituteVarsInAst(a, env)) };
+    case 'Sub':
+      return { type: 'Sub', args: node.args.map((a) => substituteVarsInAst(a, env)) };
+    case 'Mul':
+      return { type: 'Mul', args: node.args.map((a) => substituteVarsInAst(a, env)) };
+    case 'Div':
+      return { type: 'Div', num: substituteVarsInAst(node.num, env), den: substituteVarsInAst(node.den, env) };
+    case 'Pow':
+      return { type: 'Pow', base: substituteVarsInAst(node.base, env), exp: substituteVarsInAst(node.exp, env) };
+    case 'Sqrt':
+      return { type: 'Sqrt', arg: substituteVarsInAst(node.arg, env) };
+    case 'Sin': case 'Cos': case 'Tan': case 'Ln':
+    case 'Asin': case 'Acos': case 'Atan': case 'Exp':
+      return { type: node.type, arg: substituteVarsInAst(node.arg, env) };
+    case 'Neg':
+      return { type: 'Neg', arg: substituteVarsInAst(node.arg, env) };
+    case 'Group':
+      return { type: 'Group', arg: substituteVarsInAst(node.arg, env) };
+    default:
+      return node;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Stampa testuale (sintassi lineare con parentesi ridondanti ma corrette)
 // ---------------------------------------------------------------------------
@@ -269,12 +392,13 @@ export function toPretty(node, parentPrec = 0) {
       let s = '';
       node.args.forEach((a, i) => {
         const u = unwrap(a);
-        const neg = u.type === 'Neg';
-        const body = toPretty(neg ? u.arg : a, neg ? 2 : 1);
+        const isNeg = u.type === 'Neg' || (u.type === 'Num' && u.value < 0);
+        const bodyNode = u.type === 'Neg' ? u.arg : (u.type === 'Num' && u.value < 0 ? Num(-u.value) : a);
+        const body = toPretty(bodyNode, isNeg ? 2 : 1);
         if (i === 0) {
-          s += (neg ? '−' : '') + body;
+          s += (isNeg ? '−' : '') + body;
         } else {
-          const minus = isSub ? !neg : neg;
+          const minus = isSub ? !isNeg : isNeg;
           s += (minus ? ' − ' : ' + ') + body;
         }
       });
@@ -338,6 +462,7 @@ export function toLatex(node, parentPrec = 0) {
         Icm: 'I_{\\text{cm}}', xcm: 'x_{\\text{cm}}',
         PhiB: '\\Phi_B', PhiE: '\\Phi_E',
         at: 'a_t', ac: 'a_c',
+        Ec: 'E_c', Ep: 'E_p',
         Ec1: 'E_{c1}', Ec2: 'E_{c2}',
         Ep1: 'E_{p1}', Ep2: 'E_{p2}',
         v0x: 'v_{0x}', v0y: 'v_{0y}',
@@ -383,12 +508,13 @@ export function toLatex(node, parentPrec = 0) {
       let s = '';
       node.args.forEach((a, i) => {
         const u = unwrap(a);
-        const neg = u.type === 'Neg';
-        const body = toLatex(neg ? u.arg : a, neg ? 2 : 1);
+        const isNeg = u.type === 'Neg' || (u.type === 'Num' && u.value < 0);
+        const bodyNode = u.type === 'Neg' ? u.arg : (u.type === 'Num' && u.value < 0 ? Num(-u.value) : a);
+        const body = toLatex(bodyNode, isNeg ? 2 : 1);
         if (i === 0) {
-          s += (neg ? '-' : '') + body;
+          s += (isNeg ? '-' : '') + body;
         } else {
-          const minus = isSub ? !neg : neg;
+          const minus = isSub ? !isNeg : isNeg;
           s += (minus ? ' - ' : ' + ') + body;
         }
       });
@@ -439,6 +565,85 @@ export function toLatex(node, parentPrec = 0) {
 // Attraversa i Group (che sono solo annotazioni di parentesi).
 export function unwrap(node) {
   return node && node.type === 'Group' ? unwrap(node.arg) : node;
+}
+
+// Attraversa i Group e ignora fattori neutri (1 moltiplicativo) o termini neutri (+0 additivo).
+// Serve a garantire che moltiplicare per 1 o sommare 0 non blocchi le operazioni algebriche.
+export function unwrapNeutrals(node) {
+  let u = unwrap(node);
+  if (!u) return u;
+  if (u.type === 'Mul') {
+    const nonOne = u.args.filter((a) => !(unwrap(a).type === 'Num' && unwrap(a).value === 1));
+    if (nonOne.length === 0) return Num(1);
+    if (nonOne.length === 1) return unwrapNeutrals(nonOne[0]);
+    if (nonOne.length < u.args.length) return unwrapNeutrals(Mul(...nonOne));
+  }
+  if (u.type === 'Add') {
+    const nonZero = u.args.filter((a) => !(unwrap(a).type === 'Num' && unwrap(a).value === 0));
+    if (nonZero.length === 0) return Num(0);
+    if (nonZero.length === 1) return unwrapNeutrals(nonZero[0]);
+    if (nonZero.length < u.args.length) return unwrapNeutrals(Add(...nonZero));
+  }
+  if (u.type === 'Sub') {
+    if (u.args.length === 2 && unwrap(u.args[1]).type === 'Num' && unwrap(u.args[1]).value === 0) {
+      return unwrapNeutrals(u.args[0]);
+    }
+  }
+  if (u.type === 'Div' && unwrap(u.den).type === 'Num' && unwrap(u.den).value === 1) {
+    return unwrapNeutrals(u.num);
+  }
+  return u;
+}
+
+// Rimuove ricorsivamente i fattori neutri (1 in prodotti) e termini neutri (0 in somme).
+export function stripNeutrals(node) {
+  if (!node) return node;
+  const raw = node;
+  if (raw.type === 'Group') {
+    return { type: 'Group', arg: stripNeutrals(raw.arg) };
+  }
+  const u = { ...node };
+  switch (u.type) {
+    case 'Mul': {
+      const strippedArgs = u.args.map(stripNeutrals);
+      const nonOnes = strippedArgs.filter((a) => !(unwrap(a).type === 'Num' && unwrap(a).value === 1));
+      if (nonOnes.length === 0) return Num(1);
+      if (nonOnes.length === 1) return nonOnes[0];
+      return { ...u, args: nonOnes };
+    }
+    case 'Add': {
+      const strippedArgs = u.args.map(stripNeutrals);
+      const nonZeros = strippedArgs.filter((a) => !(unwrap(a).type === 'Num' && unwrap(a).value === 0));
+      if (nonZeros.length === 0) return Num(0);
+      if (nonZeros.length === 1) return nonZeros[0];
+      return { ...u, args: nonZeros };
+    }
+    case 'Sub': {
+      const strippedArgs = u.args.map(stripNeutrals);
+      if (strippedArgs.length === 2 && unwrap(strippedArgs[1]).type === 'Num' && unwrap(strippedArgs[1]).value === 0) {
+        return strippedArgs[0];
+      }
+      if (strippedArgs.length === 2 && unwrap(strippedArgs[0]).type === 'Num' && unwrap(strippedArgs[0]).value === 0) {
+        return { type: 'Neg', arg: strippedArgs[1] };
+      }
+      return { ...u, args: strippedArgs };
+    }
+    case 'Div': {
+      const num = stripNeutrals(u.num);
+      const den = stripNeutrals(u.den);
+      if (unwrap(den).type === 'Num' && unwrap(den).value === 1) return num;
+      return { ...u, num, den };
+    }
+    case 'Neg':
+      return { ...u, arg: stripNeutrals(u.arg) };
+    case 'Pow':
+      return { ...u, base: stripNeutrals(u.base), exp: stripNeutrals(u.exp) };
+    case 'Eq':
+      return { ...u, left: stripNeutrals(u.left), right: stripNeutrals(u.right) };
+    default:
+      if (u.arg) return { ...u, arg: stripNeutrals(u.arg) };
+      return u;
+  }
 }
 
 // Uguaglianza strutturale esatta, ignorando i Group.
@@ -720,6 +925,7 @@ function canon(node) {
 // così l'Add può essere mostrato come differenza (v − v0).
 function sortCategory(node) {
   const u = unwrap(node);
+  if (u.type === 'Num' && u.value < 0) return 9;
   switch (u.type) {
     case 'Num': return 0;
     case 'Var': return 1;
@@ -810,6 +1016,7 @@ export function clone(node) {
 // denominatori nulli)
 // ---------------------------------------------------------------------------
 export function isIdenticallyZero(node) {
+  if (!node) return false;
   const e = evalConst(canonical(node));
   return e.ok && e.value === 0;
 }
