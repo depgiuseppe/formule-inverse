@@ -441,7 +441,9 @@ body.dark-theme .app-header {
   background: var(--bg-soft);
   border-radius: var(--radius-sm);
   display: flex;
-  justify-content: center;
+  justify-content: safe center;
+  overflow-x: auto;
+  max-width: 100%;
 }
 
 /* Hint bar Drag & Drop */
@@ -1112,13 +1114,16 @@ body.dark-theme .equation-display-card {
 
 /* Croce di semplificazione */
 .cross-layer {
-  position: absolute;
-  left: .8rem;
-  bottom: .8rem;
+  position: relative;
+  left: auto;
+  bottom: auto;
   z-index: 5;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: .5rem;
+  margin: 0 .75rem .5rem;
+  padding: .35rem .65rem;
   pointer-events: none;
 }
 .cross-handle {
@@ -1139,11 +1144,12 @@ body.dark-theme .equation-display-card {
   transition: transform .15s ease, box-shadow .15s ease;
   touch-action: none;
   user-select: none;
+  flex-shrink: 0;
 }
 .cross-handle:hover { transform: scale(1.1); box-shadow: 0 8px 22px rgba(185, 28, 28, 0.5); }
 .cross-handle.dragging {
   cursor: grabbing;
-  position: fixed;
+  position: absolute;
   transform: translate(-50%, -50%) scale(1.15) rotate(-8deg);
   z-index: 60;
   pointer-events: none;
@@ -1383,13 +1389,14 @@ body.dark-theme .equation-display-card {
   display: flex;
   align-items: center;
   gap: .45rem;
+  padding-right: 155px;
 }
 .action-btn.auto-step-btn .action-desc {
   font-size: .88rem;
   color: var(--ink);
   margin-top: .35rem;
   line-height: 1.4;
-  padding-right: 140px;
+  padding-right: 1rem;
 }
 .equation-display-card.is-auto-mode {
   cursor: pointer;
@@ -1539,6 +1546,8 @@ body.dark-theme .equation-display-card {
   padding: .4rem;
   background: var(--bg-soft);
   border-radius: var(--radius-sm);
+  overflow-x: auto;
+  max-width: 100%;
 }
 .steps-list li { margin-bottom: .2rem; }
 
@@ -1610,7 +1619,7 @@ body.dark-theme .equation-display-card {
   font-size: .84rem;
   color: var(--primary);
 }
-.history-eq { margin: .3rem 0; font-size: 1.1rem; }
+.history-eq { margin: .3rem 0; font-size: 1.1rem; overflow-x: auto; max-width: 100%; }
 .history-cond { font-size: .78rem; color: var(--warning-dark); }
 .history-note { font-size: .78rem; color: var(--danger); }
 .history-status { font-size: .74rem; color: var(--ink-muted); margin-top: .2rem; }
@@ -1842,10 +1851,18 @@ body.dark-theme .math-node.node-target {
   display: inline-flex;
   align-items: baseline;
   position: relative;
+  padding-top: 0.14em;
 }
 .pow-base {
   display: inline-flex;
   align-items: baseline;
+}
+.pow-base > .math-node,
+.radical-body > .math-node,
+.fn-args > .math-node {
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
 }
 .node-pow sup.node-exp,
 sup.node-exp {
@@ -2034,6 +2051,9 @@ sup.node-exp {
 }
 
 @media (max-width: 900px) {
+  body {
+    padding-bottom: max(68px, env(safe-area-inset-bottom));
+  }
   .app-grid {
     grid-template-columns: 1fr;
     grid-template-areas:
@@ -2042,7 +2062,62 @@ sup.node-exp {
       "rules"
       "history";
     gap: 1rem;
-    padding: 1rem 0.75rem;
+    padding: 1rem 0.75rem calc(72px + env(safe-area-inset-bottom)) 0.75rem;
+  }
+  /* Barra di navigazione rapida inferiore attiva già su tablet verticale e mobile */
+  .mobile-nav-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--line-strong);
+    padding: 0.35rem 0.5rem max(0.45rem, env(safe-area-inset-bottom)) 0.5rem;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  }
+  body.dark-theme .mobile-nav-bar {
+    background: rgba(15, 23, 42, 0.94);
+    border-top-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
+  }
+  .mobile-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    color: var(--ink-muted);
+    padding: 0.35rem 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-nav-item:active {
+    transform: scale(0.92);
+  }
+  .mobile-nav-item.active {
+    color: var(--primary);
+    font-weight: 700;
+  }
+  .mobile-nav-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+  .mobile-nav-label {
+    font-size: 0.7rem;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -2052,13 +2127,14 @@ sup.node-exp {
     touch-action: manipulation;
   }
   .field input, .field select, .field textarea,
-  #custom-formula, #custom-target, #library-search {
+  #custom-formula, #custom-target, #library-search,
+  .keypad-custom-value, .calc-num-input {
     font-size: 16px !important;
   }
 
   /* Padding inferiore per evitare che la barra fissa copra i contenuti */
   body {
-    padding-bottom: max(65px, env(safe-area-inset-bottom));
+    padding-bottom: max(68px, env(safe-area-inset-bottom));
   }
 
   /* Header compatto */
@@ -2096,62 +2172,6 @@ sup.node-exp {
     flex: 1 1 auto;
     text-align: center;
     border-radius: var(--radius-pill);
-  }
-
-  /* Barra di navigazione rapida inferiore mobile */
-  .mobile-nav-bar {
-    display: flex;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 1000;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid var(--line-strong);
-    padding: 0.35rem 0.5rem max(0.45rem, env(safe-area-inset-bottom)) 0.5rem;
-    justify-content: space-around;
-    align-items: center;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
-  }
-  body.dark-theme .mobile-nav-bar {
-    background: rgba(15, 23, 42, 0.92);
-    border-top-color: rgba(255, 255, 255, 0.12);
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
-  }
-  .mobile-nav-item {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    background: none;
-    border: none;
-    color: var(--ink-muted);
-    padding: 0.35rem 0.2rem;
-    font-size: 0.72rem;
-    font-weight: 600;
-    cursor: pointer;
-    border-radius: 8px;
-    transition: all 0.15s ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .mobile-nav-item:active {
-    transform: scale(0.92);
-  }
-  .mobile-nav-item.active {
-    color: var(--primary);
-    font-weight: 700;
-  }
-  .mobile-nav-icon {
-    font-size: 1.25rem;
-    line-height: 1;
-  }
-  .mobile-nav-label {
-    font-size: 0.7rem;
-    letter-spacing: -0.01em;
   }
 
   /* Pannelli più compatti e moderni */
@@ -2206,9 +2226,9 @@ sup.node-exp {
     line-height: 1.35;
   }
   .target-chip {
-    min-height: 40px;
-    min-width: 40px;
-    font-size: 1.05rem;
+    min-height: 38px;
+    min-width: 38px;
+    font-size: 1.02rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2231,6 +2251,20 @@ sup.node-exp {
     border-radius: var(--radius-pill);
   }
 
+  /* Pulsante passo automatico su mobile: badge in flusso senza sovrapporsi al testo */
+  .action-btn.auto-step-btn {
+    padding: 0.75rem 0.9rem;
+  }
+  .action-btn.auto-step-btn .action-label,
+  .action-btn.auto-step-btn .action-desc {
+    padding-right: 0;
+  }
+  .action-btn.auto-step-btn::after {
+    position: static;
+    display: inline-block;
+    margin-top: 0.5rem;
+  }
+
   /* Card dell'equazione & Frazioni touch-friendly */
   .equation-display-card {
     border-radius: 16px;
@@ -2244,34 +2278,68 @@ sup.node-exp {
     gap: 0.25rem;
   }
   .equation-display {
-    padding: 1.25rem 0.6rem;
-    min-height: 140px;
+    padding: 1.15rem 0.5rem;
+    min-height: 136px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
   }
   .interactive-math-eq {
-    font-size: clamp(1.2rem, 4.8vw, 1.55rem);
-    gap: 0.8rem;
-    padding: 0.4rem 0.2rem;
+    font-size: clamp(1.18rem, 4.5vw, 1.48rem);
+    gap: 0.65rem;
+    padding: 0.35rem 0.2rem;
+    margin: 0 auto;
+    min-width: min-content;
+    flex-shrink: 0;
   }
-  .math-node, .token-variable, .token-number, .token-group {
-    min-height: 42px;
-    min-width: 36px;
-    padding: 0.3rem 0.45rem;
-    touch-action: manipulation;
+  .eq-sign-wrap {
+    font-size: 1.45rem;
+    padding: 0 0.2rem;
+  }
+
+  /* Dimensionamento touch mirato solo ai token trascinabili singoli nell'area di lavoro,
+     evitando di gonfiare i contenitori (.node-mul, .node-add) o le formule della libreria/cronologia */
+  #equation-display .draggable-token:not(.math-term-group) {
+    min-height: 36px;
+    min-width: 30px;
+    padding: 0.16rem 0.36rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
     -webkit-tap-highlight-color: transparent;
   }
-  .math-node:active, .token-variable:active {
+  #equation-display .node-pow.draggable-token {
+    align-items: baseline;
+  }
+  #equation-display .pow-base .math-node,
+  #equation-display .radical-body .math-node,
+  #equation-display .fn-args .math-node {
+    min-height: 0;
+    min-width: 0;
+    padding: 0;
+  }
+  #equation-display .draggable-token:active {
     transform: scale(0.95);
   }
   .dropzone {
-    min-height: 42px;
-    min-width: 36px;
-    padding: 0.25rem 0.45rem;
+    min-height: 38px;
+    min-width: 34px;
+    padding: 0.2rem 0.35rem;
+  }
+  .dropzone-adjacent {
+    padding: 0.18rem 0.45rem;
+    font-size: 0.68rem;
+  }
+  .dynamic-frac-den {
+    min-width: 76px;
+    padding: 4px 8px;
+  }
+  .dropzone-label {
+    font-size: 0.68rem;
   }
 
-  /* Tastierino operazioni a griglia touch con dita */
+  /* Tastierino operazioni a griglia touch con dita (classi reali del DOM) */
   .keypad {
     padding: 0.65rem 0.75rem;
     border-radius: 14px;
@@ -2282,36 +2350,55 @@ sup.node-exp {
     grid-template-columns: repeat(5, 1fr);
     gap: 0.4rem;
   }
-  .keypad-op-btn {
-    min-height: 44px;
-    font-size: 1.05rem;
+  .keypad-op,
+  .keypad-op[data-op="asin"],
+  .keypad-op[data-op="acos"],
+  .keypad-op[data-op="atan"] {
+    min-height: 42px;
+    min-width: 0;
+    font-size: 0.98rem;
     border-radius: 10px;
     width: 100%;
-    display: flex;
+    padding: 0.3rem 0.35rem;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
   }
   .keypad-operands {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: 0.38rem;
     align-items: center;
-    margin-top: 0.5rem;
+    margin-top: 0.55rem;
   }
-  .keypad-var-btn, .keypad-const-btn {
-    min-height: 42px;
-    min-width: 42px;
-    font-size: 1rem;
+  .keypad-operand {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 0.25rem 0.65rem;
+    font-size: 0.98rem;
     border-radius: 10px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
   }
-  .keypad-apply-btn {
-    min-height: 42px;
-    padding: 0.45rem 1rem;
+  .keypad-custom {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+  }
+  .keypad-custom-value {
+    min-height: 40px;
+    width: 3.8rem;
     border-radius: 10px;
-    font-size: 0.88rem;
+  }
+  .keypad-custom-apply {
+    min-height: 40px;
+    padding: 0.35rem 0.8rem;
+    border-radius: 10px;
+    font-size: 0.84rem;
     font-weight: 700;
   }
 
@@ -2406,7 +2493,7 @@ sup.node-exp {
 
 @media (max-width: 480px) {
   .app-grid {
-    padding: 0.5rem 0.35rem calc(65px + env(safe-area-inset-bottom)) 0.35rem;
+    padding: 0.5rem 0.35rem calc(68px + env(safe-area-inset-bottom)) 0.35rem;
     gap: 0.75rem;
   }
   .panel {
@@ -2416,8 +2503,15 @@ sup.node-exp {
   .app-header h1 {
     font-size: 1.2rem;
   }
+  .work-header-tools .btn-mini {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.5rem;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
+  }
   .keypad-ops {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -2469,6 +2563,16 @@ sup.node-exp {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   -webkit-user-drag: element;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+@media (pointer: coarse) {
+  .draggable-token {
+    -webkit-user-drag: none;
+  }
 }
 
 /* Fix: il puntatore deve atterrare sul .draggable-token, non sui suoi figli */
@@ -2529,7 +2633,7 @@ sup.node-exp {
 /* Termini composti (es. d*g*h o m*v) */
 .math-term-group {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   border: 1.5px dashed var(--line-strong);
   border-radius: var(--radius-sm);
   padding: 2px 5px;
@@ -2538,6 +2642,16 @@ sup.node-exp {
   transition: all 0.2s ease;
   position: relative;
   cursor: grab !important;
+}
+body.dark-theme .math-term-group,
+body.dark-theme .node-group-parens.draggable-token,
+body.dark-theme .math-factor-group {
+  background: rgba(30, 41, 59, 0.7);
+}
+body.high-contrast .math-term-group,
+body.high-contrast .node-group-parens.draggable-token,
+body.high-contrast .math-factor-group {
+  background: #16181d;
 }
 .math-term-group:hover {
   border-color: var(--accent);

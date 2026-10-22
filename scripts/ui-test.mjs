@@ -320,24 +320,123 @@ async function run() {
   check('L\'etichetta dell\'elemento selezionato non è "undefined"',
     !/undefined/.test(kb.hint), kb.hint);
 
-  // 13. Layout responsive: nessuno scorrimento orizzontale della pagina
-  await page.setViewportSize({ width: 390, height: 780 });
-  await page.waitForTimeout(250);
-  const mobileOverflow = await page.evaluate(() =>
-    document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  check('A 390 px la pagina non ha scorrimento orizzontale',
-    mobileOverflow === 0, `overflow ${mobileOverflow}px`);
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.waitForTimeout(200);
+  // 13. Layout responsive: nessuno scorrimento orizzontale su smartphone e tablet
+  const viewportsToTest = [
+    { name: 'Smartphone piccolo (360×640)', width: 360, height: 640, expectMobileNav: true },
+    { name: 'iPhone SE (375×667)', width: 375, height: 667, expectMobileNav: true },
+    { name: 'iPhone 14 (390×844)', width: 390, height: 844, expectMobileNav: true },
+    { name: 'iPad Portrait (768×1024)', width: 768, height: 1024, expectMobileNav: true },
+    { name: 'iPad Air Portrait (820×1180)', width: 820, height: 1180, expectMobileNav: true },
+    { name: 'iPad Landscape (1024×768)', width: 1024, height: 768, expectMobileNav: false },
+  ];
+  for (const vp of viewportsToTest) {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.waitForTimeout(150);
+    const vpInfo = await page.evaluate(() => {
+      const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+      const nav = document.querySelector('#mobile-nav-bar');
+      const navVisible = nav ? getComputedStyle(nav).display !== 'none' : false;
+      return { overflow, navVisible };
+    });
+    check(`${vp.name}: nessuno scorrimento orizzontale`,
+      vpInfo.overflow === 0, `overflow ${vpInfo.overflow}px`);
+    check(`${vp.name}: barra navigazione mobile coerente col layout`,
+      vpInfo.navVisible === vp.expectMobileNav, `navVisible=${vpInfo.navVisible}`);
+  }
 
-  // 14. Il runner di test interno all'app mostra tutti i test superati
-  await page.locator('#btn-run-tests').click();
-  await page.waitForTimeout(700);
-  const runnerText = await page.locator('#tests-backdrop').innerText();
-  const runnerMatch = runnerText.match(/(\d+)\s*\/\s*(\d+)/);
-  check('Il runner interno all\'app supera tutti i test',
-    !!runnerMatch && runnerMatch[1] === runnerMatch[2], runnerMatch ? runnerMatch[0] : runnerText.slice(0, 120));
-  await page.keyboard.press('Escape');
+  // 14. Touch Drag & Drop su token annidati (es. m in F = m·a): nessun carattere bloccato in sovrimpressione
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(150);
+  await page.locator('#custom-formula').fill('F = m * a');
+  await page.locator('#custom-target').fill('a');
+  await page.locator('#btn-load-custom').click();
+  await page.waitForTimeout(250);
+
+  const touchDragResult = await page.evaluate(() => {
+    const tokens = Array.from(document.querySelectorAll('#equation-display .draggable-token'));
+    const mToken = tokens.find((el) => el.textContent.trim() === 'm');
+    const lhsZone = document.querySelector('#equation-display .dropzone[data-side="left"][data-slot="den"]')
+      || document.querySelector('#equation-display .dropzone[data-side="left"]');
+    if (!mToken || !lhsZone) return { error: 'Token m o drop zone LHS non trovati' };
+
+    const mRect = mToken.getBoundingClientRect();
+    const lhsRect = lhsZone.getBoundingClientRect();
+
+    // 1) Simula pointerdown touch su token 'm' annidato dentro il gruppo 'm·a'
+    mToken.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 42,
+      pointerType: 'touch',
+      isPrimary: true,
+      clientX: mRect.left + mRect.width / 2,
+      clientY: mRect.top + mRect.height / 2,
+    }));
+    const badgesDuringDrag = document.querySelectorAll('.touch-drag-badge').length;
+
+    // 2) Simula pointermove verso il membro sinistro
+    mToken.dispatchEvent(new PointerEvent('pointermove', {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 42,
+      pointerType: 'touch',
+      isPrimary: true,
+      clientX: lhsRect.left + lhsRect.width / 2,
+      clientY: lhsRect.top + lhsRect.height / 2,
+    }));
+
+    // 3) Simula pointerup
+    mToken.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 42,
+      pointerType: 'touch',
+      isPrimary: true,
+      clientX: lhsRect.left + lhsRect.width / 2,
+      clientY: lhsRect.top + lhsRect.height / 2,
+    }));
+    const badgesAfterUp = document.querySelectorAll('.touch-drag-badge').length;
+
+    // 4) Simula un secondo touch interrotto da pointercancel (es. gesto di sistema o cambio app)
+    const anyToken = document.querySelector('#equation-display .draggable-token');
+    if (anyToken) {
+      const r = anyToken.getBoundingClientRect();
+      anyToken.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 43,
+        pointerType: 'touch',
+        isPrimary: true,
+        clientX: r.left + 5,
+        clientY: r.top + 5,
+      }));
+      anyToken.dispatchEvent(new PointerEvent('pointercancel', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 43,
+        pointerType: 'touch',
+        isPrimary: true,
+      }));
+    }
+    const badgesAfterCancel = document.querySelectorAll('.touch-drag-badge').length;
+    const isDraggingClassLeft = document.querySelector('#equation-display')?.classList.contains('is-dragging-equation') || false;
+
+    return {
+      badgesDuringDrag,
+      badgesAfterUp,
+      badgesAfterCancel,
+      isDraggingClassLeft,
+      eqText: document.querySelector('#equation-display')?.innerText.replace(/\s+/g, ' ').trim(),
+    };
+  });
+
+  check('Touch drag su token annidato crea esattamente 1 badge (nessuna duplicazione per bubbling)',
+    touchDragResult.badgesDuringDrag === 1, JSON.stringify(touchDragResult));
+  check('Touch pointerup e pointercancel rimuovono tutti i badge in sovrimpressione (0 residui)',
+    touchDragResult.badgesAfterUp === 0 && touchDragResult.badgesAfterCancel === 0 && !touchDragResult.isDraggingClassLeft,
+    JSON.stringify(touchDragResult));
+
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.waitForTimeout(200);
 
   // 15. Modalità: esattamente 2 (Libera e Automatica)

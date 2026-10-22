@@ -7225,12 +7225,88 @@
   }
   var activeDragData = null;
   var touchDragClone = null;
+  var touchDraggedElem = null;
+  var touchStartPos = null;
+  var activePointerId = null;
+  var touchHasMoved = false;
+  var lastPointerType = "mouse";
+  var lastTouchDragEndAt = 0;
+  var globalTouchListenersBound = false;
+  function wasRecentTouchDrag() {
+    return Date.now() - lastTouchDragEndAt < 350;
+  }
+  function cleanupTouchDrag(container) {
+    if (touchDragClone && touchDragClone.parentNode) {
+      touchDragClone.parentNode.removeChild(touchDragClone);
+    }
+    touchDragClone = null;
+    if (typeof document !== "undefined") {
+      document.querySelectorAll(".touch-drag-badge").forEach((el) => {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      });
+      document.querySelectorAll(".is-being-dragged").forEach((el) => {
+        el.classList.remove("is-being-dragged");
+      });
+    }
+    if (touchDraggedElem && activePointerId !== null) {
+      try {
+        if (touchDraggedElem.hasPointerCapture && touchDraggedElem.hasPointerCapture(activePointerId)) {
+          touchDraggedElem.releasePointerCapture(activePointerId);
+        }
+      } catch (_) {
+      }
+    }
+    const targetContainer = container || (typeof document !== "undefined" ? document.getElementById("equation-display") : null);
+    if (targetContainer) {
+      targetContainer.classList.remove("is-dragging-equation");
+      clearDropzonesHighlight(targetContainer);
+    }
+    hideDragArrow();
+    activeDragData = null;
+    touchDraggedElem = null;
+    touchStartPos = null;
+    activePointerId = null;
+    touchHasMoved = false;
+  }
+  function bindGlobalTouchSafetyListeners() {
+    if (globalTouchListenersBound || typeof window === "undefined") return;
+    globalTouchListenersBound = true;
+    const safeClean = () => {
+      if (touchDragClone || touchDraggedElem || typeof document !== "undefined" && document.querySelector(".touch-drag-badge")) {
+        cleanupTouchDrag();
+      }
+    };
+    window.addEventListener("blur", safeClean);
+    window.addEventListener("pagehide", safeClean);
+    window.addEventListener("contextmenu", () => {
+      if (lastPointerType !== "mouse") safeClean();
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) safeClean();
+    });
+    document.addEventListener("pointercancel", safeClean, true);
+    document.addEventListener("pointerup", (e) => {
+      if (e.pointerType === "mouse") return;
+      setTimeout(() => {
+        if (typeof document !== "undefined" && document.querySelector(".touch-drag-badge")) {
+          cleanupTouchDrag();
+        }
+      }, 0);
+    });
+  }
   function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEquation }) {
     if (!container) return;
+    cleanupTouchDrag(container);
+    bindGlobalTouchSafetyListeners();
     let activeDragSourceEl = null;
     container.querySelectorAll(".draggable-token").forEach((token) => {
       token.setAttribute("draggable", "true");
       token.addEventListener("dragstart", (e) => {
+        if (lastPointerType !== "mouse" || touchDragClone || touchDraggedElem) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         e.stopPropagation();
         const varName = token.dataset.varName;
         const fromSide = token.dataset.side;
@@ -7347,30 +7423,47 @@
     });
   }
   function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) {
-    let touchStartPos = null;
-    let draggedElem = null;
     container.querySelectorAll(".draggable-token").forEach((token) => {
       token.addEventListener("pointerdown", (e) => {
+        lastPointerType = e.pointerType || "mouse";
         if (e.pointerType === "mouse") return;
-        draggedElem = token;
+        e.stopPropagation();
+        if (e.isPrimary === false) {
+          cleanupTouchDrag(container);
+          return;
+        }
+        cleanupTouchDrag(container);
+        touchDraggedElem = token;
+        activePointerId = e.pointerId;
         touchStartPos = { x: e.clientX, y: e.clientY };
+        touchHasMoved = false;
         const varName = token.dataset.varName;
         const fromSide = token.dataset.side;
         const fromSlot = token.dataset.slot || "num";
         const nodeType = token.dataset.nodeType || "Var";
         activeDragData = { varName, fromSide, fromSlot, nodeType };
+        const rawLabel = prettyVar(varName || "") || token.textContent.replace(/📦/g, "").trim();
         touchDragClone = document.createElement("div");
         touchDragClone.className = "touch-drag-badge";
-        touchDragClone.textContent = token.textContent.trim();
+        touchDragClone.textContent = rawLabel;
         touchDragClone.style.left = `${e.clientX}px`;
         touchDragClone.style.top = `${e.clientY}px`;
         document.body.appendChild(touchDragClone);
+        token.classList.add("is-being-dragged");
         container.classList.add("is-dragging-equation");
         highlightDropzones(container, activeDragData);
-        token.setPointerCapture(e.pointerId);
+        try {
+          token.setPointerCapture(e.pointerId);
+        } catch (_) {
+        }
       });
       token.addEventListener("pointermove", (e) => {
-        if (!touchDragClone || draggedElem !== token) return;
+        if (e.pointerType === "mouse") return;
+        if (!touchDragClone || touchDraggedElem !== token) return;
+        e.stopPropagation();
+        if (touchStartPos && Math.hypot(e.clientX - touchStartPos.x, e.clientY - touchStartPos.y) > 6) {
+          touchHasMoved = true;
+        }
         touchDragClone.style.left = `${e.clientX}px`;
         touchDragClone.style.top = `${e.clientY}px`;
         const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
@@ -7380,7 +7473,8 @@
           const slot = dz.querySelector(".drop-slot");
           if (slot) slot.classList.remove("drop-slot-hover");
         });
-        if (dropzone) {
+        const isSameOriginSlot = dropzone && activeDragData && dropzone.dataset.side === activeDragData.fromSide && dropzone.dataset.slot === activeDragData.fromSlot;
+        if (dropzone && !isSameOriginSlot) {
           dropzone.classList.add("dropzone-hover");
           const slot = dropzone.querySelector(".drop-slot");
           if (slot) slot.classList.add("drop-slot-hover");
@@ -7391,53 +7485,49 @@
         }
       });
       token.addEventListener("pointerup", (e) => {
-        if (!draggedElem || draggedElem !== token) return;
-        const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
+        if (e.pointerType === "mouse") return;
+        e.stopPropagation();
+        const isCurrentToken = touchDraggedElem === token;
+        const dragData = activeDragData ? { ...activeDragData } : null;
+        const hadMoved = touchHasMoved;
+        const startPos = touchStartPos ? { ...touchStartPos } : null;
+        const elemBelow = typeof document !== "undefined" && Number.isFinite(e.clientX) && Number.isFinite(e.clientY) ? document.elementFromPoint(e.clientX, e.clientY) : null;
         const dropzone = elemBelow ? elemBelow.closest(".dropzone") : null;
-        if (touchDragClone && touchDragClone.parentNode) {
-          touchDragClone.parentNode.removeChild(touchDragClone);
+        const sourceRect = token.getBoundingClientRect ? token.getBoundingClientRect() : startPos ? { left: startPos.x - 20, top: startPos.y - 15, width: 40, height: 30 } : null;
+        cleanupTouchDrag(container);
+        if (!isCurrentToken || !dragData) return;
+        if (hadMoved) {
+          lastTouchDragEndAt = Date.now();
         }
-        touchDragClone = null;
-        container.classList.remove("is-dragging-equation");
-        hideDragArrow();
-        if (dropzone && activeDragData) {
-          const targetSide = dropzone.dataset.side;
-          const targetSlot = dropzone.dataset.slot;
-          const sourceRect = draggedElem ? draggedElem.getBoundingClientRect() : touchStartPos ? { left: touchStartPos.x - 20, top: touchStartPos.y - 15, width: 40, height: 30 } : null;
-          const targetRect = dropzone.getBoundingClientRect();
-          const tokenText = activeDragData ? activeDragData.varName || "" : "";
-          const currentEq = getCurrentEquation();
-          const result = applyDragMove({
-            currentEq,
-            varName: activeDragData.varName,
-            nodeType: activeDragData.nodeType,
-            fromSide: activeDragData.fromSide,
-            fromSlot: activeDragData.fromSlot,
-            targetSide,
-            targetSlot
-          });
-          clearDropzonesHighlight(container);
-          const varName = activeDragData.varName;
-          activeDragData = null;
-          draggedElem = null;
-          if (onApplyMove) onApplyMove(result, { sourceRect, targetRect, tokenText, targetSide, targetSlot, varName });
-        } else {
-          clearDropzonesHighlight(container);
-          activeDragData = null;
-          draggedElem = null;
+        if (!dropzone) return;
+        const targetSide = dropzone.dataset.side;
+        const targetSlot = dropzone.dataset.slot;
+        if (targetSide === dragData.fromSide && targetSlot === dragData.fromSlot) {
+          return;
+        }
+        lastTouchDragEndAt = Date.now();
+        const targetRect = dropzone.getBoundingClientRect();
+        const tokenText = prettyVar(dragData.varName || "");
+        const currentEq = getCurrentEquation();
+        const result = applyDragMove({
+          currentEq,
+          varName: dragData.varName,
+          nodeType: dragData.nodeType,
+          fromSide: dragData.fromSide,
+          fromSlot: dragData.fromSlot,
+          targetSide,
+          targetSlot
+        });
+        if (onApplyMove) {
+          onApplyMove(result, { sourceRect, targetRect, tokenText, targetSide, targetSlot, varName: dragData.varName });
         }
       });
-      token.addEventListener("pointercancel", () => {
-        if (touchDragClone && touchDragClone.parentNode) {
-          touchDragClone.parentNode.removeChild(touchDragClone);
-        }
-        touchDragClone = null;
-        container.classList.remove("is-dragging-equation");
-        clearDropzonesHighlight(container);
-        hideDragArrow();
-        activeDragData = null;
-        draggedElem = null;
-      });
+      const handleCancelOrLostCapture = (e) => {
+        if (e && e.pointerType === "mouse") return;
+        cleanupTouchDrag(container);
+      };
+      token.addEventListener("pointercancel", handleCancelOrLostCapture);
+      token.addEventListener("lostpointercapture", handleCancelOrLostCapture);
     });
   }
 
@@ -8516,6 +8606,7 @@
     state.keypadOp = null;
     state.crossMode = false;
     state.crossPicked = [];
+    state.clickDragToken = null;
     if (dom.btnCross) {
       dom.btnCross.classList.remove("active");
       dom.btnCross.setAttribute("aria-pressed", "false");
@@ -8545,6 +8636,11 @@
     }
   }
   function renderEquationView() {
+    state.clickDragToken = null;
+    if (dom.equationDisplay) {
+      dom.equationDisplay.classList.remove("is-dragging-equation", "is-click-drag-mode");
+    }
+    hideDragArrow();
     if (!state.currentEq) {
       dom.equationDisplay.innerHTML = '<p class="placeholder">Nessuna equazione caricata.</p>';
       if (dom.latexLiveCode) dom.latexLiveCode.textContent = "";
@@ -8791,6 +8887,13 @@
       });
       _currentMirrorAnims = [];
     }
+    cleanupTouchDrag(dom.equationDisplay);
+    if (typeof document !== "undefined") {
+      document.querySelectorAll(".flying-math-token, .op-anim-badge").forEach((el) => el.remove());
+    }
+    if (dom.crossDissolveLayer) {
+      dom.crossDissolveLayer.innerHTML = "";
+    }
   }
   function animateMirrorSwap(fromEq, toEq, onComplete) {
     if (_isMirrorSwapping) {
@@ -8845,6 +8948,7 @@
       if (onComplete) onComplete();
       return;
     }
+    document.querySelectorAll(".flying-math-token").forEach((el) => el.remove());
     const flyer = document.createElement("div");
     flyer.className = "flying-math-token";
     flyer.textContent = tokenText || "";
@@ -8857,19 +8961,31 @@
     const dy = targetRect.top + targetRect.height / 2 - (sourceRect.top + sourceRect.height / 2);
     const midX = dx * 0.5;
     const arcY = dy * 0.5 - Math.max(38, Math.min(85, Math.abs(dx) * 0.28));
-    const anim = flyer.animate([
-      { transform: "translate(0px, 0px) scale(1)", opacity: 0.95 },
-      { transform: `translate(${midX}px, ${arcY}px) scale(1.25)`, opacity: 1, offset: 0.5 },
-      { transform: `translate(${dx}px, ${dy}px) scale(1)`, opacity: 0.95 }
-    ], {
-      duration: 440,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-      fill: "forwards"
-    });
-    anim.onfinish = () => {
-      flyer.remove();
+    let finished = false;
+    let fallbackTimer = null;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      if (flyer.parentNode) flyer.parentNode.removeChild(flyer);
       if (onComplete) onComplete();
     };
+    fallbackTimer = setTimeout(done, 520);
+    if (typeof flyer.animate === "function") {
+      const anim = flyer.animate([
+        { transform: "translate(0px, 0px) scale(1)", opacity: 0.95 },
+        { transform: `translate(${midX}px, ${arcY}px) scale(1.25)`, opacity: 1, offset: 0.5 },
+        { transform: `translate(${dx}px, ${dy}px) scale(1)`, opacity: 0.95 }
+      ], {
+        duration: 440,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        fill: "forwards"
+      });
+      anim.onfinish = done;
+      anim.oncancel = done;
+    } else {
+      done();
+    }
   }
   function flashSignChanged() {
     if (!dom.equationDisplay) return;
@@ -8948,6 +9064,7 @@
     dom.equationDisplay.querySelectorAll(".math-node").forEach((el) => {
       el.addEventListener("click", (e) => {
         e.stopPropagation();
+        if (wasRecentTouchDrag()) return;
         if (state.mode === "auto") {
           executeNextAutoStep();
           return;
@@ -9274,13 +9391,15 @@
       handle.style.top = "";
     };
     handle.addEventListener("pointerup", finish);
-    handle.addEventListener("pointercancel", () => {
+    const cancelCrossDrag = () => {
       dragging = false;
       handle.classList.remove("dragging");
       highlight(null);
       handle.style.left = "";
       handle.style.top = "";
-    });
+    };
+    handle.addEventListener("pointercancel", cancelCrossDrag);
+    handle.addEventListener("lostpointercapture", cancelCrossDrag);
     handle.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
@@ -10530,6 +10649,7 @@
   }
   function clearSelection() {
     state.selectedId = null;
+    if (state.clickDragToken) exitClickDragMode();
     if (dom.actionButtons && state.mode === "free") dom.actionButtons.innerHTML = "";
     if (dom.actionHint && state.mode === "free") {
       dom.actionHint.textContent = "Seleziona un elemento dell'equazione per vedere le operazioni disponibili.";

@@ -22,7 +22,7 @@ import {
 import { getExplanation } from './explanations.js';
 import { renderEquation, renderNode, prettyVar } from './render.js';
 import { RULES, applyRule, negateExpr, findCommonFactor, hasTrigConflict, canDistribute } from './rules.js';
-import { setupEquationDragAndDrop, highlightDropzones, clearDropzonesHighlight, applyDragMove, initDragArrow, updateDragArrow, hideDragArrow } from './dragdrop.js';
+import { setupEquationDragAndDrop, highlightDropzones, clearDropzonesHighlight, applyDragMove, initDragArrow, updateDragArrow, hideDragArrow, cleanupTouchDrag, wasRecentTouchDrag } from './dragdrop.js';
 import { getQuantityInfo, formatResultNumber } from './physics-units.js';
 import {
   latexToSyntax, LatexError, GREEK_MAP,
@@ -477,6 +477,7 @@ function loadFormula(formulaEntry, targetVar) {
   state.keypadOp = null;
   state.crossMode = false;
   state.crossPicked = [];
+  state.clickDragToken = null;
   if (dom.btnCross) {
     dom.btnCross.classList.remove('active');
     dom.btnCross.setAttribute('aria-pressed', 'false');
@@ -512,6 +513,11 @@ function loadFormula(formulaEntry, targetVar) {
 // B. Area di lavoro
 // ---------------------------------------------------------------------------
 function renderEquationView() {
+  state.clickDragToken = null;
+  if (dom.equationDisplay) {
+    dom.equationDisplay.classList.remove('is-dragging-equation', 'is-click-drag-mode');
+  }
+  hideDragArrow();
   if (!state.currentEq) {
     dom.equationDisplay.innerHTML = '<p class="placeholder">Nessuna equazione caricata.</p>';
     if (dom.latexLiveCode) dom.latexLiveCode.textContent = '';
@@ -784,6 +790,13 @@ function cancelActiveSwapAnimations() {
     _currentMirrorAnims.forEach((a) => { try { a.cancel(); } catch (_) {} });
     _currentMirrorAnims = [];
   }
+  cleanupTouchDrag(dom.equationDisplay);
+  if (typeof document !== 'undefined') {
+    document.querySelectorAll('.flying-math-token, .op-anim-badge').forEach((el) => el.remove());
+  }
+  if (dom.crossDissolveLayer) {
+    dom.crossDissolveLayer.innerHTML = '';
+  }
 }
 
 /**
@@ -858,6 +871,8 @@ function animateTokenTravel(sourceRect, targetRect, tokenText, onComplete) {
     return;
   }
 
+  document.querySelectorAll('.flying-math-token').forEach((el) => el.remove());
+
   const flyer = document.createElement('div');
   flyer.className = 'flying-math-token';
   flyer.textContent = tokenText || '';
@@ -872,20 +887,33 @@ function animateTokenTravel(sourceRect, targetRect, tokenText, onComplete) {
   const midX = dx * 0.5;
   const arcY = dy * 0.5 - Math.max(38, Math.min(85, Math.abs(dx) * 0.28));
 
-  const anim = flyer.animate([
-    { transform: 'translate(0px, 0px) scale(1)', opacity: 0.95 },
-    { transform: `translate(${midX}px, ${arcY}px) scale(1.25)`, opacity: 1, offset: 0.5 },
-    { transform: `translate(${dx}px, ${dy}px) scale(1)`, opacity: 0.95 }
-  ], {
-    duration: 440,
-    easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-    fill: 'forwards'
-  });
-
-  anim.onfinish = () => {
-    flyer.remove();
+  let finished = false;
+  let fallbackTimer = null;
+  const done = () => {
+    if (finished) return;
+    finished = true;
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+    if (flyer.parentNode) flyer.parentNode.removeChild(flyer);
     if (onComplete) onComplete();
   };
+
+  fallbackTimer = setTimeout(done, 520);
+
+  if (typeof flyer.animate === 'function') {
+    const anim = flyer.animate([
+      { transform: 'translate(0px, 0px) scale(1)', opacity: 0.95 },
+      { transform: `translate(${midX}px, ${arcY}px) scale(1.25)`, opacity: 1, offset: 0.5 },
+      { transform: `translate(${dx}px, ${dy}px) scale(1)`, opacity: 0.95 }
+    ], {
+      duration: 440,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      fill: 'forwards'
+    });
+    anim.onfinish = done;
+    anim.oncancel = done;
+  } else {
+    done();
+  }
 }
 
 /**
@@ -977,6 +1005,7 @@ function attachEquationHandlers() {
   dom.equationDisplay.querySelectorAll('.math-node').forEach((el) => {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (wasRecentTouchDrag()) return;
       if (state.mode === 'auto') {
         executeNextAutoStep();
         return;
@@ -1386,13 +1415,15 @@ function bindCrossDrag() {
   };
 
   handle.addEventListener('pointerup', finish);
-  handle.addEventListener('pointercancel', () => {
+  const cancelCrossDrag = () => {
     dragging = false;
     handle.classList.remove('dragging');
     highlight(null);
     handle.style.left = '';
     handle.style.top = '';
-  });
+  };
+  handle.addEventListener('pointercancel', cancelCrossDrag);
+  handle.addEventListener('lostpointercapture', cancelCrossDrag);
 
   // Accessibilità da tastiera: Invio/Spazio attiva la modalità e i fattori
   // si scelgono con Tab + Invio (gestito in attachEquationHandlers).
@@ -2849,6 +2880,7 @@ function clearMessage() {
 
 function clearSelection() {
   state.selectedId = null;
+  if (state.clickDragToken) exitClickDragMode();
   if (dom.actionButtons && state.mode === 'free') dom.actionButtons.innerHTML = '';
   if (dom.actionHint && state.mode === 'free') {
     dom.actionHint.textContent = "Seleziona un elemento dell'equazione per vedere le operazioni disponibili.";

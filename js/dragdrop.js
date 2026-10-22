@@ -751,9 +751,90 @@ export function hideDragArrow() {
 
 let activeDragData = null;
 let touchDragClone = null;
+let touchDraggedElem = null;
+let touchStartPos = null;
+let activePointerId = null;
+let touchHasMoved = false;
+let lastPointerType = 'mouse';
+let lastTouchDragEndAt = 0;
+let globalTouchListenersBound = false;
+
+export function wasRecentTouchDrag() {
+  return Date.now() - lastTouchDragEndAt < 350;
+}
+
+export function cleanupTouchDrag(container) {
+  if (touchDragClone && touchDragClone.parentNode) {
+    touchDragClone.parentNode.removeChild(touchDragClone);
+  }
+  touchDragClone = null;
+
+  if (typeof document !== 'undefined') {
+    document.querySelectorAll('.touch-drag-badge').forEach((el) => {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
+    document.querySelectorAll('.is-being-dragged').forEach((el) => {
+      el.classList.remove('is-being-dragged');
+    });
+  }
+
+  if (touchDraggedElem && activePointerId !== null) {
+    try {
+      if (touchDraggedElem.hasPointerCapture && touchDraggedElem.hasPointerCapture(activePointerId)) {
+        touchDraggedElem.releasePointerCapture(activePointerId);
+      }
+    } catch (_) {}
+  }
+
+  const targetContainer = container || (typeof document !== 'undefined' ? document.getElementById('equation-display') : null);
+  if (targetContainer) {
+    targetContainer.classList.remove('is-dragging-equation');
+    clearDropzonesHighlight(targetContainer);
+  }
+
+  hideDragArrow();
+  activeDragData = null;
+  touchDraggedElem = null;
+  touchStartPos = null;
+  activePointerId = null;
+  touchHasMoved = false;
+}
+
+function bindGlobalTouchSafetyListeners() {
+  if (globalTouchListenersBound || typeof window === 'undefined') return;
+  globalTouchListenersBound = true;
+
+  const safeClean = () => {
+    if (touchDragClone || touchDraggedElem || (typeof document !== 'undefined' && document.querySelector('.touch-drag-badge'))) {
+      cleanupTouchDrag();
+    }
+  };
+
+  window.addEventListener('blur', safeClean);
+  window.addEventListener('pagehide', safeClean);
+  window.addEventListener('contextmenu', () => {
+    if (lastPointerType !== 'mouse') safeClean();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) safeClean();
+  });
+  document.addEventListener('pointercancel', safeClean, true);
+  document.addEventListener('pointerup', (e) => {
+    if (e.pointerType === 'mouse') return;
+    // Fallback globale: se al termine del pointerup un badge è rimasto appeso (es. nodo DOM ricreato), rimuovilo
+    setTimeout(() => {
+      if (typeof document !== 'undefined' && document.querySelector('.touch-drag-badge')) {
+        cleanupTouchDrag();
+      }
+    }, 0);
+  });
+}
 
 export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEquation }) {
   if (!container) return;
+
+  cleanupTouchDrag(container);
+  bindGlobalTouchSafetyListeners();
 
   let activeDragSourceEl = null;
 
@@ -762,6 +843,12 @@ export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEqu
     token.setAttribute('draggable', 'true');
 
     token.addEventListener('dragstart', (e) => {
+      if (lastPointerType !== 'mouse' || touchDragClone || touchDraggedElem) {
+        // Su touch/pen usiamo Pointer Events; blocca il drag HTML5 nativo concorrente
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       e.stopPropagation(); // Evita che il drag di una lettera si propaghi al gruppo genitore
       const varName = token.dataset.varName;
       const fromSide = token.dataset.side;
@@ -908,14 +995,27 @@ export function clearDropzonesHighlight(container) {
  * Pointer events per touch screens (iPad / mobile / laptop touch).
  */
 function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) {
-  let touchStartPos = null;
-  let draggedElem = null;
-
   container.querySelectorAll('.draggable-token').forEach((token) => {
     token.addEventListener('pointerdown', (e) => {
+      lastPointerType = e.pointerType || 'mouse';
       if (e.pointerType === 'mouse') return; // mouse usa drag/drop nativo HTML5
-      draggedElem = token;
+
+      // Impedisce che il touch su una singola variabile si propaghi al gruppo genitore (.math-term-group)
+      // creando doppi .touch-drag-badge e lasciandoli bloccati in sovrimpressione!
+      e.stopPropagation();
+
+      if (e.isPrimary === false) {
+        cleanupTouchDrag(container);
+        return;
+      }
+
+      // Pulisce sempre eventuali cloni o stati di drag precedenti prima di crearne uno nuovo
+      cleanupTouchDrag(container);
+
+      touchDraggedElem = token;
+      activePointerId = e.pointerId;
       touchStartPos = { x: e.clientX, y: e.clientY };
+      touchHasMoved = false;
 
       const varName = token.dataset.varName;
       const fromSide = token.dataset.side;
@@ -924,20 +1024,31 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
       activeDragData = { varName, fromSide, fromSlot, nodeType };
 
       // Crea badge visivo che segue il dito
+      const rawLabel = prettyVar(varName || '') || token.textContent.replace(/📦/g, '').trim();
       touchDragClone = document.createElement('div');
       touchDragClone.className = 'touch-drag-badge';
-      touchDragClone.textContent = token.textContent.trim();
+      touchDragClone.textContent = rawLabel;
       touchDragClone.style.left = `${e.clientX}px`;
       touchDragClone.style.top = `${e.clientY}px`;
       document.body.appendChild(touchDragClone);
 
+      token.classList.add('is-being-dragged');
       container.classList.add('is-dragging-equation');
       highlightDropzones(container, activeDragData);
-      token.setPointerCapture(e.pointerId);
+      try {
+        token.setPointerCapture(e.pointerId);
+      } catch (_) {}
     });
 
     token.addEventListener('pointermove', (e) => {
-      if (!touchDragClone || draggedElem !== token) return;
+      if (e.pointerType === 'mouse') return;
+      if (!touchDragClone || touchDraggedElem !== token) return;
+      e.stopPropagation();
+
+      if (touchStartPos && Math.hypot(e.clientX - touchStartPos.x, e.clientY - touchStartPos.y) > 6) {
+        touchHasMoved = true;
+      }
+
       touchDragClone.style.left = `${e.clientX}px`;
       touchDragClone.style.top = `${e.clientY}px`;
 
@@ -949,7 +1060,12 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
         const slot = dz.querySelector('.drop-slot');
         if (slot) slot.classList.remove('drop-slot-hover');
       });
-      if (dropzone) {
+
+      const isSameOriginSlot = dropzone && activeDragData &&
+        dropzone.dataset.side === activeDragData.fromSide &&
+        dropzone.dataset.slot === activeDragData.fromSlot;
+
+      if (dropzone && !isSameOriginSlot) {
         dropzone.classList.add('dropzone-hover');
         const slot = dropzone.querySelector('.drop-slot');
         if (slot) slot.classList.add('drop-slot-hover');
@@ -961,60 +1077,65 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
     });
 
     token.addEventListener('pointerup', (e) => {
-      if (!draggedElem || draggedElem !== token) return;
+      if (e.pointerType === 'mouse') return;
+      e.stopPropagation();
 
-      const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
+      const isCurrentToken = touchDraggedElem === token;
+      const dragData = activeDragData ? { ...activeDragData } : null;
+      const hadMoved = touchHasMoved;
+      const startPos = touchStartPos ? { ...touchStartPos } : null;
+      const elemBelow = (typeof document !== 'undefined' && Number.isFinite(e.clientX) && Number.isFinite(e.clientY))
+        ? document.elementFromPoint(e.clientX, e.clientY)
+        : null;
       const dropzone = elemBelow ? elemBelow.closest('.dropzone') : null;
+      const sourceRect = token.getBoundingClientRect ? token.getBoundingClientRect() : (startPos ? { left: startPos.x - 20, top: startPos.y - 15, width: 40, height: 30 } : null);
 
-      if (touchDragClone && touchDragClone.parentNode) {
-        touchDragClone.parentNode.removeChild(touchDragClone);
+      // Rimuove SEMPRE il clone e ripristina lo stato visivo, anche in caso di eventi concorrenti
+      cleanupTouchDrag(container);
+
+      if (!isCurrentToken || !dragData) return;
+
+      if (hadMoved) {
+        lastTouchDragEndAt = Date.now();
       }
-      touchDragClone = null;
-      container.classList.remove('is-dragging-equation');
-      hideDragArrow();
 
-      if (dropzone && activeDragData) {
-        const targetSide = dropzone.dataset.side;
-        const targetSlot = dropzone.dataset.slot;
-        const sourceRect = draggedElem ? draggedElem.getBoundingClientRect() : (touchStartPos ? { left: touchStartPos.x - 20, top: touchStartPos.y - 15, width: 40, height: 30 } : null);
-        const targetRect = dropzone.getBoundingClientRect();
-        const tokenText = activeDragData ? (activeDragData.varName || '') : '';
+      if (!dropzone) return;
 
-        const currentEq = getCurrentEquation();
+      const targetSide = dropzone.dataset.side;
+      const targetSlot = dropzone.dataset.slot;
 
-        const result = applyDragMove({
-          currentEq,
-          varName: activeDragData.varName,
-          nodeType: activeDragData.nodeType,
-          fromSide: activeDragData.fromSide,
-          fromSlot: activeDragData.fromSlot,
-          targetSide,
-          targetSlot,
-        });
+      // Se l'utente ha solo toccato il token sul posto o lo ha rilasciato nello stesso slot di partenza,
+      // non eseguire una mossa invalida (lascia che il tap selezioni l'elemento).
+      if (targetSide === dragData.fromSide && targetSlot === dragData.fromSlot) {
+        return;
+      }
 
-        clearDropzonesHighlight(container);
-        const varName = activeDragData.varName;
-        activeDragData = null;
-        draggedElem = null;
+      lastTouchDragEndAt = Date.now();
+      const targetRect = dropzone.getBoundingClientRect();
+      const tokenText = prettyVar(dragData.varName || '');
+      const currentEq = getCurrentEquation();
 
-        if (onApplyMove) onApplyMove(result, { sourceRect, targetRect, tokenText, targetSide, targetSlot, varName });
-      } else {
-        clearDropzonesHighlight(container);
-        activeDragData = null;
-        draggedElem = null;
+      const result = applyDragMove({
+        currentEq,
+        varName: dragData.varName,
+        nodeType: dragData.nodeType,
+        fromSide: dragData.fromSide,
+        fromSlot: dragData.fromSlot,
+        targetSide,
+        targetSlot,
+      });
+
+      if (onApplyMove) {
+        onApplyMove(result, { sourceRect, targetRect, tokenText, targetSide, targetSlot, varName: dragData.varName });
       }
     });
 
-    token.addEventListener('pointercancel', () => {
-      if (touchDragClone && touchDragClone.parentNode) {
-        touchDragClone.parentNode.removeChild(touchDragClone);
-      }
-      touchDragClone = null;
-      container.classList.remove('is-dragging-equation');
-      clearDropzonesHighlight(container);
-      hideDragArrow();
-      activeDragData = null;
-      draggedElem = null;
-    });
+    const handleCancelOrLostCapture = (e) => {
+      if (e && e.pointerType === 'mouse') return;
+      cleanupTouchDrag(container);
+    };
+
+    token.addEventListener('pointercancel', handleCancelOrLostCapture);
+    token.addEventListener('lostpointercapture', handleCancelOrLostCapture);
   });
 }
