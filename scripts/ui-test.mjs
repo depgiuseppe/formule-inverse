@@ -344,25 +344,24 @@ async function run() {
       vpInfo.navVisible === vp.expectMobileNav, `navVisible=${vpInfo.navVisible}`);
   }
 
-  // 14. Touch Drag & Drop su token annidati (es. m in F = m·a): nessun carattere bloccato in sovrimpressione
+  // 14. Touch Drag & Drop su token annidati (es. m in F = m·a): nessun badge/cerchio blu in sovrimpressione
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(150);
   await page.locator('#custom-formula').fill('F = m * a');
   await page.locator('#custom-target').fill('a');
   await page.locator('#btn-load-custom').click();
   await page.waitForTimeout(250);
+  await page.locator('#equation-display').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(150);
 
-  const touchDragResult = await page.evaluate(() => {
+  // Fase 1: pointerdown su token annidato 'm' dentro 'm·a'
+  const touchDownState = await page.evaluate(() => {
     const tokens = Array.from(document.querySelectorAll('#equation-display .draggable-token'));
     const mToken = tokens.find((el) => el.textContent.trim() === 'm');
-    const lhsZone = document.querySelector('#equation-display .dropzone[data-side="left"][data-slot="den"]')
-      || document.querySelector('#equation-display .dropzone[data-side="left"]');
-    if (!mToken || !lhsZone) return { error: 'Token m o drop zone LHS non trovati' };
-
+    if (!mToken) return { error: 'Token m non trovato' };
+    const eqBefore = document.querySelector('#equation-display')?.innerText.replace(/\s+/g, ' ').trim();
     const mRect = mToken.getBoundingClientRect();
-    const lhsRect = lhsZone.getBoundingClientRect();
 
-    // 1) Simula pointerdown touch su token 'm' annidato dentro il gruppo 'm·a'
     mToken.dispatchEvent(new PointerEvent('pointerdown', {
       bubbles: true,
       cancelable: true,
@@ -372,32 +371,53 @@ async function run() {
       clientX: mRect.left + mRect.width / 2,
       clientY: mRect.top + mRect.height / 2,
     }));
-    const badgesDuringDrag = document.querySelectorAll('.touch-drag-badge').length;
 
-    // 2) Simula pointermove verso il membro sinistro
+    return {
+      eqBefore,
+      badgesDuringDown: document.querySelectorAll('.touch-drag-badge').length,
+      activeDropzonesDuringDrag: document.querySelectorAll('#equation-display .dropzone-active-target').length,
+      draggedTokensCount: document.querySelectorAll('#equation-display .is-being-dragged').length,
+    };
+  });
+
+  // Attende l'espansione CSS della frazione dinamica (.dynamic-fraction-wrapper)
+  await page.waitForTimeout(350);
+
+  // Fase 2: pointermove e pointerup sul denominatore del membro sinistro + test pointercancel
+  const touchUpState = await page.evaluate(() => {
+    const tokens = Array.from(document.querySelectorAll('#equation-display .draggable-token'));
+    const mToken = tokens.find((el) => el.textContent.trim() === 'm');
+    const lhsZone = document.querySelector('#equation-display .dropzone[data-side="left"][data-slot="den"]');
+    if (!mToken || !lhsZone) return { error: 'Token m o drop zone LHS non trovati' };
+
+    const lhsRect = lhsZone.getBoundingClientRect();
+    const targetX = lhsRect.left + lhsRect.width / 2;
+    const targetY = lhsRect.top + lhsRect.height / 2;
+
     mToken.dispatchEvent(new PointerEvent('pointermove', {
       bubbles: true,
       cancelable: true,
       pointerId: 42,
       pointerType: 'touch',
       isPrimary: true,
-      clientX: lhsRect.left + lhsRect.width / 2,
-      clientY: lhsRect.top + lhsRect.height / 2,
+      clientX: targetX,
+      clientY: targetY,
     }));
+    const badgesDuringMove = document.querySelectorAll('.touch-drag-badge').length;
 
-    // 3) Simula pointerup
     mToken.dispatchEvent(new PointerEvent('pointerup', {
       bubbles: true,
       cancelable: true,
       pointerId: 42,
       pointerType: 'touch',
       isPrimary: true,
-      clientX: lhsRect.left + lhsRect.width / 2,
-      clientY: lhsRect.top + lhsRect.height / 2,
+      clientX: targetX,
+      clientY: targetY,
     }));
     const badgesAfterUp = document.querySelectorAll('.touch-drag-badge').length;
+    const eqAfterUp = document.querySelector('#equation-display')?.innerText.replace(/\s+/g, ' ').trim();
 
-    // 4) Simula un secondo touch interrotto da pointercancel (es. gesto di sistema o cambio app)
+    // Simula un secondo touch interrotto da pointercancel
     const anyToken = document.querySelector('#equation-display .draggable-token');
     if (anyToken) {
       const r = anyToken.getBoundingClientRect();
@@ -422,18 +442,27 @@ async function run() {
     const isDraggingClassLeft = document.querySelector('#equation-display')?.classList.contains('is-dragging-equation') || false;
 
     return {
-      badgesDuringDrag,
+      badgesDuringMove,
       badgesAfterUp,
       badgesAfterCancel,
       isDraggingClassLeft,
-      eqText: document.querySelector('#equation-display')?.innerText.replace(/\s+/g, ' ').trim(),
+      eqAfterUp,
     };
   });
 
-  check('Touch drag su token annidato crea esattamente 1 badge (nessuna duplicazione per bubbling)',
-    touchDragResult.badgesDuringDrag === 1, JSON.stringify(touchDragResult));
-  check('Touch pointerup e pointercancel rimuovono tutti i badge in sovrimpressione (0 residui)',
-    touchDragResult.badgesAfterUp === 0 && touchDragResult.badgesAfterCancel === 0 && !touchDragResult.isDraggingClassLeft,
+  const touchDragResult = { ...touchDownState, ...touchUpState };
+
+  check('Touch drag evidenzia solo il token e le dropzone senza creare alcun badge/cerchio blu (.touch-drag-badge)',
+    touchDragResult.badgesDuringDown === 0 &&
+    touchDragResult.badgesDuringMove === 0 &&
+    touchDragResult.activeDropzonesDuringDrag > 0 &&
+    touchDragResult.draggedTokensCount === 1,
+    JSON.stringify(touchDragResult));
+  check('Touch pointerup applica la mossa e pointercancel pulisce lo stato (0 badge residui)',
+    touchDragResult.badgesAfterUp === 0 &&
+    touchDragResult.badgesAfterCancel === 0 &&
+    !touchDragResult.isDraggingClassLeft &&
+    touchDragResult.eqBefore !== touchDragResult.eqAfterUp,
     JSON.stringify(touchDragResult));
 
   await page.setViewportSize({ width: 1440, height: 900 });

@@ -750,7 +750,6 @@ export function hideDragArrow() {
 // ---------------------------------------------------------------------------
 
 let activeDragData = null;
-let touchDragClone = null;
 let touchDraggedElem = null;
 let touchStartPos = null;
 let activePointerId = null;
@@ -764,11 +763,6 @@ export function wasRecentTouchDrag() {
 }
 
 export function cleanupTouchDrag(container) {
-  if (touchDragClone && touchDragClone.parentNode) {
-    touchDragClone.parentNode.removeChild(touchDragClone);
-  }
-  touchDragClone = null;
-
   if (typeof document !== 'undefined') {
     document.querySelectorAll('.touch-drag-badge').forEach((el) => {
       if (el.parentNode) el.parentNode.removeChild(el);
@@ -805,7 +799,7 @@ function bindGlobalTouchSafetyListeners() {
   globalTouchListenersBound = true;
 
   const safeClean = () => {
-    if (touchDragClone || touchDraggedElem || (typeof document !== 'undefined' && document.querySelector('.touch-drag-badge'))) {
+    if (touchDraggedElem || activeDragData) {
       cleanupTouchDrag();
     }
   };
@@ -819,15 +813,6 @@ function bindGlobalTouchSafetyListeners() {
     if (document.hidden) safeClean();
   });
   document.addEventListener('pointercancel', safeClean, true);
-  document.addEventListener('pointerup', (e) => {
-    if (e.pointerType === 'mouse') return;
-    // Fallback globale: se al termine del pointerup un badge è rimasto appeso (es. nodo DOM ricreato), rimuovilo
-    setTimeout(() => {
-      if (typeof document !== 'undefined' && document.querySelector('.touch-drag-badge')) {
-        cleanupTouchDrag();
-      }
-    }, 0);
-  });
 }
 
 export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEquation }) {
@@ -843,7 +828,7 @@ export function setupEquationDragAndDrop(container, { onApplyMove, getCurrentEqu
     token.setAttribute('draggable', 'true');
 
     token.addEventListener('dragstart', (e) => {
-      if (lastPointerType !== 'mouse' || touchDragClone || touchDraggedElem) {
+      if (lastPointerType !== 'mouse' || touchDraggedElem) {
         // Su touch/pen usiamo Pointer Events; blocca il drag HTML5 nativo concorrente
         e.preventDefault();
         e.stopPropagation();
@@ -1001,7 +986,6 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
       if (e.pointerType === 'mouse') return; // mouse usa drag/drop nativo HTML5
 
       // Impedisce che il touch su una singola variabile si propaghi al gruppo genitore (.math-term-group)
-      // creando doppi .touch-drag-badge e lasciandoli bloccati in sovrimpressione!
       e.stopPropagation();
 
       if (e.isPrimary === false) {
@@ -1009,7 +993,7 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
         return;
       }
 
-      // Pulisce sempre eventuali cloni o stati di drag precedenti prima di crearne uno nuovo
+      // Pulisce sempre eventuali stati di drag precedenti prima di iniziarne uno nuovo
       cleanupTouchDrag(container);
 
       touchDraggedElem = token;
@@ -1023,15 +1007,8 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
       const nodeType = token.dataset.nodeType || 'Var';
       activeDragData = { varName, fromSide, fromSlot, nodeType };
 
-      // Crea badge visivo che segue il dito
-      const rawLabel = prettyVar(varName || '') || token.textContent.replace(/📦/g, '').trim();
-      touchDragClone = document.createElement('div');
-      touchDragClone.className = 'touch-drag-badge';
-      touchDragClone.textContent = rawLabel;
-      touchDragClone.style.left = `${e.clientX}px`;
-      touchDragClone.style.top = `${e.clientY}px`;
-      document.body.appendChild(touchDragClone);
-
+      // Nessun clone/badge fluttuante (.touch-drag-badge) viene iniettato nel DOM:
+      // l'interazione touch evidenzia esclusivamente il token e le dropzone di destinazione.
       token.classList.add('is-being-dragged');
       container.classList.add('is-dragging-equation');
       highlightDropzones(container, activeDragData);
@@ -1042,15 +1019,12 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
 
     token.addEventListener('pointermove', (e) => {
       if (e.pointerType === 'mouse') return;
-      if (!touchDragClone || touchDraggedElem !== token) return;
+      if (touchDraggedElem !== token || !activeDragData) return;
       e.stopPropagation();
 
       if (touchStartPos && Math.hypot(e.clientX - touchStartPos.x, e.clientY - touchStartPos.y) > 6) {
         touchHasMoved = true;
       }
-
-      touchDragClone.style.left = `${e.clientX}px`;
-      touchDragClone.style.top = `${e.clientY}px`;
 
       const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
       const dropzone = elemBelow ? elemBelow.closest('.dropzone') : null;
@@ -1083,14 +1057,12 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
       const isCurrentToken = touchDraggedElem === token;
       const dragData = activeDragData ? { ...activeDragData } : null;
       const hadMoved = touchHasMoved;
-      const startPos = touchStartPos ? { ...touchStartPos } : null;
       const elemBelow = (typeof document !== 'undefined' && Number.isFinite(e.clientX) && Number.isFinite(e.clientY))
         ? document.elementFromPoint(e.clientX, e.clientY)
         : null;
       const dropzone = elemBelow ? elemBelow.closest('.dropzone') : null;
-      const sourceRect = token.getBoundingClientRect ? token.getBoundingClientRect() : (startPos ? { left: startPos.x - 20, top: startPos.y - 15, width: 40, height: 30 } : null);
 
-      // Rimuove SEMPRE il clone e ripristina lo stato visivo, anche in caso di eventi concorrenti
+      // Ripristina sempre lo stato visivo e rimuove gli highlight delle dropzone
       cleanupTouchDrag(container);
 
       if (!isCurrentToken || !dragData) return;
@@ -1111,7 +1083,6 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
       }
 
       lastTouchDragEndAt = Date.now();
-      const targetRect = dropzone.getBoundingClientRect();
       const tokenText = prettyVar(dragData.varName || '');
       const currentEq = getCurrentEquation();
 
@@ -1126,7 +1097,7 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
       });
 
       if (onApplyMove) {
-        onApplyMove(result, { sourceRect, targetRect, tokenText, targetSide, targetSlot, varName: dragData.varName });
+        onApplyMove(result, { sourceRect: null, targetRect: null, tokenText, targetSide, targetSlot, varName: dragData.varName });
       }
     });
 
