@@ -333,16 +333,20 @@ export function applyDistributeRule() {
   const rightDist = canDistribute(eq.right);
 
   if (!leftDist && !rightDist) {
-    if (ctx && ctx.showMessage) ctx.showMessage('Non ci sono prodotti con parentesi (somme o differenze) da sviluppare.', 'info');
+    if (ctx && ctx.showMessage) ctx.showMessage('Non ci sono parentesi (prodotti, potenze o frazioni) da sviluppare.', 'info');
     return;
   }
 
   let chosenSide = null;
   if (state.selectedId) {
-    const selInfo = analyseElementId(state.selectedId);
-    if (selInfo && selInfo.side) {
-      if (selInfo.side === 'left' && leftDist) chosenSide = 'left';
-      if (selInfo.side === 'right' && rightDist) chosenSide = 'right';
+    if (state.selectedId.startsWith('left') && leftDist) chosenSide = 'left';
+    else if (state.selectedId.startsWith('right') && rightDist) chosenSide = 'right';
+    else {
+      const selInfo = analyseElementId(state.selectedId);
+      if (selInfo && selInfo.side) {
+        if (selInfo.side === 'left' && leftDist) chosenSide = 'left';
+        if (selInfo.side === 'right' && rightDist) chosenSide = 'right';
+      }
     }
   }
 

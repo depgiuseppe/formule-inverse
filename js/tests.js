@@ -1702,6 +1702,44 @@ export function runAllTests() {
       : `atteso c^2·(u1 + v)/(c^2 + u1·v), ottenuto: ${p2}`;
   }));
 
+  results.push(test('Sviluppa parentesi: potenza di frazione (1/c)^2 -> 1/c^2', () => {
+    const startEq = eq('eps0 * mu0 = (1/c)^2');
+    if (!canDistribute(startEq.right)) return 'atteso canDistribute true per membro destro (1/c)^2';
+    const res = applyRule(RULES.distribute, startEq, { side: 'right' });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    const p = toPretty(res.equation, 0);
+    return equivalentEq(res.equation, eq('eps0 * mu0 = 1/(c^2)')) ? true
+      : `atteso eps0·mu0 = 1/c^2, ottenuto: ${p}`;
+  }));
+
+  results.push(test('Sviluppa parentesi: quadrato con radice al denominatore (1/sqrt(eps0*mu0))^2 -> 1/(eps0*mu0)', () => {
+    const startEq = eq('c^2 = (1 / sqrt(eps0 * mu0))^2');
+    if (!canDistribute(startEq.right)) return 'atteso canDistribute true per membro destro con radice';
+    const res = applyRule(RULES.distribute, startEq, { side: 'right' });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    const p = toPretty(res.equation, 0);
+    return equivalentEq(res.equation, eq('c^2 = 1/(eps0 * mu0)')) ? true
+      : `atteso c^2 = 1/(eps0·mu0), ottenuto: ${p}`;
+  }));
+
+  results.push(test('Sviluppa parentesi: quadrato di radice singola (sqrt(x))^2 -> x', () => {
+    const startEq = eq('y = (sqrt(x))^2');
+    if (!canDistribute(startEq.right)) return 'atteso canDistribute true per (sqrt(x))^2';
+    const res = applyRule(RULES.distribute, startEq, { side: 'right' });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    return equivalentEq(res.equation, eq('y = x')) ? true
+      : `atteso y = x, ottenuto: ${toPretty(res.equation, 0)}`;
+  }));
+
+  results.push(test('Sviluppa parentesi: frazione generica (v/c)^2 -> v^2/c^2', () => {
+    const startEq = eq('y = (v/c)^2');
+    if (!canDistribute(startEq.right)) return 'atteso canDistribute true per (v/c)^2';
+    const res = applyRule(RULES.distribute, startEq, { side: 'right' });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    return equivalentEq(res.equation, eq('y = (v^2)/(c^2)')) ? true
+      : `atteso y = v^2/c^2, ottenuto: ${toPretty(res.equation, 0)}`;
+  }));
+
   return results;
 }
 

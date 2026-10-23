@@ -520,11 +520,11 @@ export const rulePowBothSides = {
   },
 };
 
-// 14) PROPRIETÀ DISTRIBUTIVA  a(x+b) = c  =>  ax + ab = c
+// 14) PROPRIETÀ DISTRIBUTIVA  a(x+b) = c  =>  ax + ab = c, (A/B)^n => A^n/B^n
 export const ruleDistribute = {
   id: 'distribute',
-  name: 'Proprietà distributiva del prodotto rispetto alla somma',
-  principle: 'a(x + b) = ax + ab.',
+  name: 'Proprietà distributiva e sviluppo parentesi',
+  principle: 'Sviluppa le parentesi: a(b ± c) = ab ± ac, (A/B)ⁿ = Aⁿ/Bⁿ, (√x)² = x.',
   explanation: 'distribute',
   apply(eq, ctx) {
     const { side } = ctx; // membro su cui distribuire
@@ -536,7 +536,7 @@ export const ruleDistribute = {
     return {
       equation: simplify(newEq),
       conditions: [],
-      steps: ['Applico la proprietà distributiva: moltiplico il fattore per ciascun termine della somma.'],
+      steps: ['Applico lo sviluppo delle parentesi (proprietà distributiva di prodotti o potenze).'],
     };
   },
 };
@@ -880,6 +880,64 @@ export function rebuildSum(terms) {
 // ---------------------------------------------------------------------------
 // Distributiva / raccoglimento ricorsivi
 // ---------------------------------------------------------------------------
+function distributePower(base, exp) {
+  const uBase = unwrap(base);
+  const uExp = unwrap(exp);
+
+  if (uExp.type === 'Num' && uExp.value === 1) {
+    return distribute(uBase);
+  }
+
+  // (A / B)^n -> A^n / B^n
+  if (uBase.type === 'Div') {
+    const newNum = distributePower(uBase.num, uExp);
+    const newDen = distributePower(uBase.den, uExp);
+    return Div(newNum, newDen);
+  }
+
+  // (sqrt(X))^2 -> X (semplificazione del quadrato con la radice)
+  if (uBase.type === 'Sqrt' && uExp.type === 'Num' && uExp.value === 2) {
+    return distribute(unwrap(uBase.arg));
+  }
+
+  // (sqrt(X))^(2k) -> X^k
+  if (uBase.type === 'Sqrt' && uExp.type === 'Num' && uExp.value % 2 === 0 && uExp.value > 2) {
+    return distributePower(unwrap(uBase.arg), Num(uExp.value / 2));
+  }
+
+  // (a * b * ...)^n -> a^n * b^n * ...
+  if (uBase.type === 'Mul') {
+    return Mul(...uBase.args.map((a) => distributePower(a, uExp)));
+  }
+
+  // Valutazione numerica sicura (1^n = 1, 0^n = 0, numeri interi positivi)
+  if (uBase.type === 'Num' && uExp.type === 'Num') {
+    if (uBase.value === 1) return Num(1);
+    if (uBase.value === 0) return Num(0);
+    if (Number.isInteger(uBase.value) && Number.isInteger(uExp.value) && uExp.value >= 0 && uExp.value <= 4) {
+      return Num(Math.pow(uBase.value, uExp.value));
+    }
+  }
+
+  // Segno negativo: (-X)^2 -> X^2, (-X)^3 -> -X^3
+  if (uBase.type === 'Neg') {
+    if (uExp.type === 'Num' && uExp.value % 2 === 0) {
+      return distributePower(uBase.arg, uExp);
+    }
+    if (uExp.type === 'Num' && uExp.value % 2 === 1) {
+      return Neg(distributePower(uBase.arg, uExp));
+    }
+    return Pow(distribute(uBase), distribute(uExp));
+  }
+
+  // Potenza di potenza: (a^m)^n -> a^(m*n)
+  if (uBase.type === 'Pow' && uExp.type === 'Num' && unwrap(uBase.exp).type === 'Num') {
+    return Pow(uBase.base, Num(unwrap(uBase.exp).value * uExp.value));
+  }
+
+  return Pow(distribute(uBase), distribute(uExp));
+}
+
 function distribute(node) {
   node = unwrap(node);
   switch (node.type) {
@@ -905,8 +963,18 @@ function distribute(node) {
       return Sub(...node.args.map(distribute));
     case 'Div':
       return Div(distribute(node.num), distribute(node.den));
-    case 'Pow':
+    case 'Pow': {
+      const uBase = unwrap(node.base);
+      const uExp = unwrap(node.exp);
+      if (uBase.type === 'Div' || uBase.type === 'Sqrt' || uBase.type === 'Mul' || uBase.type === 'Pow') {
+        return distributePower(uBase, uExp);
+      }
       return Pow(distribute(node.base), distribute(node.exp));
+    }
+    case 'Sqrt':
+      return Sqrt(distribute(node.arg));
+    case 'Neg':
+      return Neg(distribute(node.arg));
     default:
       return node;
   }
@@ -922,6 +990,14 @@ export function canDistribute(node) {
     });
     if (hasSumArg) return true;
     return u.args.some(canDistribute);
+  }
+  if (u.type === 'Pow') {
+    const b = unwrap(u.base);
+    if (b.type === 'Div' || b.type === 'Sqrt' || b.type === 'Mul' || b.type === 'Pow') return true;
+    return canDistribute(u.base) || canDistribute(u.exp);
+  }
+  if (u.type === 'Sqrt') {
+    return canDistribute(u.arg);
   }
   if (u.type === 'Add' || u.type === 'Sub') {
     return (u.args || []).some(canDistribute);

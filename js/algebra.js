@@ -603,6 +603,20 @@ export function hasDistributableSum(node, target) {
       const w = unwrap(a);
       return (w.type === 'Add' || w.type === 'Sub') && collectVars(w).has(target);
     })) return true;
+    return u.args.some((a) => hasDistributableSum(a, target));
+  }
+  if (u.type === 'Pow') {
+    const b = unwrap(u.base);
+    if ((b.type === 'Div' || b.type === 'Sqrt' || b.type === 'Mul' || b.type === 'Pow') && collectVars(b).has(target)) {
+      return true;
+    }
+    return hasDistributableSum(u.base, target);
+  }
+  if (u.type === 'Sqrt') {
+    return hasDistributableSum(u.arg, target);
+  }
+  if (u.type === 'Div') {
+    return hasDistributableSum(u.num, target) || hasDistributableSum(u.den, target);
   }
   if (u.type === 'Add' || u.type === 'Sub') {
     return u.args.some((a) => hasDistributableSum(a, target));

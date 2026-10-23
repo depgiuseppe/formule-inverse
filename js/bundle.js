@@ -2159,8 +2159,8 @@
   };
   var ruleDistribute = {
     id: "distribute",
-    name: "Propriet\xE0 distributiva del prodotto rispetto alla somma",
-    principle: "a(x + b) = ax + ab.",
+    name: "Propriet\xE0 distributiva e sviluppo parentesi",
+    principle: "Sviluppa le parentesi: a(b \xB1 c) = ab \xB1 ac, (A/B)\u207F = A\u207F/B\u207F, (\u221Ax)\xB2 = x.",
     explanation: "distribute",
     apply(eq, ctx5) {
       const { side } = ctx5;
@@ -2170,7 +2170,7 @@
       return {
         equation: simplify(newEq),
         conditions: [],
-        steps: ["Applico la propriet\xE0 distributiva: moltiplico il fattore per ciascun termine della somma."]
+        steps: ["Applico lo sviluppo delle parentesi (propriet\xE0 distributiva di prodotti o potenze)."]
       };
     }
   };
@@ -2425,6 +2425,47 @@
     }
     return node;
   }
+  function distributePower(base, exp) {
+    const uBase = unwrap(base);
+    const uExp = unwrap(exp);
+    if (uExp.type === "Num" && uExp.value === 1) {
+      return distribute(uBase);
+    }
+    if (uBase.type === "Div") {
+      const newNum = distributePower(uBase.num, uExp);
+      const newDen = distributePower(uBase.den, uExp);
+      return Div(newNum, newDen);
+    }
+    if (uBase.type === "Sqrt" && uExp.type === "Num" && uExp.value === 2) {
+      return distribute(unwrap(uBase.arg));
+    }
+    if (uBase.type === "Sqrt" && uExp.type === "Num" && uExp.value % 2 === 0 && uExp.value > 2) {
+      return distributePower(unwrap(uBase.arg), Num(uExp.value / 2));
+    }
+    if (uBase.type === "Mul") {
+      return Mul(...uBase.args.map((a) => distributePower(a, uExp)));
+    }
+    if (uBase.type === "Num" && uExp.type === "Num") {
+      if (uBase.value === 1) return Num(1);
+      if (uBase.value === 0) return Num(0);
+      if (Number.isInteger(uBase.value) && Number.isInteger(uExp.value) && uExp.value >= 0 && uExp.value <= 4) {
+        return Num(Math.pow(uBase.value, uExp.value));
+      }
+    }
+    if (uBase.type === "Neg") {
+      if (uExp.type === "Num" && uExp.value % 2 === 0) {
+        return distributePower(uBase.arg, uExp);
+      }
+      if (uExp.type === "Num" && uExp.value % 2 === 1) {
+        return Neg(distributePower(uBase.arg, uExp));
+      }
+      return Pow(distribute(uBase), distribute(uExp));
+    }
+    if (uBase.type === "Pow" && uExp.type === "Num" && unwrap(uBase.exp).type === "Num") {
+      return Pow(uBase.base, Num(unwrap(uBase.exp).value * uExp.value));
+    }
+    return Pow(distribute(uBase), distribute(uExp));
+  }
   function distribute(node) {
     node = unwrap(node);
     switch (node.type) {
@@ -2449,8 +2490,18 @@
         return Sub(...node.args.map(distribute));
       case "Div":
         return Div(distribute(node.num), distribute(node.den));
-      case "Pow":
+      case "Pow": {
+        const uBase = unwrap(node.base);
+        const uExp = unwrap(node.exp);
+        if (uBase.type === "Div" || uBase.type === "Sqrt" || uBase.type === "Mul" || uBase.type === "Pow") {
+          return distributePower(uBase, uExp);
+        }
         return Pow(distribute(node.base), distribute(node.exp));
+      }
+      case "Sqrt":
+        return Sqrt(distribute(node.arg));
+      case "Neg":
+        return Neg(distribute(node.arg));
       default:
         return node;
     }
@@ -2465,6 +2516,14 @@
       });
       if (hasSumArg) return true;
       return u.args.some(canDistribute);
+    }
+    if (u.type === "Pow") {
+      const b = unwrap(u.base);
+      if (b.type === "Div" || b.type === "Sqrt" || b.type === "Mul" || b.type === "Pow") return true;
+      return canDistribute(u.base) || canDistribute(u.exp);
+    }
+    if (u.type === "Sqrt") {
+      return canDistribute(u.arg);
     }
     if (u.type === "Add" || u.type === "Sub") {
       return (u.args || []).some(canDistribute);
@@ -3081,6 +3140,20 @@
         const w = unwrap(a);
         return (w.type === "Add" || w.type === "Sub") && collectVars(w).has(target);
       })) return true;
+      return u.args.some((a) => hasDistributableSum(a, target));
+    }
+    if (u.type === "Pow") {
+      const b = unwrap(u.base);
+      if ((b.type === "Div" || b.type === "Sqrt" || b.type === "Mul" || b.type === "Pow") && collectVars(b).has(target)) {
+        return true;
+      }
+      return hasDistributableSum(u.base, target);
+    }
+    if (u.type === "Sqrt") {
+      return hasDistributableSum(u.arg, target);
+    }
+    if (u.type === "Div") {
+      return hasDistributableSum(u.num, target) || hasDistributableSum(u.den, target);
     }
     if (u.type === "Add" || u.type === "Sub") {
       return u.args.some((a) => hasDistributableSum(a, target));
@@ -12150,15 +12223,19 @@ ${lines.join(" \\\\\n")}
     const leftDist = canDistribute(eq.left);
     const rightDist = canDistribute(eq.right);
     if (!leftDist && !rightDist) {
-      if (ctx3 && ctx3.showMessage) ctx3.showMessage("Non ci sono prodotti con parentesi (somme o differenze) da sviluppare.", "info");
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage("Non ci sono parentesi (prodotti, potenze o frazioni) da sviluppare.", "info");
       return;
     }
     let chosenSide = null;
     if (state3.selectedId) {
-      const selInfo = analyseElementId(state3.selectedId);
-      if (selInfo && selInfo.side) {
-        if (selInfo.side === "left" && leftDist) chosenSide = "left";
-        if (selInfo.side === "right" && rightDist) chosenSide = "right";
+      if (state3.selectedId.startsWith("left") && leftDist) chosenSide = "left";
+      else if (state3.selectedId.startsWith("right") && rightDist) chosenSide = "right";
+      else {
+        const selInfo = analyseElementId(state3.selectedId);
+        if (selInfo && selInfo.side) {
+          if (selInfo.side === "left" && leftDist) chosenSide = "left";
+          if (selInfo.side === "right" && rightDist) chosenSide = "right";
+        }
       }
     }
     if (!chosenSide) {
