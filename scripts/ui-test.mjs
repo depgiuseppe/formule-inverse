@@ -560,7 +560,41 @@ async function run() {
   check('Elementi banner frazione di frazione presenti nel DOM',
     hasCompoundBanner === 1 && hasCompoundTitle === 1 && hasCompoundBadge === 1 && hasCompoundMsg === 1);
 
-  // 19. Nessun errore in console durante le interazioni
+  // 19. Esportatore Schede Didattiche e Verifiche per Docenti
+  const btnWorksheet = page.locator('#btn-export-worksheet');
+  const hasWorksheetBtn = await btnWorksheet.count();
+  check('Il pulsante Esporta Scheda (#btn-export-worksheet) è presente nella toolbar', hasWorksheetBtn === 1);
+
+  await btnWorksheet.click();
+  await page.waitForTimeout(100);
+  const isWorksheetModalVisible = await page.evaluate(() => {
+    const m = document.getElementById('worksheet-modal-backdrop');
+    return m && !m.hidden;
+  });
+  check('Il clic su Esporta Scheda apre la modale #worksheet-modal-backdrop', isWorksheetModalVisible);
+
+  const previewHasContent = await page.evaluate(() => {
+    const p = document.getElementById('worksheet-html-preview');
+    return p && p.textContent.includes('Esercizio');
+  });
+  check("L'anteprima HTML della scheda genera gli esercizi con testo e formule", previewHasContent);
+
+  const latexHasContent = await page.evaluate(() => {
+    const ltx = document.getElementById('worksheet-latex-code');
+    return ltx && ltx.value.includes('\\documentclass') && ltx.value.includes('\\begin{document}');
+  });
+  check('Il codice LaTeX generato è compilabile e include preambolo e document', latexHasContent);
+
+  // Chiusura modale
+  await page.locator('#btn-close-worksheet').click();
+  await page.waitForTimeout(100);
+  const isWorksheetModalClosed = await page.evaluate(() => {
+    const m = document.getElementById('worksheet-modal-backdrop');
+    return m && m.hidden;
+  });
+  check('Il pulsante Chiudi nasconde correttamente la modale', isWorksheetModalClosed);
+
+  // 20. Nessun errore in console durante le interazioni
   check('Nessun errore JavaScript durante le interazioni',
     consoleErrors.length === 0, consoleErrors.join(' | '));
 

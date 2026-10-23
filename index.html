@@ -175,6 +175,7 @@
       <button id="btn-common-denom" class="btn-mini" type="button" title="Minimo comune multiplo (m.c.m.): somma frazioni e termini a denominatore comune, eliminando doppie frazioni in un'unica frazione">🧮 Denominatore comune (m.c.m.)</button>
       <button id="btn-change-sign" class="btn-mini" type="button" title="Regola del cambio di segno: moltiplica entrambi i membri per −1 cambiando tutti i segni (+ ↔ −)">± Cambio segno</button>
       <button id="btn-cross" class="btn-mini" type="button" aria-pressed="false" title="Croce di semplificazione: trascinala su due fattori uguali, uno al numeratore e uno al denominatore, per eliminarli">✗ Croce di semplificazione</button>
+      <button id="btn-export-worksheet" class="btn-mini btn-worksheet" type="button" title="Esporta scheda didattica o verifica per docenti in LaTeX o PDF">📄 Scheda / Verifica docenti</button>
     </div>
 
     <div class="equation-display-card">
@@ -367,6 +368,163 @@
     <div id="pick-target-buttons" class="pick-target-grid"></div>
     <div class="modal-actions">
       <button class="btn btn-secondary" type="button" data-close="pick-target-backdrop">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Esportatore Schede Didattiche e Verifiche per Docenti -->
+<div class="modal-backdrop" id="worksheet-modal-backdrop" hidden>
+  <div class="modal modal-wide worksheet-modal" role="dialog" aria-modal="true" aria-labelledby="worksheet-modal-title">
+    <div class="worksheet-modal-header">
+      <div class="worksheet-modal-title-group">
+        <h3 id="worksheet-modal-title">📝 Esportatore Schede Didattiche e Verifiche</h3>
+        <p class="modal-subtitle">Genera documenti compilabili in LaTeX e schede pronte per la stampa (PDF/HTML) con soluzioni</p>
+      </div>
+      <button class="btn-close-modal" id="btn-close-worksheet-modal" type="button" aria-label="Chiudi finestra">✕</button>
+    </div>
+
+    <div class="worksheet-modal-body">
+      <div class="worksheet-config-grid">
+        <!-- Colonna di sinistra: Parametri e filtri -->
+        <div class="worksheet-form-column">
+          <fieldset class="worksheet-fieldset">
+            <legend>1. Intestazione e Tipo Documento</legend>
+            <div class="worksheet-form-row">
+              <label class="field-label" for="worksheet-doc-type">Tipologia:</label>
+              <select id="worksheet-doc-type" class="field-select">
+                <option value="test" selected>Verifica Scritta (con punteggi e dati studente)</option>
+                <option value="worksheet">Scheda di Esercizi (Esercitazione guidata)</option>
+              </select>
+            </div>
+            <div class="worksheet-form-row">
+              <label class="field-label" for="worksheet-title-input">Titolo del documento:</label>
+              <input type="text" id="worksheet-title-input" class="field-input" value="Verifica di Fisica: Formule Inverse">
+            </div>
+            <div class="worksheet-form-grid-2">
+              <div>
+                <label class="field-label" for="worksheet-school-input">Istituto / Scuola:</label>
+                <input type="text" id="worksheet-school-input" class="field-input" value="Istituto Superiore">
+              </div>
+              <div>
+                <label class="field-label" for="worksheet-subject-input">Materia:</label>
+                <input type="text" id="worksheet-subject-input" class="field-input" value="Fisica">
+              </div>
+            </div>
+            <div class="worksheet-form-grid-2">
+              <div>
+                <label class="field-label" for="worksheet-class-input">Classe / Sezione:</label>
+                <input type="text" id="worksheet-class-input" class="field-input" placeholder="Es. II B">
+              </div>
+              <div>
+                <label class="field-label" for="worksheet-teacher-input">Docente:</label>
+                <input type="text" id="worksheet-teacher-input" class="field-input" placeholder="Prof. ...">
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="worksheet-fieldset">
+            <legend>2. Selezione Esercizi</legend>
+            <div class="worksheet-form-row">
+              <label class="field-label" for="worksheet-source-select">Origine formule:</label>
+              <select id="worksheet-source-select" class="field-select">
+                <option value="topic" selected>Dalla libreria per Argomento</option>
+                <option value="current">Solo la formula attualmente nell'area di lavoro</option>
+                <option value="user">Dall'archivio personale (Le mie formule)</option>
+                <option value="all">Da tutto il catalogo (Fisica + Mie Formule)</option>
+              </select>
+            </div>
+            <div class="worksheet-form-row" id="worksheet-topic-group">
+              <label class="field-label" for="worksheet-topic-select">Argomento specifico:</label>
+              <select id="worksheet-topic-select" class="field-select">
+                <option value="all" selected>Tutti gli argomenti di fisica</option>
+              </select>
+            </div>
+            <div class="worksheet-form-grid-3">
+              <div>
+                <label class="field-label" for="worksheet-count-input">N. Esercizi:</label>
+                <input type="number" id="worksheet-count-input" class="field-input" min="1" max="25" value="5">
+              </div>
+              <div>
+                <label class="field-label" for="worksheet-difficulty-select">Difficoltà:</label>
+                <select id="worksheet-difficulty-select" class="field-select">
+                  <option value="all" selected>Tutte (1 - 5)</option>
+                  <option value="1">Base (Livello 1)</option>
+                  <option value="2">Intermedio (Livello 2)</option>
+                  <option value="3">Avanzato (Livello 3)</option>
+                  <option value="4-5">Esperto (Livelli 4-5)</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="worksheet-points-input">Punti/Es.:</label>
+                <input type="number" id="worksheet-points-input" class="field-input" min="0.5" max="10" step="0.5" value="2">
+              </div>
+            </div>
+            <div class="worksheet-checkboxes">
+              <label class="worksheet-check-label">
+                <input type="checkbox" id="worksheet-randomize-targets" checked>
+                Scegli incognita casuale per ogni formula
+              </label>
+              <label class="worksheet-check-label">
+                <input type="checkbox" id="worksheet-req-conditions" checked>
+                Richiedi le condizioni di validità
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="worksheet-fieldset">
+            <legend>3. Impaginazione e Soluzioni</legend>
+            <div class="worksheet-form-grid-2">
+              <div>
+                <label class="field-label" for="worksheet-space-type">Spazio svolgimento:</label>
+                <select id="worksheet-space-type" class="field-select">
+                  <option value="grid" selected>Quadretti (5 mm)</option>
+                  <option value="lines">Righe guida</option>
+                  <option value="blank">Spazio bianco (4.5 cm)</option>
+                  <option value="compact">Compatto (nessuno)</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="worksheet-solutions-select">Soluzioni e correzione:</label>
+                <select id="worksheet-solutions-select" class="field-select">
+                  <option value="appendix" selected>Appendice con passaggi (nuova pagina)</option>
+                  <option value="result_only">Solo formule finali (sintetica)</option>
+                  <option value="none">Nessuna soluzione (solo compito)</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+
+        <!-- Colonna di destra: Riepilogo formule e Anteprima live -->
+        <div class="worksheet-preview-column">
+          <div class="worksheet-summary-card">
+            <div class="summary-card-header">
+              <span class="summary-badge" id="worksheet-summary-count">5 esercizi</span>
+              <span class="summary-badge-points" id="worksheet-summary-points">Punteggio max: 10 pt</span>
+            </div>
+            <div class="worksheet-selected-list" id="worksheet-selected-list" aria-label="Elenco esercizi generati"></div>
+          </div>
+
+          <div class="worksheet-preview-box-wrap">
+            <div class="preview-tabs" role="tablist">
+              <button class="preview-tab-btn active" id="btn-tab-preview-html" type="button" role="tab" aria-selected="true">👁️ Anteprima Stampa</button>
+              <button class="preview-tab-btn" id="btn-tab-preview-latex" type="button" role="tab" aria-selected="false">📐 Codice LaTeX</button>
+            </div>
+            <div class="preview-tab-content">
+              <div id="worksheet-html-preview" class="worksheet-html-frame"></div>
+              <textarea id="worksheet-latex-code" class="worksheet-latex-area" readonly hidden spellcheck="false"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions worksheet-modal-actions">
+      <button class="btn btn-primary" id="btn-print-worksheet" type="button" title="Apri anteprima di stampa per stampare su carta o salvare come PDF">🖨️ Stampa / Salva PDF</button>
+      <button class="btn btn-secondary" id="btn-download-latex" type="button" title="Scarica sorgente .tex compilabile per Overleaf o MiKTeX">📄 Scarica LaTeX (.tex)</button>
+      <button class="btn btn-secondary" id="btn-copy-latex" type="button" title="Copia il codice LaTeX negli appunti">📋 Copia LaTeX</button>
+      <button class="btn btn-secondary" id="btn-download-html" type="button" title="Scarica la scheda in formato HTML autonomo offline">🌐 Scarica HTML</button>
+      <button class="btn btn-secondary" id="btn-close-worksheet" type="button">Chiudi</button>
     </div>
   </div>
 </div>

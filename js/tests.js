@@ -21,6 +21,10 @@ import { getQuantityInfo, formatResultNumber } from './physics-units.js';
 import { hasCompoundFraction, transformToReciprocalMul, getCompoundFractionSteps } from './compound-fraction.js';
 import { reduceToSingleFraction, canReduceToSingleFraction, reduceEquationToCommonDenominator } from './common-denom.js';
 import { Div, Sub, Mul, Neg, Eq, Add, Sqrt } from './ast.js';
+import {
+  solveFormulaSteps, buildWorksheetExercises, generateLatexDocument,
+  generateHtmlWorksheet, escapeLatexText
+} from './worksheet-export.js';
 
 let counter = 0;
 function test(name, fn) {
@@ -1346,6 +1350,115 @@ export function runAllTests() {
     const step3 = applyRule(RULES.swapSides, step2.newEq, {});
     const goal = isGoalReached(step3.equation, 'R_1');
     return goal ? true : 'obiettivo R_1 non raggiunto';
+  }));
+
+  // =========================================================================
+  // Test Modulo Esportatore Schede Didattiche e Verifiche (worksheet-export.js)
+  // =========================================================================
+
+  results.push(test('Esportatore: escapeLatexText protegge caratteri speciali e traduce simboli matematici', () => {
+    const s = escapeLatexText('Nota & formula: a ≠ b, x ≥ 0, 90° e A ↔ B % 50');
+    if (!s.includes('\\&')) return 'Mancato escape di &: ' + s;
+    if (!s.includes('\\%')) return 'Mancato escape di %: ' + s;
+    if (!s.includes('$\\neq$')) return 'Mancata traduzione di ≠: ' + s;
+    if (!s.includes('$\\ge$')) return 'Mancata traduzione di ≥: ' + s;
+    if (!s.includes('$^\\circ$')) return 'Mancata traduzione di °: ' + s;
+    if (!s.includes('$\\leftrightarrow$')) return 'Mancata traduzione di ↔: ' + s;
+    return true;
+  }));
+
+  results.push(test('Esportatore: solveFormulaSteps isola correttamente t in v = s/t con tutti i passaggi', () => {
+    const sol = solveFormulaSteps('v = s/t', 't');
+    if (!sol.success) return 'Risoluzione fallita per v = s/t -> t';
+    if (!sol.finalLatex.startsWith('t =')) return 'Formula finale inattesa: ' + sol.finalLatex;
+    if (sol.steps.length === 0) return 'Nessun passaggio generato';
+    const firstStep = sol.steps[0];
+    if (!firstStep.latexAfter || !firstStep.label) return 'Struttura passaggio incompleta: ' + JSON.stringify(firstStep);
+    return true;
+  }));
+
+  results.push(test('Esportatore: solveFormulaSteps isola m in F = m*a', () => {
+    const sol = solveFormulaSteps('F = m*a', 'm');
+    if (!sol.success) return 'Risoluzione fallita per F = m*a -> m';
+    if (!sol.finalLatex.startsWith('m =')) return 'Target non isolato al primo membro: ' + sol.finalLatex;
+    return true;
+  }));
+
+  results.push(test('Esportatore: buildWorksheetExercises genera il numero richiesto con target coerenti', () => {
+    const exercises = buildWorksheetExercises({ count: 4, pointsPerExercise: 2.5 });
+    if (exercises.length !== 4) return `Attesi 4 esercizi, ottenuti: ${exercises.length}`;
+    for (const ex of exercises) {
+      if (!ex.name || !ex.formulaStr || !ex.targetVar || !ex.latexFormula) {
+        return 'Esercizio malformato: ' + JSON.stringify(ex);
+      }
+      if (ex.points !== 2.5) return 'Punti non assegnati correttamente: ' + ex.points;
+    }
+    return true;
+  }));
+
+  results.push(test('Esportatore: buildWorksheetExercises filtra correttamente per argomento', () => {
+    const exercises = buildWorksheetExercises({ source: 'topic', topic: 'cinematica', count: 3 });
+    if (exercises.length === 0) return 'Nessun esercizio generato per cinematica';
+    const allCinematica = exercises.every((ex) => ex.topic === 'cinematica');
+    if (!allCinematica) return 'Trovati esercizi non pertinenti a cinematica';
+    return true;
+  }));
+
+  results.push(test('Esportatore: buildWorksheetExercises gestisce la formula corrente', () => {
+    const current = { id: 'test-f', name: 'Legge di Ohm', formula: 'V = R*I', isolate: ['V', 'R', 'I'], topic: 'circuiti' };
+    const exercises = buildWorksheetExercises({ source: 'current', currentFormula: current, currentTarget: 'R' });
+    if (exercises.length !== 1) return `Atteso 1 esercizio, ottenuti: ${exercises.length}`;
+    if (exercises[0].targetVar !== 'R') return 'Target non rispettato: ' + exercises[0].targetVar;
+    if (exercises[0].solution.finalLatex !== 'R = \\frac{V}{I}') {
+      return 'Soluzione inattesa per R: ' + exercises[0].solution.finalLatex;
+    }
+    return true;
+  }));
+
+  results.push(test('Esportatore: generateLatexDocument produce un documento compilabile valido', () => {
+    const exercises = buildWorksheetExercises({ count: 2 });
+    const tex = generateLatexDocument(exercises, {
+      docType: 'test',
+      title: 'Verifica Sperimentale',
+      school: 'Liceo Scientifico',
+      spaceType: 'grid',
+      solutions: 'appendix'
+    });
+    if (!tex.startsWith('\\documentclass')) return 'Manca documentclass';
+    if (!tex.includes('\\begin{document}')) return 'Manca begin document';
+    if (!tex.includes('\\end{document}')) return 'Manca end document';
+    if (!tex.includes('\\usepackage{amsmath,amssymb}')) return 'Mancano package matematici';
+    if (!tex.includes('\\draw[step=0.5cm')) return 'Manca disegno griglia quadretti TikZ';
+    if (!tex.includes('Soluzioni e Svolgimenti Dettagliati')) return 'Manca sezione soluzionario';
+    return true;
+  }));
+
+  results.push(test('Esportatore: generateLatexDocument supporta righe e soluzioni sintetiche', () => {
+    const exercises = buildWorksheetExercises({ count: 2 });
+    const tex = generateLatexDocument(exercises, {
+      docType: 'worksheet',
+      title: 'Scheda di Esercizi',
+      spaceType: 'lines',
+      solutions: 'result_only'
+    });
+    if (!tex.includes('\\rule{\\textwidth}{0.3pt}')) return 'Mancano righe guida orizzontali';
+    if (!tex.includes('Griglia Sintetica delle Soluzioni')) return 'Manca tabella soluzioni sintetiche';
+    return true;
+  }));
+
+  results.push(test('Esportatore: generateHtmlWorksheet genera HTML autosufficiente con supporto stampa A4', () => {
+    const exercises = buildWorksheetExercises({ count: 2 });
+    const html = generateHtmlWorksheet(exercises, {
+      title: 'Scheda Esercizi Stampa',
+      spaceType: 'grid',
+      solutions: 'appendix'
+    }, true);
+    if (!html.includes('<!DOCTYPE html>')) return 'Manca doctype HTML5';
+    if (!html.includes('@media print')) return 'Mancano direttive @media print';
+    if (!html.includes('workspace-grid')) return 'Manca classe quadretti';
+    if (!html.includes('solutions-page')) return 'Manca pagina soluzioni';
+    if (!html.includes('math-eq')) return 'Manca rendering semantico formule';
+    return true;
   }));
 
   return results;

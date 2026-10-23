@@ -29,6 +29,7 @@ import {
   saveUserFormula, getUserFormulas, deleteUserFormula,
   clearUserFormulas, exportUserFormulasJSON, importUserFormulasJSON,
 } from './formula-db.js';
+import { initWorksheetExporter, openWorksheetModal } from './worksheet-export.js';
 
 // ---------------------------------------------------------------------------
 // Stato
@@ -82,6 +83,7 @@ const dom = {
   btnCommonDenom: $('#btn-common-denom'),
   btnChangeSign: $('#btn-change-sign'),
   btnCross: $('#btn-cross'),
+  btnExportWorksheet: $('#btn-export-worksheet'),
   compoundFractionBanner: $('#compound-fraction-banner'),
   compoundFractionTitle: $('#compound-fraction-title'),
   compoundFractionStepBadge: $('#compound-fraction-step-badge'),
@@ -168,6 +170,38 @@ const dom = {
   btnCopyCalcResult: $('#btn-copy-calc-result'),
   calcErrorNotice: $('#calc-error-notice'),
   mobileNavBar: $('#mobile-nav-bar'),
+  // --- Esportatore Schede Didattiche e Verifiche Docenti ---
+  worksheetModalBackdrop: $('#worksheet-modal-backdrop'),
+  worksheetModalTitle: $('#worksheet-modal-title'),
+  btnCloseWorksheetModal: $('#btn-close-worksheet-modal'),
+  worksheetDocType: $('#worksheet-doc-type'),
+  worksheetTitleInput: $('#worksheet-title-input'),
+  worksheetSchoolInput: $('#worksheet-school-input'),
+  worksheetSubjectInput: $('#worksheet-subject-input'),
+  worksheetClassInput: $('#worksheet-class-input'),
+  worksheetTeacherInput: $('#worksheet-teacher-input'),
+  worksheetSourceSelect: $('#worksheet-source-select'),
+  worksheetTopicGroup: $('#worksheet-topic-group'),
+  worksheetTopicSelect: $('#worksheet-topic-select'),
+  worksheetCountInput: $('#worksheet-count-input'),
+  worksheetDifficultySelect: $('#worksheet-difficulty-select'),
+  worksheetPointsInput: $('#worksheet-points-input'),
+  worksheetRandomizeTargets: $('#worksheet-randomize-targets'),
+  worksheetReqConditions: $('#worksheet-req-conditions'),
+  worksheetSpaceType: $('#worksheet-space-type'),
+  worksheetSolutionsSelect: $('#worksheet-solutions-select'),
+  worksheetSummaryCount: $('#worksheet-summary-count'),
+  worksheetSummaryPoints: $('#worksheet-summary-points'),
+  worksheetSelectedList: $('#worksheet-selected-list'),
+  btnTabPreviewHtml: $('#btn-tab-preview-html'),
+  btnTabPreviewLatex: $('#btn-tab-preview-latex'),
+  worksheetHtmlPreview: $('#worksheet-html-preview'),
+  worksheetLatexCode: $('#worksheet-latex-code'),
+  btnPrintWorksheet: $('#btn-print-worksheet'),
+  btnDownloadLatex: $('#btn-download-latex'),
+  btnCopyLatex: $('#btn-copy-latex'),
+  btnDownloadHtml: $('#btn-download-html'),
+  btnCloseWorksheet: $('#btn-close-worksheet'),
 };
 
 // ---------------------------------------------------------------------------
@@ -190,6 +224,7 @@ function init() {
   initDragArrow();
   initPwa();
   initMobileNav();
+  initWorksheetExporter(dom, state);
   loadFormula(getFormulaById('v-st'), 't');
 }
 
@@ -3392,6 +3427,10 @@ function bindGlobalEvents() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (dom.worksheetModalBackdrop && !dom.worksheetModalBackdrop.hidden) {
+        dom.worksheetModalBackdrop.hidden = true;
+        return;
+      }
       if (!dom.modalBackdrop.hidden) { dom.modalBackdrop.hidden = true; return; }
       if (state.pendingMove) cancelPreview();
       else if (state.clickDragToken) exitClickDragMode();

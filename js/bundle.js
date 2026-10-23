@@ -8177,6 +8177,1008 @@
     return added;
   }
 
+  // js/worksheet-export.js
+  function escapeLatexText(str) {
+    if (typeof str !== "string") return "";
+    let s = str.replace(/\\/g, "\\textbackslash{}").replace(/([%&$#_{}])/g, "\\$1").replace(/~/g, "\\textasciitilde{}").replace(/\^/g, "\\textasciicircum{}");
+    s = s.replace(/≠/g, "$\\neq$");
+    s = s.replace(/≥/g, "$\\ge$");
+    s = s.replace(/≤/g, "$\\le$");
+    s = s.replace(/↔/g, "$\\leftrightarrow$");
+    s = s.replace(/→/g, "$\\rightarrow$");
+    s = s.replace(/±/g, "$\\pm$");
+    s = s.replace(/·/g, "$\\cdot$");
+    s = s.replace(/²/g, "$^2$");
+    s = s.replace(/³/g, "$^3$");
+    s = s.replace(/°/g, "$^\\circ$");
+    s = s.replace(/θ/g, "$\\theta$");
+    s = s.replace(/ω/g, "$\\omega$");
+    s = s.replace(/λ/g, "$\\lambda$");
+    s = s.replace(/ρ/g, "$\\rho$");
+    s = s.replace(/π/g, "$\\pi$");
+    s = s.replace(/Δ/g, "$\\Delta$");
+    return s;
+  }
+  function escapeHtml2(str) {
+    if (typeof str !== "string") return "";
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function solveFormulaSteps(formulaInput, targetVar) {
+    let curr;
+    try {
+      curr = typeof formulaInput === "string" ? parseEquation(formulaInput) : clone(formulaInput);
+    } catch (err) {
+      return {
+        success: false,
+        error: "Impossibile analizzare la formula: " + (err.message || String(err)),
+        steps: [],
+        finalEquation: null,
+        finalLatex: "",
+        conditions: []
+      };
+    }
+    if (!targetVar) {
+      const vars = collectVars(curr);
+      targetVar = vars[0] || "x";
+    }
+    const steps = [];
+    const conditions = /* @__PURE__ */ new Set();
+    const maxIterations = 25;
+    let iterations = 0;
+    while (!isGoalReached(curr, targetVar) && iterations < maxIterations) {
+      iterations++;
+      const sug = suggestNextStep(curr, targetVar);
+      if (!sug || !sug.found || !sug.action) {
+        break;
+      }
+      const beforeEq = clone(curr);
+      const res = performAction(curr, sug.action);
+      if (!res || !res.ok) {
+        break;
+      }
+      curr = res.equation;
+      if (res.condition) {
+        conditions.add(res.condition);
+      }
+      steps.push({
+        stepNum: iterations,
+        label: sug.action && sug.action.label || sug.message || `Passaggio ${iterations}`,
+        description: sug.action && sug.action.description || "",
+        ruleKey: sug.action && sug.action.ruleKey || "",
+        beforeEq,
+        afterEq: clone(curr),
+        latexBefore: toLatex(beforeEq),
+        latexAfter: toLatex(curr),
+        prettyAfter: toPretty(curr)
+      });
+    }
+    if (isGoalReached(curr, targetVar)) {
+      try {
+        const adjusted = ensureTargetOnFirstMember(curr, targetVar);
+        if (toPretty(adjusted) !== toPretty(curr)) {
+          const beforeEq = clone(curr);
+          curr = adjusted;
+          steps.push({
+            stepNum: steps.length + 1,
+            label: "Regola dello specchio",
+            description: "Porta la grandezza incognita al primo membro (A = B \u2194 B = A).",
+            ruleKey: "swapMembers",
+            beforeEq,
+            afterEq: clone(curr),
+            latexBefore: toLatex(beforeEq),
+            latexAfter: toLatex(curr),
+            prettyAfter: toPretty(curr)
+          });
+        }
+      } catch (e) {
+      }
+    }
+    const success = isGoalReached(curr, targetVar);
+    return {
+      success,
+      initialEquation: typeof formulaInput === "string" ? parseEquation(formulaInput) : formulaInput,
+      finalEquation: curr,
+      finalLatex: toLatex(curr),
+      finalPretty: toPretty(curr),
+      targetVar,
+      targetVarPretty: prettyVar(targetVar),
+      steps,
+      conditions: Array.from(conditions)
+    };
+  }
+  function buildWorksheetExercises(options = {}) {
+    const {
+      source = "topic",
+      // 'topic' | 'current' | 'user' | 'all'
+      topic = "all",
+      difficulty = "all",
+      count = 5,
+      pointsPerExercise = 2,
+      randomizeTargets = true,
+      requireConditions = true,
+      currentFormula = null,
+      currentTarget = null
+    } = options;
+    let pool = [];
+    if (source === "current") {
+      if (currentFormula) {
+        pool = [currentFormula];
+      } else {
+        pool = FORMULAS.slice(0, 1);
+      }
+    } else if (source === "user") {
+      const userForms = getUserFormulas();
+      pool = userForms.length > 0 ? userForms : FORMULAS.slice(0, 5);
+    } else if (source === "all") {
+      pool = [...FORMULAS, ...getUserFormulas()];
+    } else {
+      if (topic === "all") {
+        pool = FORMULAS.slice();
+      } else {
+        pool = FORMULAS.filter((f) => f.topic === topic);
+        if (pool.length === 0) pool = FORMULAS.slice();
+      }
+    }
+    if (difficulty !== "all" && source !== "current") {
+      if (difficulty === "4-5") {
+        const filtered = pool.filter((f) => (f.difficulty || 2) >= 4);
+        if (filtered.length > 0) pool = filtered;
+      } else {
+        const diffNum = Number(difficulty);
+        const filtered = pool.filter((f) => (f.difficulty || 2) === diffNum);
+        if (filtered.length > 0) pool = filtered;
+      }
+    }
+    const shuffled = pool.slice();
+    if (source !== "current") {
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+    }
+    const selectedCount = Math.min(Math.max(1, count), shuffled.length);
+    const selectedEntries = shuffled.slice(0, selectedCount);
+    return selectedEntries.map((entry, idx) => {
+      let parsedEq;
+      try {
+        parsedEq = parseEquation(entry.formula);
+      } catch (e) {
+        parsedEq = parseEquation("v = s/t");
+      }
+      const isolable = Array.isArray(entry.isolate) && entry.isolate.length > 0 ? entry.isolate : collectVars(parsedEq);
+      let targetVar;
+      if (source === "current" && currentTarget) {
+        targetVar = currentTarget;
+      } else if (randomizeTargets && isolable.length > 1) {
+        const leftVar = parsedEq.left && parsedEq.left.type === "Var" ? parsedEq.left.name : null;
+        const candidates = leftVar && isolable.length > 1 ? isolable.filter((v) => v !== leftVar) : isolable;
+        targetVar = candidates[Math.floor(Math.random() * candidates.length)] || isolable[0];
+      } else {
+        targetVar = isolable[0] || "x";
+      }
+      const solution = solveFormulaSteps(entry.formula, targetVar);
+      return {
+        index: idx + 1,
+        id: entry.id || `es-${idx + 1}`,
+        name: entry.name || `Formula ${idx + 1}`,
+        topic: entry.topic || "Fisica",
+        difficulty: entry.difficulty || 2,
+        formulaStr: entry.formula,
+        parsedEquation: parsedEq,
+        latexFormula: toLatex(parsedEq),
+        targetVar,
+        targetVarPretty: prettyVar(targetVar),
+        latexTarget: prettyVar(targetVar),
+        conditions: requireConditions && Array.isArray(entry.conditions) ? entry.conditions : [],
+        points: Number(pointsPerExercise) || 2,
+        solution
+      };
+    });
+  }
+  function generateLatexDocument(exercises, options = {}) {
+    const {
+      docType = "test",
+      // 'test' | 'worksheet' | 'recovery'
+      title = "Verifica di Fisica: Formule Inverse",
+      school = "Istituto d'Istruzione Superiore",
+      subject = "Fisica",
+      className = "",
+      teacher = "",
+      date = "",
+      spaceType = "grid",
+      // 'grid' | 'lines' | 'blank' | 'compact'
+      spaceHeight = 4,
+      solutions = "appendix",
+      // 'appendix' | 'result_only' | 'none'
+      reqConditions = true
+    } = options;
+    const totalPoints = exercises.reduce((sum, ex) => sum + (ex.points || 2), 0);
+    let tex = `\\documentclass[11pt,a4paper]{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage[T1]{fontenc}
+\\usepackage[italian]{babel}
+\\usepackage{amsmath,amssymb}
+\\usepackage{geometry}
+\\geometry{a4paper, top=2cm, bottom=2cm, left=2cm, right=2cm}
+\\usepackage{fancyhdr}
+\\usepackage{enumitem}
+\\usepackage{array}
+\\usepackage{tikz}
+
+\\pagestyle{fancy}
+\\fancyhf{}
+`;
+    if (docType === "test") {
+      tex += `\\lhead{\\textbf{Materia:} ${escapeLatexText(subject)} \\quad \\textbf{Classe:} ${escapeLatexText(className) || "\\rule{2cm}{0.4pt}"}}
+\\rhead{\\textbf{Data:} ${escapeLatexText(date) || "\\rule{2.5cm}{0.4pt}"} \\quad \\textbf{Docente:} ${escapeLatexText(teacher) || "\\rule{2.5cm}{0.4pt}"}}
+\\cfoot{Pagina \\thepage}
+
+\\begin{document}
+
+\\begin{center}
+{\\Large \\textbf{${escapeLatexText(title)}}} \\\\[4pt]
+{\\large ${escapeLatexText(school)}} \\\\[8pt]
+\\begin{tabular}{|p{7.5cm}|p{4cm}|p{4.5cm}|}
+\\hline
+\\textbf{Cognome e Nome:} & \\textbf{Data:} & \\textbf{Punteggio / Valutazione:} \\\\
+\\rule{0pt}{1.8em} & & \\hfill / ${totalPoints} pt \\\\
+\\hline
+\\end{tabular}
+\\end{center}
+\\vspace{0.3cm}
+
+\\noindent\\textbf{Istruzioni:} Per ciascuna delle seguenti formule, isola la grandezza indicata applicando rigorosamente i principi di equivalenza delle equazioni. Mostra tutti i passaggi intermedi ed esplicita eventuali condizioni di validit\xE0 (denominatori $\\neq 0$, radicandi $\\ge 0$).
+\\vspace{0.4cm}
+`;
+    } else {
+      tex += `\\lhead{\\textbf{${escapeLatexText(subject)}} \\quad \\textbf{Classe:} ${escapeLatexText(className) || "\\rule{2cm}{0.4pt}"}}
+\\rhead{\\textbf{Data:} ${escapeLatexText(date) || "\\rule{2.5cm}{0.4pt}"}}
+\\cfoot{Pagina \\thepage}
+
+\\begin{document}
+
+\\begin{center}
+{\\Large \\textbf{${escapeLatexText(title)}}} \\\\[4pt]
+{\\large ${escapeLatexText(school)}}
+\\end{center}
+\\vspace{0.3cm}
+
+\\noindent\\textbf{Obiettivo didattico:} Ricava la grandezza richiesta per ciascuna equazione giustificando i passaggi con il primo o il secondo principio di equivalenza.
+\\vspace{0.4cm}
+`;
+    }
+    exercises.forEach((ex) => {
+      tex += `\\subsection*{Esercizio ${ex.index}: ${escapeLatexText(ex.name)} \\hfill \\textnormal{[Punti: ${ex.points}]}}
+\\noindent Dalla formula:
+\\begin{equation*}
+${ex.latexFormula}
+\\end{equation*}
+ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
+`;
+      if (reqConditions && ex.conditions && ex.conditions.length > 0) {
+        tex += `\\par\\noindent\\textit{Condizioni di validit\xE0 iniziali:} $${ex.conditions.join(", ")}$
+`;
+      }
+      tex += `\\par\\noindent\\textbf{Svolgimento:}\\par
+`;
+      if (spaceType === "grid") {
+        tex += `\\begin{center}
+\\begin{tikzpicture}
+\\draw[step=0.5cm,gray!35,very thin] (0,0) grid (\\textwidth, ${spaceHeight});
+\\end{tikzpicture}
+\\end{center}
+`;
+      } else if (spaceType === "lines") {
+        tex += `\\vspace{0.2cm}
+\\noindent\\rule{\\textwidth}{0.3pt}\\par\\vspace{0.75cm}
+\\noindent\\rule{\\textwidth}{0.3pt}\\par\\vspace{0.75cm}
+\\noindent\\rule{\\textwidth}{0.3pt}\\par\\vspace{0.75cm}
+\\noindent\\rule{\\textwidth}{0.3pt}\\par\\vspace{0.75cm}
+\\noindent\\rule{\\textwidth}{0.3pt}
+\\vspace{0.2cm}
+`;
+      } else if (spaceType === "blank") {
+        tex += `\\vspace{${spaceHeight}cm}
+`;
+      } else {
+        tex += `\\vspace{1cm}
+`;
+      }
+    });
+    if (solutions === "appendix") {
+      tex += `\\newpage
+\\fancyhead[L]{\\textbf{SOLUZIONARIO E GUIDA DOCENTE}}
+\\fancyhead[R]{\\textbf{${escapeLatexText(subject)}}}
+\\section*{Soluzioni e Svolgimenti Dettagliati}
+\\noindent\\textit{Guida per il docente con tutti i passaggi algebrici risolutivi e le condizioni di validit\xE0.}
+\\bigskip
+
+`;
+      exercises.forEach((ex) => {
+        tex += `\\subsection*{Soluzione Esercizio ${ex.index}: ${escapeLatexText(ex.name)}}
+\\noindent Formula di partenza: $${ex.latexFormula}$ \\quad $\\rightarrow$ \\quad Isolare: $\\mathbf{${ex.latexTarget}}$
+\\par\\vspace{0.2cm}
+\\noindent\\textbf{Formula finale ricavata:}
+\\begin{equation*}
+\\mathbf{${ex.solution.finalLatex || ex.latexFormula}}
+\\end{equation*}
+`;
+        if (ex.solution.steps && ex.solution.steps.length > 0) {
+          tex += `\\noindent\\textbf{Passaggi di risoluzione:}
+\\begin{enumerate}[label=\\textbf{Passaggio \\arabic*:}]
+`;
+          ex.solution.steps.forEach((st) => {
+            tex += `  \\item \\textbf{${escapeLatexText(st.label)}}${st.description ? ` \\\\ \\textit{${escapeLatexText(st.description)}}` : ""}
+  \\begin{equation*}
+  ${st.latexAfter}
+  \\end{equation*}
+`;
+          });
+          tex += `\\end{enumerate}
+`;
+        }
+        if (ex.solution.conditions && ex.solution.conditions.length > 0) {
+          tex += `\\noindent\\textbf{Condizioni di validit\xE0 maturate:} $${ex.solution.conditions.join(", ")}$
+`;
+        }
+        tex += `\\bigskip
+`;
+      });
+    } else if (solutions === "result_only") {
+      tex += `\\newpage
+\\section*{Griglia Sintetica delle Soluzioni}
+\\begin{center}
+\\begin{tabular}{|c|p{4.5cm}|c|p{5.5cm}|c|}
+\\hline
+\\textbf{N.} & \\textbf{Formula di partenza} & \\textbf{Incognita} & \\textbf{Formula finale ricavata} & \\textbf{Punti} \\\\
+\\hline
+`;
+      exercises.forEach((ex) => {
+        tex += `${ex.index} & $${ex.latexFormula}$ & $${ex.latexTarget}$ & $\\mathbf{${ex.solution.finalLatex || ex.latexFormula}}$ & ${ex.points} pt \\\\ \\hline
+`;
+      });
+      tex += `\\end{tabular}
+\\end{center}
+`;
+    }
+    tex += `\\end{document}
+`;
+    return tex;
+  }
+  function generateHtmlWorksheet(exercises, options = {}, standalone = true) {
+    const {
+      docType = "test",
+      title = "Verifica di Fisica: Formule Inverse",
+      school = "Istituto d'Istruzione Superiore",
+      subject = "Fisica",
+      className = "",
+      teacher = "",
+      date = "",
+      spaceType = "grid",
+      spaceHeight = 4,
+      solutions = "appendix",
+      reqConditions = true
+    } = options;
+    const totalPoints = exercises.reduce((sum, ex) => sum + (ex.points || 2), 0);
+    const heightMm = Math.round((spaceHeight || 4) * 10);
+    let html = "";
+    if (standalone) {
+      html += `<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml2(title)}</title>
+<style>
+  :root {
+    --text: #0f172a;
+    --text-muted: #475569;
+    --border: #cbd5e1;
+    --bg-page: #f8fafc;
+    --card: #ffffff;
+    --primary: #2563eb;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-math: 'STIX Two Text', 'Cambria Math', Georgia, serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    color: var(--text);
+    background: var(--bg-page);
+    line-height: 1.5;
+    padding: 2rem 1rem;
+  }
+  .print-page {
+    max-width: 210mm;
+    margin: 0 auto 2rem;
+    background: var(--card);
+    padding: 20mm;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border-radius: 8px;
+  }
+  .no-print-toolbar {
+    position: sticky;
+    top: 1rem;
+    z-index: 100;
+    max-width: 210mm;
+    margin: 0 auto 1.5rem;
+    background: #1e293b;
+    color: #fff;
+    padding: 0.75rem 1.25rem;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .toolbar-brand { font-weight: 600; font-size: 0.95rem; }
+  .toolbar-actions { display: flex; gap: 0.5rem; }
+  .tb-btn {
+    padding: 0.45rem 0.9rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tb-btn-primary { background: #3b82f6; color: white; }
+  .tb-btn-primary:hover { background: #2563eb; }
+  .tb-btn-secondary { background: #334155; color: white; }
+  .tb-btn-secondary:hover { background: #475569; }
+
+  /* Intestazione scheda */
+  .sheet-header {
+    border-bottom: 2px solid var(--text);
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .sheet-title-group { text-align: center; margin-bottom: 1rem; }
+  .sheet-title { font-size: 1.5rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+  .sheet-school { font-size: 1rem; color: var(--text-muted); font-weight: 500; }
+  
+  /* Tabella dati studente */
+  .student-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.8rem;
+  }
+  .student-table td {
+    border: 1px solid var(--border);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+  .student-table .fill-line {
+    display: inline-block;
+    border-bottom: 1px dotted var(--text-muted);
+    min-width: 120px;
+  }
+
+  /* Istruzioni */
+  .instructions-box {
+    background: #f1f5f9;
+    border-left: 4px solid var(--primary);
+    padding: 0.75rem 1rem;
+    font-size: 0.88rem;
+    margin-bottom: 1.5rem;
+    border-radius: 0 4px 4px 0;
+  }
+
+  /* Esercizi */
+  .exercise-item {
+    margin-bottom: 1.8rem;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .exercise-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.4rem;
+  }
+  .exercise-num { font-weight: 700; font-size: 1.05rem; }
+  .exercise-points {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: #e2e8f0;
+    padding: 2px 8px;
+    border-radius: 12px;
+  }
+  .exercise-prompt {
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+  }
+  .target-badge {
+    display: inline-block;
+    font-family: var(--font-math);
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: #1e40af;
+    background: #dbeafe;
+    padding: 0 8px;
+    border-radius: 4px;
+    border: 1px solid #bfdbfe;
+  }
+  .exercise-eq-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0.6rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    margin-bottom: 0.6rem;
+    font-size: 1.3rem;
+    font-family: var(--font-math);
+  }
+  .exercise-conditions {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 0.4rem;
+  }
+
+  /* Spazio di svolgimento */
+  .workspace-box {
+    width: 100%;
+    margin-top: 0.4rem;
+    border-radius: 4px;
+    position: relative;
+  }
+  .workspace-box.workspace-grid {
+    height: ${heightMm}mm;
+    border: 1px solid #cbd5e1;
+    background-size: 5mm 5mm;
+    background-image: 
+      linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+      linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+  }
+  .workspace-box.workspace-lines {
+    height: ${heightMm}mm;
+    background-image: repeating-linear-gradient(transparent, transparent 7.5mm, #cbd5e1 7.5mm, #cbd5e1 8mm);
+    border-bottom: 1px solid #cbd5e1;
+  }
+  .workspace-box.workspace-blank {
+    height: ${heightMm}mm;
+    border: 1px dashed #cbd5e1;
+  }
+  .workspace-box.workspace-compact {
+    height: 15mm;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  /* Sezione Soluzioni */
+  .solutions-page {
+    page-break-before: always;
+    break-before: page;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 2px dashed #94a3b8;
+  }
+  .solutions-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+  .solutions-title { font-size: 1.35rem; font-weight: 800; color: #047857; }
+  .solution-card {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .solution-card-header {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: #065f46;
+  }
+  .solution-final-box {
+    background: #ffffff;
+    border: 2px solid #10b981;
+    border-radius: 6px;
+    padding: 0.6rem;
+    text-align: center;
+    font-family: var(--font-math);
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0.5rem 0;
+  }
+  .solution-steps-list {
+    margin: 0.5rem 0 0.5rem 1.2rem;
+    font-size: 0.88rem;
+  }
+  .solution-step-item {
+    margin-bottom: 0.5rem;
+  }
+  .step-label { font-weight: 600; color: #1e293b; }
+  .step-desc { font-style: italic; color: #475569; }
+  .step-eq {
+    display: inline-block;
+    background: #ffffff;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+    margin-top: 2px;
+    font-family: var(--font-math);
+  }
+
+  /* Stili matematici dedicati (compatibili con render.js) */
+  .math-eq { display: inline-flex; align-items: center; font-family: var(--font-math); }
+  .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 .25rem; }
+  .frac-num, .frac-den { padding: .1rem .35rem; }
+  .frac-bar { width: 100%; height: 2px; background: currentColor; margin: 2px 0; }
+  .node-pow { display: inline-flex; align-items: baseline; }
+  .pow-exp { font-size: .75em; vertical-align: super; line-height: 0; }
+  .sub { font-size: .75em; vertical-align: sub; line-height: 0; }
+  .radical { display: inline-flex; align-items: stretch; margin: 0 2px; }
+  .radical-sign { font-size: 1.3em; margin-right: 1px; }
+  .radicand { border-top: 2px solid currentColor; padding: 2px 4px 0 2px; }
+  .op-plus, .op-minus, .op-times, .op-div, .eq-sign { margin: 0 .25rem; }
+
+  /* Regole di stampa ottimizzate per foglio A4 */
+  @media print {
+    body { background: #ffffff !important; padding: 0 !important; }
+    .print-page {
+      max-width: none !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 10mm !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+    }
+    .no-print, .no-print-toolbar { display: none !important; }
+    .exercise-item { page-break-inside: avoid !important; break-inside: avoid !important; }
+    .solutions-page { page-break-before: always !important; break-before: page !important; }
+    .workspace-box.workspace-grid {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="no-print-toolbar no-print">
+  <div class="toolbar-brand">\u{1F4C4} Scheda Didattica Formule Inverse</div>
+  <div class="toolbar-actions">
+    <button class="tb-btn tb-btn-primary" onclick="window.print()">\u{1F5A8}\uFE0F Stampa / Salva in PDF</button>
+    <button class="tb-btn tb-btn-secondary" id="btn-tb-dl-latex">\u{1F4C4} Scarica LaTeX</button>
+    <button class="tb-btn tb-btn-secondary" id="btn-tb-copy-latex">\u{1F4CB} Copia LaTeX</button>
+    <button class="tb-btn tb-btn-secondary" onclick="window.close()">\u2715 Chiudi</button>
+  </div>
+</div>
+`;
+    }
+    html += `<div class="print-page">
+  <header class="sheet-header">
+    <div class="sheet-title-group">
+      <h1 class="sheet-title">${escapeHtml2(title)}</h1>
+      <p class="sheet-school">${escapeHtml2(school)} \u2014 ${escapeHtml2(subject)}</p>
+    </div>
+`;
+    if (docType === "test") {
+      html += `    <table class="student-table" aria-label="Dati dello studente">
+      <tr>
+        <td style="width: 50%;"><strong>Cognome e Nome:</strong> <span class="fill-line"></span></td>
+        <td style="width: 25%;"><strong>Classe:</strong> ${escapeHtml2(className) || '<span class="fill-line" style="min-width:60px;"></span>'}</td>
+        <td style="width: 25%;"><strong>Data:</strong> ${escapeHtml2(date) || '<span class="fill-line" style="min-width:70px;"></span>'}</td>
+      </tr>
+      <tr>
+        <td><strong>Docente:</strong> ${escapeHtml2(teacher) || '<span class="fill-line"></span>'}</td>
+        <td colspan="2"><strong>Punteggio:</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / <strong>${totalPoints} pt</strong> &nbsp;&nbsp;&nbsp; <strong>Voto:</strong></td>
+      </tr>
+    </table>
+`;
+    } else {
+      html += `    <table class="student-table" aria-label="Intestazione">
+      <tr>
+        <td style="width: 60%;"><strong>Studente:</strong> <span class="fill-line"></span></td>
+        <td style="width: 20%;"><strong>Classe:</strong> ${escapeHtml2(className) || '<span class="fill-line" style="min-width:50px;"></span>'}</td>
+        <td style="width: 20%;"><strong>Data:</strong> ${escapeHtml2(date) || '<span class="fill-line" style="min-width:70px;"></span>'}</td>
+      </tr>
+    </table>
+`;
+    }
+    html += `  </header>
+
+  <div class="instructions-box">
+    <strong>Istruzioni:</strong> Per ciascuna delle seguenti formule ricava la grandezza indicata applicando i principi di equivalenza. Mostra chiaramente ogni passaggio algebrico intermedio ed esplicita le condizioni di esistenza/validit\xE0 (denominatori $\\neq 0$, radicandi $\\ge 0$).
+  </div>
+
+  <main class="exercises-container">
+`;
+    exercises.forEach((ex) => {
+      const renderedHtml = renderEquation(ex.parsedEquation, { interactive: false });
+      html += `    <article class="exercise-item">
+      <div class="exercise-header">
+        <span class="exercise-num">Esercizio ${ex.index}: ${escapeHtml2(ex.name)}</span>
+        <span class="exercise-points">${ex.points} pt</span>
+      </div>
+      <p class="exercise-prompt">
+        Dalla formula sotto riportata, isola la grandezza: <strong class="target-badge">${escapeHtml2(ex.targetVarPretty)}</strong>
+      </p>
+      <div class="exercise-eq-box" aria-label="Formula">${renderedHtml}</div>
+`;
+      if (reqConditions && ex.conditions && ex.conditions.length > 0) {
+        html += `      <div class="exercise-conditions">Condizioni di validit\xE0 iniziali: ${escapeHtml2(ex.conditions.join(", "))}</div>
+`;
+      }
+      html += `      <div class="workspace-box workspace-${spaceType}" title="Spazio per lo svolgimento"></div>
+    </article>
+`;
+    });
+    html += `  </main>
+`;
+    if (solutions === "appendix") {
+      html += `  <section class="solutions-page">
+    <div class="solutions-header">
+      <h2 class="solutions-title">Soluzioni e Guida alla Correzione (Docente)</h2>
+      <p style="font-size: 0.9rem; color: #475569;">Svolgimenti passaggio per passaggio con principi di equivalenza</p>
+    </div>
+`;
+      exercises.forEach((ex) => {
+        const renderedFinal = ex.solution.finalEquation ? renderEquation(ex.solution.finalEquation, { interactive: false }) : `<code>${escapeHtml2(ex.solution.finalPretty || "")}</code>`;
+        html += `    <div class="solution-card">
+      <div class="solution-card-header">
+        <span>Soluzione Esercizio ${ex.index}: ${escapeHtml2(ex.name)}</span>
+        <span>${ex.points} pt</span>
+      </div>
+      <div class="solution-final-box">
+        <strong>Formula ricavata:</strong> ${renderedFinal}
+      </div>
+`;
+        if (ex.solution.steps && ex.solution.steps.length > 0) {
+          html += `      <ol class="solution-steps-list">
+`;
+          ex.solution.steps.forEach((st) => {
+            const renderedStep = st.afterEq ? renderEquation(st.afterEq, { interactive: false }) : escapeHtml2(st.prettyAfter || "");
+            html += `        <li class="solution-step-item">
+          <span class="step-label">${escapeHtml2(st.label)}:</span>
+          ${st.description ? `<span class="step-desc">${escapeHtml2(st.description)}</span><br>` : ""}
+          <div class="step-eq">${renderedStep}</div>
+        </li>
+`;
+          });
+          html += `      </ol>
+`;
+        }
+        if (ex.solution.conditions && ex.solution.conditions.length > 0) {
+          html += `      <div style="font-size: 0.84rem; color: #065f46; font-style: italic;">
+        Condizioni di validit\xE0 maturate: ${escapeHtml2(ex.solution.conditions.join(", "))}
+      </div>
+`;
+        }
+        html += `    </div>
+`;
+      });
+      html += `  </section>
+`;
+    }
+    html += `</div>
+`;
+    if (standalone) {
+      html += `</body>
+</html>`;
+    }
+    return html;
+  }
+  function downloadWorksheetFile(filename, content, mimeType = "text/plain;charset=utf-8") {
+    if (typeof window === "undefined" || !window.document) return false;
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+    return true;
+  }
+  var activeWorksheetData = [];
+  var activeLatexContent = "";
+  var activeHtmlContent = "";
+  function refreshWorksheetPreview(dom2, state2) {
+    if (!dom2 || !dom2.worksheetModalBackdrop) return;
+    const docType = dom2.worksheetDocType ? dom2.worksheetDocType.value : "test";
+    const title = dom2.worksheetTitleInput ? dom2.worksheetTitleInput.value.trim() : "Verifica di Fisica: Formule Inverse";
+    const school = dom2.worksheetSchoolInput ? dom2.worksheetSchoolInput.value.trim() : "Istituto d'Istruzione Superiore";
+    const subject = dom2.worksheetSubjectInput ? dom2.worksheetSubjectInput.value.trim() : "Fisica";
+    const className = dom2.worksheetClassInput ? dom2.worksheetClassInput.value.trim() : "";
+    const teacher = dom2.worksheetTeacherInput ? dom2.worksheetTeacherInput.value.trim() : "";
+    const source = dom2.worksheetSourceSelect ? dom2.worksheetSourceSelect.value : "topic";
+    const topic = dom2.worksheetTopicSelect ? dom2.worksheetTopicSelect.value : "all";
+    const count = dom2.worksheetCountInput ? parseInt(dom2.worksheetCountInput.value, 10) || 5 : 5;
+    const difficulty = dom2.worksheetDifficultySelect ? dom2.worksheetDifficultySelect.value : "all";
+    const points = dom2.worksheetPointsInput ? parseFloat(dom2.worksheetPointsInput.value) || 2 : 2;
+    const spaceType = dom2.worksheetSpaceType ? dom2.worksheetSpaceType.value : "grid";
+    const solutions = dom2.worksheetSolutionsSelect ? dom2.worksheetSolutionsSelect.value : "appendix";
+    const randomizeTargets = dom2.worksheetRandomizeTargets ? dom2.worksheetRandomizeTargets.checked : true;
+    const reqConditions = dom2.worksheetReqConditions ? dom2.worksheetReqConditions.checked : true;
+    const currentFormula = state2 && state2.currentFormula ? state2.currentFormula : null;
+    const currentTarget = state2 && state2.targetVar ? state2.targetVar : null;
+    const exercises = buildWorksheetExercises({
+      source,
+      topic,
+      difficulty,
+      count,
+      pointsPerExercise: points,
+      randomizeTargets,
+      requireConditions: reqConditions,
+      currentFormula,
+      currentTarget
+    });
+    activeWorksheetData = exercises;
+    const options = {
+      docType,
+      title,
+      school,
+      subject,
+      className,
+      teacher,
+      date: (/* @__PURE__ */ new Date()).toLocaleDateString("it-IT"),
+      spaceType,
+      spaceHeight: 4,
+      solutions,
+      reqConditions
+    };
+    activeLatexContent = generateLatexDocument(exercises, options);
+    activeHtmlContent = generateHtmlWorksheet(exercises, options, true);
+    if (dom2.worksheetSummaryCount) {
+      dom2.worksheetSummaryCount.textContent = `${exercises.length} esercizi generati`;
+    }
+    if (dom2.worksheetSummaryPoints) {
+      const totalPts = exercises.reduce((sum, ex) => sum + ex.points, 0);
+      dom2.worksheetSummaryPoints.textContent = `Totale: ${totalPts} pt`;
+    }
+    if (dom2.worksheetSelectedList) {
+      dom2.worksheetSelectedList.innerHTML = exercises.map((ex) => `
+      <div class="worksheet-summary-item">
+        <span class="summary-item-num">#${ex.index}</span>
+        <div class="summary-item-info">
+          <strong class="summary-item-name">${escapeHtml2(ex.name)}</strong>
+          <span class="summary-item-eq"><code>${escapeHtml2(ex.formulaStr)}</code> &rarr; isola <strong>${escapeHtml2(ex.targetVarPretty)}</strong></span>
+        </div>
+        <span class="summary-item-pts">${ex.points} pt</span>
+      </div>
+    `).join("");
+    }
+    if (dom2.worksheetHtmlPreview) {
+      dom2.worksheetHtmlPreview.innerHTML = generateHtmlWorksheet(exercises, options, false);
+    }
+    if (dom2.worksheetLatexCode) {
+      dom2.worksheetLatexCode.value = activeLatexContent;
+    }
+  }
+  function openWorksheetModal(dom2, state2) {
+    if (!dom2 || !dom2.worksheetModalBackdrop) return;
+    dom2.worksheetModalBackdrop.hidden = false;
+    refreshWorksheetPreview(dom2, state2);
+  }
+  function closeWorksheetModal(dom2) {
+    if (!dom2 || !dom2.worksheetModalBackdrop) return;
+    dom2.worksheetModalBackdrop.hidden = true;
+  }
+  function initWorksheetExporter(dom2, state2) {
+    if (!dom2) return;
+    if (dom2.worksheetTopicSelect) {
+      const existing = /* @__PURE__ */ new Set();
+      FORMULAS.forEach((f) => {
+        if (f.topic && !existing.has(f.topic)) {
+          existing.add(f.topic);
+          const opt = document.createElement("option");
+          opt.value = f.topic;
+          opt.textContent = f.topic.charAt(0).toUpperCase() + f.topic.slice(1);
+          dom2.worksheetTopicSelect.appendChild(opt);
+        }
+      });
+    }
+    if (dom2.btnExportWorksheet) {
+      dom2.btnExportWorksheet.addEventListener("click", () => {
+        openWorksheetModal(dom2, state2);
+      });
+    }
+    if (dom2.btnCloseWorksheetModal) {
+      dom2.btnCloseWorksheetModal.addEventListener("click", () => closeWorksheetModal(dom2));
+    }
+    if (dom2.btnCloseWorksheet) {
+      dom2.btnCloseWorksheet.addEventListener("click", () => closeWorksheetModal(dom2));
+    }
+    if (dom2.worksheetModalBackdrop) {
+      dom2.worksheetModalBackdrop.addEventListener("click", (e) => {
+        if (e.target === dom2.worksheetModalBackdrop) closeWorksheetModal(dom2);
+      });
+    }
+    const inputsToWatch = [
+      dom2.worksheetDocType,
+      dom2.worksheetTitleInput,
+      dom2.worksheetSchoolInput,
+      dom2.worksheetSubjectInput,
+      dom2.worksheetClassInput,
+      dom2.worksheetTeacherInput,
+      dom2.worksheetSourceSelect,
+      dom2.worksheetTopicSelect,
+      dom2.worksheetCountInput,
+      dom2.worksheetDifficultySelect,
+      dom2.worksheetPointsInput,
+      dom2.worksheetSpaceType,
+      dom2.worksheetSolutionsSelect,
+      dom2.worksheetRandomizeTargets,
+      dom2.worksheetReqConditions
+    ];
+    inputsToWatch.forEach((elem) => {
+      if (elem) {
+        elem.addEventListener("change", () => refreshWorksheetPreview(dom2, state2));
+        if (elem.tagName === "INPUT" && elem.type === "text") {
+          elem.addEventListener("input", () => refreshWorksheetPreview(dom2, state2));
+        }
+      }
+    });
+    if (dom2.btnTabPreviewHtml && dom2.btnTabPreviewLatex) {
+      dom2.btnTabPreviewHtml.addEventListener("click", () => {
+        dom2.btnTabPreviewHtml.classList.add("active");
+        dom2.btnTabPreviewLatex.classList.remove("active");
+        if (dom2.worksheetHtmlPreview) dom2.worksheetHtmlPreview.hidden = false;
+        if (dom2.worksheetLatexCode) dom2.worksheetLatexCode.hidden = true;
+      });
+      dom2.btnTabPreviewLatex.addEventListener("click", () => {
+        dom2.btnTabPreviewLatex.classList.add("active");
+        dom2.btnTabPreviewHtml.classList.remove("active");
+        if (dom2.worksheetHtmlPreview) dom2.worksheetHtmlPreview.hidden = true;
+        if (dom2.worksheetLatexCode) dom2.worksheetLatexCode.hidden = false;
+      });
+    }
+    if (dom2.btnPrintWorksheet) {
+      dom2.btnPrintWorksheet.addEventListener("click", () => {
+        const printWin = window.open("", "_blank");
+        if (printWin) {
+          printWin.document.open();
+          printWin.document.write(activeHtmlContent);
+          printWin.document.close();
+          printWin.focus();
+          setTimeout(() => {
+            printWin.print();
+          }, 350);
+        } else {
+          alert("Consenti i popup nel browser per aprire l'anteprima di stampa PDF.");
+        }
+      });
+    }
+    if (dom2.btnDownloadLatex) {
+      dom2.btnDownloadLatex.addEventListener("click", () => {
+        const filename = `scheda-formule-inverse-${Date.now()}.tex`;
+        downloadWorksheetFile(filename, activeLatexContent, "text/x-tex;charset=utf-8");
+      });
+    }
+    if (dom2.btnCopyLatex) {
+      dom2.btnCopyLatex.addEventListener("click", () => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(activeLatexContent).then(() => {
+            const orig = dom2.btnCopyLatex.textContent;
+            dom2.btnCopyLatex.textContent = "\u2713 Codice LaTeX Copiato!";
+            setTimeout(() => {
+              dom2.btnCopyLatex.textContent = orig;
+            }, 2e3);
+          });
+        }
+      });
+    }
+    if (dom2.btnDownloadHtml) {
+      dom2.btnDownloadHtml.addEventListener("click", () => {
+        const filename = `scheda-formule-inverse-${Date.now()}.html`;
+        downloadWorksheetFile(filename, activeHtmlContent, "text/html;charset=utf-8");
+      });
+    }
+  }
+
   // js/app.js
   var state = {
     baseFormula: null,
@@ -8223,6 +9225,7 @@
     btnCommonDenom: $("#btn-common-denom"),
     btnChangeSign: $("#btn-change-sign"),
     btnCross: $("#btn-cross"),
+    btnExportWorksheet: $("#btn-export-worksheet"),
     compoundFractionBanner: $("#compound-fraction-banner"),
     compoundFractionTitle: $("#compound-fraction-title"),
     compoundFractionStepBadge: $("#compound-fraction-step-badge"),
@@ -8308,7 +9311,39 @@
     calcFinalUnit: $("#calc-final-unit"),
     btnCopyCalcResult: $("#btn-copy-calc-result"),
     calcErrorNotice: $("#calc-error-notice"),
-    mobileNavBar: $("#mobile-nav-bar")
+    mobileNavBar: $("#mobile-nav-bar"),
+    // --- Esportatore Schede Didattiche e Verifiche Docenti ---
+    worksheetModalBackdrop: $("#worksheet-modal-backdrop"),
+    worksheetModalTitle: $("#worksheet-modal-title"),
+    btnCloseWorksheetModal: $("#btn-close-worksheet-modal"),
+    worksheetDocType: $("#worksheet-doc-type"),
+    worksheetTitleInput: $("#worksheet-title-input"),
+    worksheetSchoolInput: $("#worksheet-school-input"),
+    worksheetSubjectInput: $("#worksheet-subject-input"),
+    worksheetClassInput: $("#worksheet-class-input"),
+    worksheetTeacherInput: $("#worksheet-teacher-input"),
+    worksheetSourceSelect: $("#worksheet-source-select"),
+    worksheetTopicGroup: $("#worksheet-topic-group"),
+    worksheetTopicSelect: $("#worksheet-topic-select"),
+    worksheetCountInput: $("#worksheet-count-input"),
+    worksheetDifficultySelect: $("#worksheet-difficulty-select"),
+    worksheetPointsInput: $("#worksheet-points-input"),
+    worksheetRandomizeTargets: $("#worksheet-randomize-targets"),
+    worksheetReqConditions: $("#worksheet-req-conditions"),
+    worksheetSpaceType: $("#worksheet-space-type"),
+    worksheetSolutionsSelect: $("#worksheet-solutions-select"),
+    worksheetSummaryCount: $("#worksheet-summary-count"),
+    worksheetSummaryPoints: $("#worksheet-summary-points"),
+    worksheetSelectedList: $("#worksheet-selected-list"),
+    btnTabPreviewHtml: $("#btn-tab-preview-html"),
+    btnTabPreviewLatex: $("#btn-tab-preview-latex"),
+    worksheetHtmlPreview: $("#worksheet-html-preview"),
+    worksheetLatexCode: $("#worksheet-latex-code"),
+    btnPrintWorksheet: $("#btn-print-worksheet"),
+    btnDownloadLatex: $("#btn-download-latex"),
+    btnCopyLatex: $("#btn-copy-latex"),
+    btnDownloadHtml: $("#btn-download-html"),
+    btnCloseWorksheet: $("#btn-close-worksheet")
   };
   function init() {
     initTheme();
@@ -8327,6 +9362,7 @@
     initDragArrow();
     initPwa();
     initMobileNav();
+    initWorksheetExporter(dom, state);
     loadFormula(getFormulaById("v-st"), "t");
   }
   var deferredInstallPrompt = null;
@@ -8462,14 +9498,14 @@
       try {
         mathHtml = renderEquation(parseFormulaCached(f.formula), {});
       } catch (e) {
-        mathHtml = escapeHtml2(f.formula);
+        mathHtml = escapeHtml3(f.formula);
       }
       card.innerHTML = `
       <div class="formula-card-head">
-        <span class="formula-topic">${escapeHtml2(f.topic)}</span>
+        <span class="formula-topic">${escapeHtml3(f.topic)}</span>
         <span class="formula-diff" title="Difficolt\xE0 ${f.difficulty}/5">${dif}</span>
       </div>
-      <div class="formula-name">${escapeHtml2(f.name)}</div>
+      <div class="formula-name">${escapeHtml3(f.name)}</div>
       <div class="formula-math">${mathHtml}</div>
       <div class="formula-isolate">
         <span class="isolate-label">Scegli cosa ricavare:</span>
@@ -8521,7 +9557,7 @@
       const btn = document.createElement("button");
       btn.className = "pick-target-btn";
       btn.type = "button";
-      btn.innerHTML = `<span>${escapeHtml2(prettyVar(v))}</span><small>ricava ${escapeHtml2(prettyVar(v))}</small>`;
+      btn.innerHTML = `<span>${escapeHtml3(prettyVar(v))}</span><small>ricava ${escapeHtml3(prettyVar(v))}</small>`;
       btn.addEventListener("click", () => {
         dom.pickTargetBackdrop.hidden = true;
         loadFormula(formulaEntry, v);
@@ -9818,7 +10854,7 @@
       return;
     }
     dom.conditionsBox.hidden = false;
-    dom.conditionsList.innerHTML = state.conditions.map((c) => `<li>${escapeHtml2(c)}</li>`).join("");
+    dom.conditionsList.innerHTML = state.conditions.map((c) => `<li>${escapeHtml3(c)}</li>`).join("");
   }
   function selectElement(id) {
     if (!state.currentEq) return;
@@ -9851,8 +10887,8 @@
       const btn = document.createElement("button");
       btn.className = "action-btn";
       btn.type = "button";
-      btn.innerHTML = `<span class="action-label">${escapeHtml2(action.label)}</span>
-      <span class="action-desc">${escapeHtml2(action.description || "")}</span>`;
+      btn.innerHTML = `<span class="action-label">${escapeHtml3(action.label)}</span>
+      <span class="action-desc">${escapeHtml3(action.description || "")}</span>`;
       btn.addEventListener("click", () => previewAction(action));
       dom.actionButtons.appendChild(btn);
     }
@@ -9907,7 +10943,7 @@
   }
   function showPreview(action, res) {
     dom.previewBox.hidden = false;
-    dom.previewText.innerHTML = `Anteprima: <span class="preview-eq">${escapeHtml2(toPretty(res.equation, 0))}</span> \u2014 regola: <em>${escapeHtml2(action.label)}</em>`;
+    dom.previewText.innerHTML = `Anteprima: <span class="preview-eq">${escapeHtml3(toPretty(res.equation, 0))}</span> \u2014 regola: <em>${escapeHtml3(action.label)}</em>`;
     dom.btnConfirm.focus();
   }
   function clearPreview() {
@@ -10088,36 +11124,36 @@
   }
   function showRulePanel(rule, result, afterEq) {
     const ex = rule ? getExplanation(rule.explanation) : null;
-    let html = `<div class="rule-name">\u{1F4DC} ${escapeHtml2(rule ? rule.name : "Trasformazione")}</div>`;
+    let html = `<div class="rule-name">\u{1F4DC} ${escapeHtml3(rule ? rule.name : "Trasformazione")}</div>`;
     if (ex) {
-      html += `<div class="rule-section"><strong>\u{1F4A1} Spiegazione intuitiva</strong><p>${escapeHtml2(ex.intuitiva)}</p></div>`;
-      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio di equivalenza</strong><p>${escapeHtml2(ex.principio)}</p></div>`;
-      html += `<div class="rule-section"><strong>\u{1F3AF} Perch\xE9 \xE8 corretta</strong><p>${escapeHtml2(ex.perche)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u{1F4A1} Spiegazione intuitiva</strong><p>${escapeHtml3(ex.intuitiva)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio di equivalenza</strong><p>${escapeHtml3(ex.principio)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u{1F3AF} Perch\xE9 \xE8 corretta</strong><p>${escapeHtml3(ex.perche)}</p></div>`;
     } else if (rule && rule.principle) {
-      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio matematico</strong><p>${escapeHtml2(rule.principle)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio matematico</strong><p>${escapeHtml3(rule.principle)}</p></div>`;
     }
     if (result.steps && result.steps.length) {
-      html += `<div class="rule-section"><strong>\u2699\uFE0F Operazione svolta</strong><ul class="steps-list">${result.steps.map((s) => `<li>${escapeHtml2(s)}</li>`).join("")}</ul></div>`;
+      html += `<div class="rule-section"><strong>\u2699\uFE0F Operazione svolta</strong><ul class="steps-list">${result.steps.map((s) => `<li>${escapeHtml3(s)}</li>`).join("")}</ul></div>`;
     }
     html += `<div class="rule-section rule-eq"><strong>\u{1F4D0} Equazione dopo</strong><div class="rule-math">${renderEquation(afterEq, {})}</div></div>`;
     if (result.conditions && result.conditions.length) {
-      html += `<div class="rule-section conditions"><strong>\u{1F50D} Condizioni di validit\xE0 richieste</strong><ul>${result.conditions.map((c) => `<li>${escapeHtml2(c)}</li>`).join("")}</ul></div>`;
+      html += `<div class="rule-section conditions"><strong>\u{1F50D} Condizioni di validit\xE0 richieste</strong><ul>${result.conditions.map((c) => `<li>${escapeHtml3(c)}</li>`).join("")}</ul></div>`;
     }
     if (ex && ex.attenzione && ex.attenzione.length) {
-      html += `<div class="rule-section warning"><strong>\u26A0\uFE0F Attenzione</strong><ul>${ex.attenzione.map((c) => `<li>${escapeHtml2(c)}</li>`).join("")}</ul></div>`;
+      html += `<div class="rule-section warning"><strong>\u26A0\uFE0F Attenzione</strong><ul>${ex.attenzione.map((c) => `<li>${escapeHtml3(c)}</li>`).join("")}</ul></div>`;
     }
     if (result.note) {
-      html += `<div class="rule-section warning"><p>${escapeHtml2(result.note)}</p></div>`;
+      html += `<div class="rule-section warning"><p>${escapeHtml3(result.note)}</p></div>`;
     }
     dom.rulePanel.innerHTML = html;
   }
   function updateRulePanelInitial(formulaEntry) {
     dom.rulePanel.innerHTML = `
     <div class="rule-name">Formula di partenza</div>
-    <div class="rule-section"><strong>${escapeHtml2(formulaEntry.name)}</strong>
+    <div class="rule-section"><strong>${escapeHtml3(formulaEntry.name)}</strong>
       <div class="rule-math">${renderEquation(state.startEq, {})}</div></div>
-    ${formulaEntry.notes ? `<div class="rule-section"><p>${escapeHtml2(formulaEntry.notes)}</p></div>` : ""}
-    ${formulaEntry.hypotheses ? `<div class="rule-section"><strong>Ipotesi</strong><p>${escapeHtml2(formulaEntry.hypotheses)}</p></div>` : ""}
+    ${formulaEntry.notes ? `<div class="rule-section"><p>${escapeHtml3(formulaEntry.notes)}</p></div>` : ""}
+    ${formulaEntry.hypotheses ? `<div class="rule-section"><strong>Ipotesi</strong><p>${escapeHtml3(formulaEntry.hypotheses)}</p></div>` : ""}
     <div class="rule-section"><p>Seleziona un elemento nell'area di lavoro per iniziare a ricavare la formula inversa.</p></div>
   `;
   }
@@ -10363,11 +11399,11 @@
       item.innerHTML = `
       <div class="calc-input-meta">
         <span class="calc-input-symbol">${prettyVar(v)}</span>
-        <span class="calc-input-label" title="${escapeHtml2(qInfo.name)}">${escapeHtml2(qInfo.name)}</span>
+        <span class="calc-input-label" title="${escapeHtml3(qInfo.name)}">${escapeHtml3(qInfo.name)}</span>
       </div>
       <div class="calc-input-row">
-        <input type="number" step="any" class="calc-num-input" data-var="${escapeHtml2(v)}" placeholder="0" />
-        <span class="calc-unit-badge">${escapeHtml2(qInfo.unit)}</span>
+        <input type="number" step="any" class="calc-num-input" data-var="${escapeHtml3(v)}" placeholder="0" />
+        <span class="calc-unit-badge">${escapeHtml3(qInfo.unit)}</span>
       </div>
     `;
       const input = item.querySelector(".calc-num-input");
@@ -10494,11 +11530,11 @@
       if (i > state.historyIndex) li.classList.add("future");
       li.innerHTML = `
       <div class="history-head">
-        <span class="history-step">${h.failed ? "\u2717" : i === 0 ? "0" : i}</span> <span class="history-rule">${escapeHtml2(h.ruleName)}</span>
+        <span class="history-step">${h.failed ? "\u2717" : i === 0 ? "0" : i}</span> <span class="history-rule">${escapeHtml3(h.ruleName)}</span>
       </div>
       <div class="history-eq">${renderEquation(h.equation, {})}</div>
-      ${h.conditions && h.conditions.length ? `<div class="history-cond">Condizioni: ${h.conditions.map(escapeHtml2).join("; ")}</div>` : ""}
-      ${h.note ? `<div class="history-note">${escapeHtml2(h.note)}</div>` : ""}
+      ${h.conditions && h.conditions.length ? `<div class="history-cond">Condizioni: ${h.conditions.map(escapeHtml3).join("; ")}</div>` : ""}
+      ${h.note ? `<div class="history-note">${escapeHtml3(h.note)}</div>` : ""}
       <div class="history-status">${h.verified ? "\u2713 controllo matematico superato" : "\u2717 mossa rifiutata"}</div>
     `;
       li.addEventListener("click", () => goToHistory(i));
@@ -10953,15 +11989,15 @@
     if (!dom.actionButtons) return;
     dom.actionButtons.innerHTML = "";
     if (!sug.found) {
-      dom.actionButtons.innerHTML = `<p class="placeholder small">${escapeHtml2(sug.message || "Nessuna sequenza automatica diretta trovata per questa formula.")}</p>`;
+      dom.actionButtons.innerHTML = `<p class="placeholder small">${escapeHtml3(sug.message || "Nessuna sequenza automatica diretta trovata per questa formula.")}</p>`;
       return;
     }
     const nextBtn = document.createElement("button");
     nextBtn.className = "action-btn auto-step-btn";
     nextBtn.type = "button";
     nextBtn.innerHTML = `
-    <span class="action-label">\u{1F5B1}\uFE0F Fai clic per eseguire: ${escapeHtml2(sug.action.label)}</span>
-    <span class="action-desc"><strong>Giustificazione della regola:</strong> ${escapeHtml2(sug.reason || sug.action.description || "")}</span>
+    <span class="action-label">\u{1F5B1}\uFE0F Fai clic per eseguire: ${escapeHtml3(sug.action.label)}</span>
+    <span class="action-desc"><strong>Giustificazione della regola:</strong> ${escapeHtml3(sug.reason || sug.action.description || "")}</span>
   `;
     nextBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -10978,8 +12014,8 @@
           <li class="roadmap-item ${idx === 0 ? "roadmap-current" : ""}">
             <span class="roadmap-step-num">${idx + 1}</span>
             <div class="roadmap-step-content">
-              <strong>${escapeHtml2(s.action.label)}</strong>
-              <p>${escapeHtml2(s.reason || s.action.description || "")}</p>
+              <strong>${escapeHtml3(s.action.label)}</strong>
+              <p>${escapeHtml3(s.reason || s.action.description || "")}</p>
             </div>
           </li>
         `).join("")}
@@ -11099,6 +12135,10 @@
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
+        if (dom.worksheetModalBackdrop && !dom.worksheetModalBackdrop.hidden) {
+          dom.worksheetModalBackdrop.hidden = true;
+          return;
+        }
         if (!dom.modalBackdrop.hidden) {
           dom.modalBackdrop.hidden = true;
           return;
@@ -11427,9 +12467,9 @@ ${lines.join(" \\\\\n")}
       try {
         mathHtml = renderEquation(parseEquation(syntax), {});
       } catch (e) {
-        mathHtml = escapeHtml2(syntax);
+        mathHtml = escapeHtml3(syntax);
       }
-      dom.latexPreview.innerHTML = `<span class="conv-label">Sintassi per l'editor</span><div class="conv-code">` + escapeHtml2(syntax) + '</div><span class="conv-label" style="margin-top:.5rem">Anteprima</span><div class="latex-math-preview">' + mathHtml + "</div>";
+      dom.latexPreview.innerHTML = `<span class="conv-label">Sintassi per l'editor</span><div class="conv-code">` + escapeHtml3(syntax) + '</div><span class="conv-label" style="margin-top:.5rem">Anteprima</span><div class="latex-math-preview">' + mathHtml + "</div>";
     }
     return syntax;
   }
@@ -11537,14 +12577,14 @@ ${lines.join(" \\\\\n")}
       try {
         mathHtml = renderEquation(parseEquation(f.formula), {});
       } catch (e) {
-        mathHtml = escapeHtml2(f.formula);
+        mathHtml = escapeHtml3(f.formula);
       }
       card.innerHTML = `
       <div class="formula-card-head">
-        <span class="formula-topic">${escapeHtml2(f.topic || "Le mie formule")}</span>
+        <span class="formula-topic">${escapeHtml3(f.topic || "Le mie formule")}</span>
         <button class="icon-btn" type="button" title="Elimina" aria-label="Elimina formula">\u2715</button>
       </div>
-      <div class="formula-name">${escapeHtml2(f.name)}</div>
+      <div class="formula-name">${escapeHtml3(f.name)}</div>
       <div class="formula-math">${mathHtml}</div>
       ${f.isolate && f.isolate.length ? `<div class="formula-isolate">Isola: ${f.isolate.map((v) => prettyVar(v)).join(", ")}</div>` : ""}
     `;
@@ -11637,7 +12677,7 @@ ${lines.join(" \\\\\n")}
     renderMyFormulas();
     showMessage("Archivio svuotato.", "info");
   }
-  function escapeHtml2(s) {
+  function escapeHtml3(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   }
   if (document.readyState === "loading") {
