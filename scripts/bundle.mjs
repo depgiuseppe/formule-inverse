@@ -22,7 +22,7 @@ try {
   process.exit(1);
 }
 
-console.log('3/3 Compilazione bundle standalone...');
+console.log('3/3 Compilazione bundle standalone da architettura modulare ES (app.js + ui-canvas.js, ui-numpad.js, ui-history.js, ui-modals.js)...');
 try {
   execSync('npx -y esbuild js/app.js --bundle --outfile=js/bundle.js --format=iife', {
     cwd: root,

@@ -1789,10 +1789,10 @@
     principle: "Se A = B allora A + C = B + C.",
     explanation: "add-both",
     canAdd: (expr) => true,
-    apply(eq, ctx) {
-      const c = ctx.value;
+    apply(eq, ctx5) {
+      const c = ctx5.value;
       const newEq = bothSides(eq, (side) => simplify(Add(side, c)));
-      return { equation: newEq, conditions: [], steps: [`Aggiungo ${ctx.valueText} a entrambi i membri.`] };
+      return { equation: newEq, conditions: [], steps: [`Aggiungo ${ctx5.valueText} a entrambi i membri.`] };
     }
   };
   var ruleSubBothSides = {
@@ -1800,10 +1800,10 @@
     name: "Sottrazione della stessa quantit\xE0 da entrambi i membri (primo principio di equivalenza)",
     principle: "Se A = B allora A \u2212 C = B \u2212 C.",
     explanation: "sub-both",
-    apply(eq, ctx) {
-      const c = ctx.value;
+    apply(eq, ctx5) {
+      const c = ctx5.value;
       const newEq = bothSides(eq, (side) => simplify(Sub(side, c)));
-      return { equation: newEq, conditions: [], steps: [`Sottraggo ${ctx.valueText} da entrambi i membri.`] };
+      return { equation: newEq, conditions: [], steps: [`Sottraggo ${ctx5.valueText} da entrambi i membri.`] };
     }
   };
   var ruleMulBothSides = {
@@ -1811,8 +1811,8 @@
     name: "Moltiplicazione di entrambi i membri per la stessa quantit\xE0 (secondo principio di equivalenza)",
     principle: "Se A = B allora A\xB7C = B\xB7C.",
     explanation: "mul-both",
-    apply(eq, ctx) {
-      const c = ctx.value;
+    apply(eq, ctx5) {
+      const c = ctx5.value;
       if (unwrap(c).type === "Num" && unwrap(c).value === 0) {
         throw new RuleError(
           "Moltiplicare entrambi i membri per 0 \xE8 lecito ma distrugge l'informazione (0 = 0): non \xE8 una trasformazione utile.",
@@ -1820,7 +1820,7 @@
         );
       }
       const newEq = bothSides(eq, (side) => simplify(Mul(side, c)));
-      return { equation: newEq, conditions: [], steps: [`Moltiplico entrambi i membri per ${ctx.valueText}.`] };
+      return { equation: newEq, conditions: [], steps: [`Moltiplico entrambi i membri per ${ctx5.valueText}.`] };
     }
   };
   var ruleDivBothSides = {
@@ -1828,8 +1828,8 @@
     name: "Divisione di entrambi i membri per la stessa quantit\xE0 non nulla (secondo principio di equivalenza)",
     principle: "Se A = B e C \u2260 0 allora A/C = B/C.",
     explanation: "div-both",
-    precondition(eq, ctx) {
-      const c = ctx.value;
+    precondition(eq, ctx5) {
+      const c = ctx5.value;
       if (isIdenticallyZero(c)) {
         throw new RuleError(
           "Non si pu\xF2 dividere per una quantit\xE0 identicamente nulla: la divisione per zero non \xE8 definita.",
@@ -1839,13 +1839,13 @@
       const cond = conditionText(c, "\u2260 0");
       return { conditions: [cond] };
     },
-    apply(eq, ctx) {
-      const c = ctx.value;
+    apply(eq, ctx5) {
+      const c = ctx5.value;
       const newEq = bothSides(eq, (side) => simplify(Div(side, c)));
       return {
         equation: newEq,
         conditions: [conditionText(c, "\u2260 0")],
-        steps: [`Divido entrambi i membri per ${ctx.valueText} (con ${ctx.valueText} \u2260 0).`]
+        steps: [`Divido entrambi i membri per ${ctx5.valueText} (con ${ctx5.valueText} \u2260 0).`]
       };
     }
   };
@@ -1854,8 +1854,8 @@
     name: "Trasporto di un termine additivo con cambiamento di segno",
     principle: "Somma membro a membro lo stesso additivo opposto (primo principio di equivalenza).",
     explanation: "move-term",
-    apply(eq, ctx) {
-      const { term, side } = ctx;
+    apply(eq, ctx5) {
+      const { term, side } = ctx5;
       const from = side === "left" ? eq.left : eq.right;
       const to = side === "left" ? eq.right : eq.left;
       const fromTerms = additiveTerms(from);
@@ -1874,7 +1874,7 @@
         equation: newEq,
         conditions: [],
         steps: [
-          `Porto il termine ${ctx.termText} dall'altro membro applicando il primo principio: il termine vi compare con il segno cambiato.`
+          `Porto il termine ${ctx5.termText} dall'altro membro applicando il primo principio: il termine vi compare con il segno cambiato.`
         ]
       };
     }
@@ -1884,8 +1884,8 @@
     name: "Trasporto di un fattore (divisione di entrambi i membri per il fattore)",
     principle: "Se A = B allora A/C = B/C, purch\xE9 C \u2260 0.",
     explanation: "move-factor",
-    apply(eq, ctx) {
-      const { factor, side } = ctx;
+    apply(eq, ctx5) {
+      const { factor, side } = ctx5;
       const from = side === "left" ? eq.left : eq.right;
       const fact = unwrap(factor);
       const factList = factorsOf(from);
@@ -1908,7 +1908,7 @@
       return {
         equation: newEq,
         conditions: [cond],
-        steps: [`Divido entrambi i membri per il fattore ${ctx.factorText} (${ctx.factorText} \u2260 0).`]
+        steps: [`Divido entrambi i membri per il fattore ${ctx5.factorText} (${ctx5.factorText} \u2260 0).`]
       };
     }
   };
@@ -2075,11 +2075,11 @@
     name: "Estrazione della radice quadrata (indice pari) di entrambi i membri",
     principle: "Se x\xB2 = A con A \u2265 0 allora x = \xB1\u221AA. Una radice di indice pari richiede radicando \u2265 0 e introduce il segno \xB1.",
     explanation: "sqrt-both",
-    apply(eq, ctx) {
-      const { side } = ctx;
+    apply(eq, ctx5) {
+      const { side } = ctx5;
       const withPow = side === "left" ? eq.left : eq.right;
       const other = side === "left" ? eq.right : eq.left;
-      const found = extractEvenPower(withPow, ctx.insideVar);
+      const found = extractEvenPower(withPow, ctx5.insideVar);
       if (!found) {
         throw new RuleError(
           "La radice di indice pari si applica direttamente solo quando un membro \xE8 una potenza con esponente pari (x\xB2, x\u2074, \u2026).",
@@ -2111,11 +2111,11 @@
     name: "Estrazione di una radice di indice dispari (es. cubica) di entrambi i membri",
     principle: "Se x\u207F = A con n dispari allora x = \u207F\u221AA, ed \xE8 unica: nessuna condizione di segno e nessun \xB1.",
     explanation: "root-odd",
-    apply(eq, ctx) {
-      const { side } = ctx;
+    apply(eq, ctx5) {
+      const { side } = ctx5;
       const withPow = side === "left" ? eq.left : eq.right;
       const other = side === "left" ? eq.right : eq.left;
-      const found = extractOddPower(withPow, ctx.insideVar);
+      const found = extractOddPower(withPow, ctx5.insideVar);
       if (!found) {
         throw new RuleError(
           "La radice di indice dispari si applica direttamente solo quando un membro \xE8 una potenza con esponente dispari (x\xB3, x\u2075, \u2026).",
@@ -2140,8 +2140,8 @@
     name: "Elevazione di entrambi i membri alla stessa potenza",
     principle: "Se A = B allora A^n = B^n.",
     explanation: "pow-both",
-    apply(eq, ctx) {
-      const n = ctx.value;
+    apply(eq, ctx5) {
+      const n = ctx5.value;
       if (isIdenticallyZero(n)) {
         throw new RuleError(
           "Elevare entrambi i membri alla potenza 0 distrugge l'informazione dell'equazione (1 = 1): non \xE8 una trasformazione utile.",
@@ -2152,7 +2152,7 @@
       return {
         equation: newEq,
         conditions: [],
-        steps: [`Elevo entrambi i membri all'esponente ${ctx.valueText}.`],
+        steps: [`Elevo entrambi i membri all'esponente ${ctx5.valueText}.`],
         note: isEvenInt(n) ? "Attenzione: elevare a un esponente pari non \xE8 iniettivo e pu\xF2 introdurre soluzioni estranee: le soluzioni vanno sempre ricontrollate." : "Elevare a un esponente dispari \xE8 iniettivo: non introduce soluzioni estranee."
       };
     }
@@ -2162,8 +2162,8 @@
     name: "Propriet\xE0 distributiva del prodotto rispetto alla somma",
     principle: "a(x + b) = ax + ab.",
     explanation: "distribute",
-    apply(eq, ctx) {
-      const { side } = ctx;
+    apply(eq, ctx5) {
+      const { side } = ctx5;
       const side_expr = side === "left" ? eq.left : eq.right;
       const distributed = distribute(side_expr);
       const newEq = side === "left" ? Eq(distributed, eq.right) : Eq(eq.left, distributed);
@@ -2179,8 +2179,8 @@
     name: "Raccoglimento a fattor comune",
     principle: "ax + ab = a(x + b).",
     explanation: "factor-common",
-    apply(eq, ctx) {
-      const { side, common } = ctx;
+    apply(eq, ctx5) {
+      const { side, common } = ctx5;
       const expr = side === "left" ? eq.left : eq.right;
       const factored = factorOut(expr, common);
       if (!factored) {
@@ -2190,7 +2190,7 @@
       return {
         equation: newEq,
         conditions: [],
-        steps: [`Raccolgo il fattore comune ${ctx.commonText} tra i termini del membro.`]
+        steps: [`Raccolgo il fattore comune ${ctx5.commonText} tra i termini del membro.`]
       };
     }
   };
@@ -2199,8 +2199,8 @@
     name: "Cancellazione di un fattore comune tra frazione e prodotto",
     principle: "(a/b)\xB7b = a, purch\xE9 b \u2260 0 (semplificazione di un fattore comune)",
     explanation: "cancel-factor",
-    apply(eq, ctx) {
-      const { den, side } = ctx;
+    apply(eq, ctx5) {
+      const { den, side } = ctx5;
       const member = side === "left" ? eq.left : eq.right;
       const denNode = unwrap(den);
       const reduced = cancelFractionFactor(member, denNode);
@@ -2215,7 +2215,7 @@
         equation: simplify(newEq),
         conditions: [conditionText(denNode, "\u2260 0")],
         steps: [
-          `Semplifico il fattore ${ctx.denText} tra numeratore e denominatore della frazione (${ctx.denText} \u2260 0).`
+          `Semplifico il fattore ${ctx5.denText} tra numeratore e denominatore della frazione (${ctx5.denText} \u2260 0).`
         ]
       };
     }
@@ -2225,11 +2225,11 @@
     name: "Applicazione della funzione inversa a entrambi i membri",
     principle: "Se A = B e f \xE8 iniettiva sul ramo considerato, allora f\u207B\xB9(A) = f\u207B\xB9(B).",
     explanation: "invert-function",
-    apply(eq, ctx) {
-      const { side } = ctx;
+    apply(eq, ctx5) {
+      const { side } = ctx5;
       const withFn = unwrapNeutrals(side === "left" ? eq.left : eq.right);
       const other = unwrapNeutrals(side === "left" ? eq.right : eq.left);
-      const fnNode = ctx.fnNode ? unwrapNeutrals(ctx.fnNode) : extractFunc(withFn);
+      const fnNode = ctx5.fnNode ? unwrapNeutrals(ctx5.fnNode) : extractFunc(withFn);
       if (!fnNode) {
         throw new RuleError(
           "Nessuna funzione invertibile selezionata.",
@@ -2279,8 +2279,8 @@
     name: "Minimo comune multiplo (m.c.m.) e denominatore comune",
     principle: "Somma di frazioni mediante il minimo comune multiplo (m.c.m.) dei denominatori: A/B + C/D = (A\xB7D + B\xB7C)/(B\xB7D), e semplificazione delle frazioni composte in un'unica frazione.",
     explanation: "common-denom",
-    apply(eq, ctx = {}) {
-      const side = ctx.side || null;
+    apply(eq, ctx5 = {}) {
+      const side = ctx5.side || null;
       const res = reduceEquationToCommonDenominator(eq, side);
       if (!res.ok) {
         throw new RuleError(res.error, res.hint);
@@ -2587,15 +2587,15 @@
     invertFunction: ruleInvertFunction,
     commonDenom: ruleCommonDenominator
   };
-  function applyRule(rule, eq, ctx = {}) {
+  function applyRule(rule, eq, ctx5 = {}) {
     try {
       if (rule.precondition) {
-        const pre = rule.precondition(eq, ctx);
+        const pre = rule.precondition(eq, ctx5);
         if (pre && pre.ok === false) {
           return { ok: false, error: pre.reason, hint: pre.hint };
         }
       }
-      const res = rule.apply(eq, ctx);
+      const res = rule.apply(eq, ctx5);
       return {
         ok: true,
         equation: res.equation,
@@ -2657,18 +2657,18 @@
     walk(eq.right, "right", out, "right", { role: "membro" });
     return out;
   }
-  function walk(node, side, out, id, ctx) {
+  function walk(node, side, out, id, ctx5) {
     node = unwrap(node);
     const item = {
       id,
       side,
       node,
-      role: ctx.role,
-      parentRole: ctx.parentRole || null,
+      role: ctx5.role,
+      parentRole: ctx5.parentRole || null,
       pretty: toPretty(node, 0)
     };
     out.push(item);
-    const childCtx = (role) => ({ role, parentRole: ctx.role });
+    const childCtx = (role) => ({ role, parentRole: ctx5.role });
     switch (node.type) {
       case "Add":
       case "Sub": {
@@ -2705,7 +2705,7 @@
         break;
       }
       case "Neg": {
-        const innerRole = ctx.role === "fattore" || ctx.role === "termine" ? ctx.role : "argomento";
+        const innerRole = ctx5.role === "fattore" || ctx5.role === "termine" ? ctx5.role : "argomento";
         walk(node.arg, side, out, id + "/arg", childCtx(innerRole));
         break;
       }
@@ -2991,8 +2991,8 @@
   function performAction(eq, action, extraCtx = {}) {
     const rule = RULES[action.ruleKey];
     if (!rule) return { ok: false, error: `Regola sconosciuta: ${action.ruleKey}` };
-    const ctx = { ...action.build(extraCtx), ...extraCtx };
-    const res = applyRule(rule, eq, ctx);
+    const ctx5 = { ...action.build(extraCtx), ...extraCtx };
+    const res = applyRule(rule, eq, ctx5);
     if (!res.ok) return res;
     if (hasZeroDenominator(res.equation)) {
       return {
@@ -10224,25 +10224,25 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
   var activeWorksheetData = [];
   var activeLatexContent = "";
   var activeHtmlContent = "";
-  function refreshWorksheetPreview(dom2, state2) {
-    if (!dom2 || !dom2.worksheetModalBackdrop) return;
-    const docType = dom2.worksheetDocType ? dom2.worksheetDocType.value : "test";
-    const title = dom2.worksheetTitleInput ? dom2.worksheetTitleInput.value.trim() : "Verifica di Fisica: Formule Inverse";
-    const school = dom2.worksheetSchoolInput ? dom2.worksheetSchoolInput.value.trim() : "Istituto d'Istruzione Superiore";
-    const subject = dom2.worksheetSubjectInput ? dom2.worksheetSubjectInput.value.trim() : "Fisica";
-    const className = dom2.worksheetClassInput ? dom2.worksheetClassInput.value.trim() : "";
-    const teacher = dom2.worksheetTeacherInput ? dom2.worksheetTeacherInput.value.trim() : "";
-    const source = dom2.worksheetSourceSelect ? dom2.worksheetSourceSelect.value : "topic";
-    const topic = dom2.worksheetTopicSelect ? dom2.worksheetTopicSelect.value : "all";
-    const count = dom2.worksheetCountInput ? parseInt(dom2.worksheetCountInput.value, 10) || 5 : 5;
-    const difficulty = dom2.worksheetDifficultySelect ? dom2.worksheetDifficultySelect.value : "all";
-    const points = dom2.worksheetPointsInput ? parseFloat(dom2.worksheetPointsInput.value) || 2 : 2;
-    const spaceType = dom2.worksheetSpaceType ? dom2.worksheetSpaceType.value : "grid";
-    const solutions = dom2.worksheetSolutionsSelect ? dom2.worksheetSolutionsSelect.value : "appendix";
-    const randomizeTargets = dom2.worksheetRandomizeTargets ? dom2.worksheetRandomizeTargets.checked : true;
-    const reqConditions = dom2.worksheetReqConditions ? dom2.worksheetReqConditions.checked : true;
-    const currentFormula = state2 && state2.currentFormula ? state2.currentFormula : null;
-    const currentTarget = state2 && state2.targetVar ? state2.targetVar : null;
+  function refreshWorksheetPreview(dom6, state6) {
+    if (!dom6 || !dom6.worksheetModalBackdrop) return;
+    const docType = dom6.worksheetDocType ? dom6.worksheetDocType.value : "test";
+    const title = dom6.worksheetTitleInput ? dom6.worksheetTitleInput.value.trim() : "Verifica di Fisica: Formule Inverse";
+    const school = dom6.worksheetSchoolInput ? dom6.worksheetSchoolInput.value.trim() : "Istituto d'Istruzione Superiore";
+    const subject = dom6.worksheetSubjectInput ? dom6.worksheetSubjectInput.value.trim() : "Fisica";
+    const className = dom6.worksheetClassInput ? dom6.worksheetClassInput.value.trim() : "";
+    const teacher = dom6.worksheetTeacherInput ? dom6.worksheetTeacherInput.value.trim() : "";
+    const source = dom6.worksheetSourceSelect ? dom6.worksheetSourceSelect.value : "topic";
+    const topic = dom6.worksheetTopicSelect ? dom6.worksheetTopicSelect.value : "all";
+    const count = dom6.worksheetCountInput ? parseInt(dom6.worksheetCountInput.value, 10) || 5 : 5;
+    const difficulty = dom6.worksheetDifficultySelect ? dom6.worksheetDifficultySelect.value : "all";
+    const points = dom6.worksheetPointsInput ? parseFloat(dom6.worksheetPointsInput.value) || 2 : 2;
+    const spaceType = dom6.worksheetSpaceType ? dom6.worksheetSpaceType.value : "grid";
+    const solutions = dom6.worksheetSolutionsSelect ? dom6.worksheetSolutionsSelect.value : "appendix";
+    const randomizeTargets = dom6.worksheetRandomizeTargets ? dom6.worksheetRandomizeTargets.checked : true;
+    const reqConditions = dom6.worksheetReqConditions ? dom6.worksheetReqConditions.checked : true;
+    const currentFormula = state6 && state6.currentFormula ? state6.currentFormula : null;
+    const currentTarget = state6 && state6.targetVar ? state6.targetVar : null;
     const exercises = buildWorksheetExercises({
       source,
       topic,
@@ -10270,15 +10270,15 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     };
     activeLatexContent = generateLatexDocument(exercises, options);
     activeHtmlContent = generateHtmlWorksheet(exercises, options, true);
-    if (dom2.worksheetSummaryCount) {
-      dom2.worksheetSummaryCount.textContent = `${exercises.length} esercizi generati`;
+    if (dom6.worksheetSummaryCount) {
+      dom6.worksheetSummaryCount.textContent = `${exercises.length} esercizi generati`;
     }
-    if (dom2.worksheetSummaryPoints) {
+    if (dom6.worksheetSummaryPoints) {
       const totalPts = exercises.reduce((sum, ex) => sum + ex.points, 0);
-      dom2.worksheetSummaryPoints.textContent = `Totale: ${totalPts} pt`;
+      dom6.worksheetSummaryPoints.textContent = `Totale: ${totalPts} pt`;
     }
-    if (dom2.worksheetSelectedList) {
-      dom2.worksheetSelectedList.innerHTML = exercises.map((ex) => `
+    if (dom6.worksheetSelectedList) {
+      dom6.worksheetSelectedList.innerHTML = exercises.map((ex) => `
       <div class="worksheet-summary-item">
         <span class="summary-item-num">#${ex.index}</span>
         <div class="summary-item-info">
@@ -10289,25 +10289,25 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       </div>
     `).join("");
     }
-    if (dom2.worksheetHtmlPreview) {
-      dom2.worksheetHtmlPreview.innerHTML = generateHtmlWorksheet(exercises, options, false);
+    if (dom6.worksheetHtmlPreview) {
+      dom6.worksheetHtmlPreview.innerHTML = generateHtmlWorksheet(exercises, options, false);
     }
-    if (dom2.worksheetLatexCode) {
-      dom2.worksheetLatexCode.value = activeLatexContent;
+    if (dom6.worksheetLatexCode) {
+      dom6.worksheetLatexCode.value = activeLatexContent;
     }
   }
-  function openWorksheetModal(dom2, state2) {
-    if (!dom2 || !dom2.worksheetModalBackdrop) return;
-    dom2.worksheetModalBackdrop.hidden = false;
-    refreshWorksheetPreview(dom2, state2);
+  function openWorksheetModal(dom6, state6) {
+    if (!dom6 || !dom6.worksheetModalBackdrop) return;
+    dom6.worksheetModalBackdrop.hidden = false;
+    refreshWorksheetPreview(dom6, state6);
   }
-  function closeWorksheetModal(dom2) {
-    if (!dom2 || !dom2.worksheetModalBackdrop) return;
-    dom2.worksheetModalBackdrop.hidden = true;
+  function closeWorksheetModal(dom6) {
+    if (!dom6 || !dom6.worksheetModalBackdrop) return;
+    dom6.worksheetModalBackdrop.hidden = true;
   }
-  function initWorksheetExporter(dom2, state2) {
-    if (!dom2) return;
-    if (dom2.worksheetTopicSelect) {
+  function initWorksheetExporter(dom6, state6) {
+    if (!dom6) return;
+    if (dom6.worksheetTopicSelect) {
       const existing = /* @__PURE__ */ new Set();
       FORMULAS.forEach((f) => {
         if (f.topic && !existing.has(f.topic)) {
@@ -10315,67 +10315,67 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
           const opt = document.createElement("option");
           opt.value = f.topic;
           opt.textContent = f.topic.charAt(0).toUpperCase() + f.topic.slice(1);
-          dom2.worksheetTopicSelect.appendChild(opt);
+          dom6.worksheetTopicSelect.appendChild(opt);
         }
       });
     }
-    if (dom2.btnExportWorksheet) {
-      dom2.btnExportWorksheet.addEventListener("click", () => {
-        openWorksheetModal(dom2, state2);
+    if (dom6.btnExportWorksheet) {
+      dom6.btnExportWorksheet.addEventListener("click", () => {
+        openWorksheetModal(dom6, state6);
       });
     }
-    if (dom2.btnCloseWorksheetModal) {
-      dom2.btnCloseWorksheetModal.addEventListener("click", () => closeWorksheetModal(dom2));
+    if (dom6.btnCloseWorksheetModal) {
+      dom6.btnCloseWorksheetModal.addEventListener("click", () => closeWorksheetModal(dom6));
     }
-    if (dom2.btnCloseWorksheet) {
-      dom2.btnCloseWorksheet.addEventListener("click", () => closeWorksheetModal(dom2));
+    if (dom6.btnCloseWorksheet) {
+      dom6.btnCloseWorksheet.addEventListener("click", () => closeWorksheetModal(dom6));
     }
-    if (dom2.worksheetModalBackdrop) {
-      dom2.worksheetModalBackdrop.addEventListener("click", (e) => {
-        if (e.target === dom2.worksheetModalBackdrop) closeWorksheetModal(dom2);
+    if (dom6.worksheetModalBackdrop) {
+      dom6.worksheetModalBackdrop.addEventListener("click", (e) => {
+        if (e.target === dom6.worksheetModalBackdrop) closeWorksheetModal(dom6);
       });
     }
     const inputsToWatch = [
-      dom2.worksheetDocType,
-      dom2.worksheetTitleInput,
-      dom2.worksheetSchoolInput,
-      dom2.worksheetSubjectInput,
-      dom2.worksheetClassInput,
-      dom2.worksheetTeacherInput,
-      dom2.worksheetSourceSelect,
-      dom2.worksheetTopicSelect,
-      dom2.worksheetCountInput,
-      dom2.worksheetDifficultySelect,
-      dom2.worksheetPointsInput,
-      dom2.worksheetSpaceType,
-      dom2.worksheetSolutionsSelect,
-      dom2.worksheetRandomizeTargets,
-      dom2.worksheetReqConditions
+      dom6.worksheetDocType,
+      dom6.worksheetTitleInput,
+      dom6.worksheetSchoolInput,
+      dom6.worksheetSubjectInput,
+      dom6.worksheetClassInput,
+      dom6.worksheetTeacherInput,
+      dom6.worksheetSourceSelect,
+      dom6.worksheetTopicSelect,
+      dom6.worksheetCountInput,
+      dom6.worksheetDifficultySelect,
+      dom6.worksheetPointsInput,
+      dom6.worksheetSpaceType,
+      dom6.worksheetSolutionsSelect,
+      dom6.worksheetRandomizeTargets,
+      dom6.worksheetReqConditions
     ];
     inputsToWatch.forEach((elem) => {
       if (elem) {
-        elem.addEventListener("change", () => refreshWorksheetPreview(dom2, state2));
+        elem.addEventListener("change", () => refreshWorksheetPreview(dom6, state6));
         if (elem.tagName === "INPUT" && elem.type === "text") {
-          elem.addEventListener("input", () => refreshWorksheetPreview(dom2, state2));
+          elem.addEventListener("input", () => refreshWorksheetPreview(dom6, state6));
         }
       }
     });
-    if (dom2.btnTabPreviewHtml && dom2.btnTabPreviewLatex) {
-      dom2.btnTabPreviewHtml.addEventListener("click", () => {
-        dom2.btnTabPreviewHtml.classList.add("active");
-        dom2.btnTabPreviewLatex.classList.remove("active");
-        if (dom2.worksheetHtmlPreview) dom2.worksheetHtmlPreview.hidden = false;
-        if (dom2.worksheetLatexCode) dom2.worksheetLatexCode.hidden = true;
+    if (dom6.btnTabPreviewHtml && dom6.btnTabPreviewLatex) {
+      dom6.btnTabPreviewHtml.addEventListener("click", () => {
+        dom6.btnTabPreviewHtml.classList.add("active");
+        dom6.btnTabPreviewLatex.classList.remove("active");
+        if (dom6.worksheetHtmlPreview) dom6.worksheetHtmlPreview.hidden = false;
+        if (dom6.worksheetLatexCode) dom6.worksheetLatexCode.hidden = true;
       });
-      dom2.btnTabPreviewLatex.addEventListener("click", () => {
-        dom2.btnTabPreviewLatex.classList.add("active");
-        dom2.btnTabPreviewHtml.classList.remove("active");
-        if (dom2.worksheetHtmlPreview) dom2.worksheetHtmlPreview.hidden = true;
-        if (dom2.worksheetLatexCode) dom2.worksheetLatexCode.hidden = false;
+      dom6.btnTabPreviewLatex.addEventListener("click", () => {
+        dom6.btnTabPreviewLatex.classList.add("active");
+        dom6.btnTabPreviewHtml.classList.remove("active");
+        if (dom6.worksheetHtmlPreview) dom6.worksheetHtmlPreview.hidden = true;
+        if (dom6.worksheetLatexCode) dom6.worksheetLatexCode.hidden = false;
       });
     }
-    if (dom2.btnPrintWorksheet) {
-      dom2.btnPrintWorksheet.addEventListener("click", () => {
+    if (dom6.btnPrintWorksheet) {
+      dom6.btnPrintWorksheet.addEventListener("click", () => {
         const printWin = window.open("", "_blank");
         if (printWin) {
           printWin.document.open();
@@ -10390,27 +10390,27 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         }
       });
     }
-    if (dom2.btnDownloadLatex) {
-      dom2.btnDownloadLatex.addEventListener("click", () => {
+    if (dom6.btnDownloadLatex) {
+      dom6.btnDownloadLatex.addEventListener("click", () => {
         const filename = `scheda-formule-inverse-${Date.now()}.tex`;
         downloadWorksheetFile(filename, activeLatexContent, "text/x-tex;charset=utf-8");
       });
     }
-    if (dom2.btnCopyLatex) {
-      dom2.btnCopyLatex.addEventListener("click", () => {
+    if (dom6.btnCopyLatex) {
+      dom6.btnCopyLatex.addEventListener("click", () => {
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(activeLatexContent).then(() => {
-            const orig = dom2.btnCopyLatex.textContent;
-            dom2.btnCopyLatex.textContent = "\u2713 Codice LaTeX Copiato!";
+            const orig = dom6.btnCopyLatex.textContent;
+            dom6.btnCopyLatex.textContent = "\u2713 Codice LaTeX Copiato!";
             setTimeout(() => {
-              dom2.btnCopyLatex.textContent = orig;
+              dom6.btnCopyLatex.textContent = orig;
             }, 2e3);
           });
         }
       });
     }
-    if (dom2.btnDownloadHtml) {
-      dom2.btnDownloadHtml.addEventListener("click", () => {
+    if (dom6.btnDownloadHtml) {
+      dom6.btnDownloadHtml.addEventListener("click", () => {
         const filename = `scheda-formule-inverse-${Date.now()}.html`;
         downloadWorksheetFile(filename, activeHtmlContent, "text/html;charset=utf-8");
       });
@@ -10483,8 +10483,14 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     for (const f of FORMULAS) {
       if (topic && f.topic !== topic) continue;
       if (!f.isolate || f.isolate.length === 0) continue;
+      let eq;
+      try {
+        eq = parseEquation(f.formula);
+      } catch {
+        continue;
+      }
       for (const t of f.isolate) {
-        if (f.formula.startsWith(t + " =") || f.formula.startsWith(t + "=")) {
+        if (isGoalReached(eq, t)) {
           continue;
         }
         const diff = classifyFormulaDifficulty(f.formula, t);
@@ -10842,7 +10848,7 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       isOptimal: effResult.isOptimal
     };
   }
-  function initQuizManager(dom2, state2, handlers = {}) {
+  function initQuizManager(dom6, state6, handlers = {}) {
     let activeQuizExercise = null;
     let quizStartTime = null;
     let quizTimerInterval = null;
@@ -10850,24 +10856,24 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     let mistakesCount = 0;
     let selectedLevel = "easy";
     let selectedTopic = "";
-    if (dom2.quizTopicSelect) {
-      dom2.quizTopicSelect.innerHTML = '<option value="">Tutti gli argomenti</option>';
+    if (dom6.quizTopicSelect) {
+      dom6.quizTopicSelect.innerHTML = '<option value="">Tutti gli argomenti</option>';
       TOPICS.forEach((t) => {
         const opt = document.createElement("option");
         opt.value = t;
         opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
-        dom2.quizTopicSelect.appendChild(opt);
+        dom6.quizTopicSelect.appendChild(opt);
       });
-      dom2.quizTopicSelect.addEventListener("change", () => {
-        selectedTopic = dom2.quizTopicSelect.value;
+      dom6.quizTopicSelect.addEventListener("change", () => {
+        selectedTopic = dom6.quizTopicSelect.value;
         startNewQuizExercise();
       });
     }
     const levelBtns = [
-      { btn: dom2.quizLevelEasy, level: "easy" },
-      { btn: dom2.quizLevelMedium, level: "medium" },
-      { btn: dom2.quizLevelHard, level: "hard" },
-      { btn: dom2.quizLevelAll, level: "all" }
+      { btn: dom6.quizLevelEasy, level: "easy" },
+      { btn: dom6.quizLevelMedium, level: "medium" },
+      { btn: dom6.quizLevelHard, level: "hard" },
+      { btn: dom6.quizLevelAll, level: "all" }
     ];
     levelBtns.forEach(({ btn, level }) => {
       if (!btn) return;
@@ -10878,58 +10884,58 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         startNewQuizExercise();
       });
     });
-    if (dom2.quizBtnNew) {
-      dom2.quizBtnNew.addEventListener("click", () => startNewQuizExercise());
+    if (dom6.quizBtnNew) {
+      dom6.quizBtnNew.addEventListener("click", () => startNewQuizExercise());
     }
-    if (dom2.quizBtnDashboard) {
-      dom2.quizBtnDashboard.addEventListener("click", () => openDashboardModal());
+    if (dom6.quizBtnDashboard) {
+      dom6.quizBtnDashboard.addEventListener("click", () => openDashboardModal());
     }
-    if (dom2.btnQuizDashboard) {
-      dom2.btnQuizDashboard.addEventListener("click", () => openDashboardModal());
+    if (dom6.btnQuizDashboard) {
+      dom6.btnQuizDashboard.addEventListener("click", () => openDashboardModal());
     }
-    if (dom2.quizBtnNextExercise) {
-      dom2.quizBtnNextExercise.addEventListener("click", () => {
+    if (dom6.quizBtnNextExercise) {
+      dom6.quizBtnNextExercise.addEventListener("click", () => {
         closeCompletionModal();
         startNewQuizExercise();
       });
     }
-    if (dom2.quizBtnRetryExercise) {
-      dom2.quizBtnRetryExercise.addEventListener("click", () => {
+    if (dom6.quizBtnRetryExercise) {
+      dom6.quizBtnRetryExercise.addEventListener("click", () => {
         closeCompletionModal();
         retryCurrentQuizExercise();
       });
     }
-    if (dom2.quizBtnViewStats) {
-      dom2.quizBtnViewStats.addEventListener("click", () => {
+    if (dom6.quizBtnViewStats) {
+      dom6.quizBtnViewStats.addEventListener("click", () => {
         closeCompletionModal();
         openDashboardModal();
       });
     }
-    if (dom2.quizBtnCloseCompletion) {
-      dom2.quizBtnCloseCompletion.addEventListener("click", () => closeCompletionModal());
+    if (dom6.quizBtnCloseCompletion) {
+      dom6.quizBtnCloseCompletion.addEventListener("click", () => closeCompletionModal());
     }
-    if (dom2.quizBtnCloseDashboard) {
-      dom2.quizBtnCloseDashboard.addEventListener("click", () => closeDashboardModal());
+    if (dom6.quizBtnCloseDashboard) {
+      dom6.quizBtnCloseDashboard.addEventListener("click", () => closeDashboardModal());
     }
-    if (dom2.quizBtnCloseDashboardBottom) {
-      dom2.quizBtnCloseDashboardBottom.addEventListener("click", () => closeDashboardModal());
+    if (dom6.quizBtnCloseDashboardBottom) {
+      dom6.quizBtnCloseDashboardBottom.addEventListener("click", () => closeDashboardModal());
     }
-    if (dom2.quizBtnResetProgress) {
-      dom2.quizBtnResetProgress.addEventListener("click", () => {
+    if (dom6.quizBtnResetProgress) {
+      dom6.quizBtnResetProgress.addEventListener("click", () => {
         if (confirm("Sei sicuro di voler azzerare tutti i progressi e i badge del Quiz? Questa azione non pu\xF2 essere annullata.")) {
           resetQuizProgress();
           renderDashboardModal();
         }
       });
     }
-    if (dom2.quizCompletionModalBackdrop) {
-      dom2.quizCompletionModalBackdrop.addEventListener("click", (e) => {
-        if (e.target === dom2.quizCompletionModalBackdrop) closeCompletionModal();
+    if (dom6.quizCompletionModalBackdrop) {
+      dom6.quizCompletionModalBackdrop.addEventListener("click", (e) => {
+        if (e.target === dom6.quizCompletionModalBackdrop) closeCompletionModal();
       });
     }
-    if (dom2.quizDashboardBackdrop) {
-      dom2.quizDashboardBackdrop.addEventListener("click", (e) => {
-        if (e.target === dom2.quizDashboardBackdrop) closeDashboardModal();
+    if (dom6.quizDashboardBackdrop) {
+      dom6.quizDashboardBackdrop.addEventListener("click", (e) => {
+        if (e.target === dom6.quizDashboardBackdrop) closeDashboardModal();
       });
     }
     function startTimer() {
@@ -10945,28 +10951,28 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       }
     }
     function updateTimerDisplay() {
-      if (!dom2.quizTimer || !quizStartTime) return;
+      if (!dom6.quizTimer || !quizStartTime) return;
       const elapsed = Math.floor((Date.now() - quizStartTime) / 1e3);
       const mins = String(Math.floor(elapsed / 60)).padStart(2, "0");
       const secs = String(elapsed % 60).padStart(2, "0");
-      dom2.quizTimer.textContent = `\u23F1\uFE0F ${mins}:${secs}`;
+      dom6.quizTimer.textContent = `\u23F1\uFE0F ${mins}:${secs}`;
     }
     function updateQuizHud() {
-      if (!dom2.quizHud) return;
-      const isQuizMode = state2.mode === "quiz";
-      dom2.quizHud.hidden = !isQuizMode;
+      if (!dom6.quizHud) return;
+      const isQuizMode = state6.mode === "quiz";
+      dom6.quizHud.hidden = !isQuizMode;
       if (!isQuizMode) return;
       if (activeQuizExercise) {
         const lvlConfig = DIFFICULTY_LEVELS[activeQuizExercise.level] || DIFFICULTY_LEVELS.easy;
-        if (dom2.quizCurrentLevel) {
-          dom2.quizCurrentLevel.textContent = `Livello: ${lvlConfig.name}`;
-          dom2.quizCurrentLevel.style.borderColor = lvlConfig.color;
+        if (dom6.quizCurrentLevel) {
+          dom6.quizCurrentLevel.textContent = `Livello: ${lvlConfig.name}`;
+          dom6.quizCurrentLevel.style.borderColor = lvlConfig.color;
         }
-        if (dom2.quizMovesCount) dom2.quizMovesCount.textContent = String(performedMoves);
-        if (dom2.quizOptimalCount) dom2.quizOptimalCount.textContent = String(activeQuizExercise.optimalSteps);
+        if (dom6.quizMovesCount) dom6.quizMovesCount.textContent = String(performedMoves);
+        if (dom6.quizOptimalCount) dom6.quizOptimalCount.textContent = String(activeQuizExercise.optimalSteps);
         const eff = calculateStepEfficiency(activeQuizExercise.optimalSteps, performedMoves);
-        if (dom2.quizEfficiencyBadge) {
-          dom2.quizEfficiencyBadge.textContent = `${eff.efficiency}% ${"\u2B50".repeat(eff.stars)}`;
+        if (dom6.quizEfficiencyBadge) {
+          dom6.quizEfficiencyBadge.textContent = `${eff.efficiency}% ${"\u2B50".repeat(eff.stars)}`;
         }
       }
     }
@@ -10995,7 +11001,7 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       }
     }
     function onMoveExecuted(isValid) {
-      if (state2.mode !== "quiz") return;
+      if (state6.mode !== "quiz") return;
       if (isValid) {
         performedMoves++;
       } else {
@@ -11004,7 +11010,8 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       updateQuizHud();
     }
     function onGoalReached() {
-      if (state2.mode !== "quiz" || !activeQuizExercise) return;
+      if (state6.mode !== "quiz" || !activeQuizExercise) return;
+      if (performedMoves === 0) return;
       stopTimer();
       const elapsed = quizStartTime ? Math.floor((Date.now() - quizStartTime) / 1e3) : 0;
       const currentProgress = loadQuizProgress();
@@ -11024,19 +11031,19 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       showCompletionModal(res, exerciseDetails);
     }
     function showCompletionModal(result, details) {
-      if (!dom2.quizCompletionModalBackdrop) return;
-      if (dom2.quizCompletionStars) {
-        dom2.quizCompletionStars.textContent = "\u2B50".repeat(result.stars);
+      if (!dom6.quizCompletionModalBackdrop) return;
+      if (dom6.quizCompletionStars) {
+        dom6.quizCompletionStars.textContent = "\u2B50".repeat(result.stars);
       }
-      if (dom2.quizCompletionTitle) {
-        dom2.quizCompletionTitle.textContent = result.stars === 3 ? "\u{1F3C6} Risoluzione Perfetta!" : result.stars === 2 ? "\u{1F389} Ottimo Lavoro!" : "\u2713 Esercizio Completato!";
+      if (dom6.quizCompletionTitle) {
+        dom6.quizCompletionTitle.textContent = result.stars === 3 ? "\u{1F3C6} Risoluzione Perfetta!" : result.stars === 2 ? "\u{1F389} Ottimo Lavoro!" : "\u2713 Esercizio Completato!";
       }
-      if (dom2.quizCompletionMsg) {
+      if (dom6.quizCompletionMsg) {
         const varP = prettyVar(details.targetVar);
-        dom2.quizCompletionMsg.textContent = `Hai isolato ${varP} in ${details.formulaName}.`;
+        dom6.quizCompletionMsg.textContent = `Hai isolato ${varP} in ${details.formulaName}.`;
       }
-      if (dom2.quizCompletionStats) {
-        dom2.quizCompletionStats.innerHTML = `
+      if (dom6.quizCompletionStats) {
+        dom6.quizCompletionStats.innerHTML = `
         <div class="completion-stat-row">
           <span>Mosse eseguite:</span>
           <strong>${details.performedSteps} (su ${details.optimalSteps} ottimali)</strong>
@@ -11055,9 +11062,9 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         </div>
       `;
       }
-      if (dom2.quizCompletionBadges) {
+      if (dom6.quizCompletionBadges) {
         if (result.newlyUnlockedBadges && result.newlyUnlockedBadges.length > 0) {
-          dom2.quizCompletionBadges.hidden = false;
+          dom6.quizCompletionBadges.hidden = false;
           const badgesHtml = result.newlyUnlockedBadges.map((bId) => {
             const badgeObj = MASTERY_BADGES.find((b) => b.id === bId);
             if (!badgeObj) return "";
@@ -11071,54 +11078,54 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
             </div>
           `;
           }).join("");
-          dom2.quizCompletionBadges.innerHTML = `
+          dom6.quizCompletionBadges.innerHTML = `
           <div class="unlocked-badges-banner">
             ${badgesHtml}
           </div>
         `;
         } else {
-          dom2.quizCompletionBadges.hidden = true;
-          dom2.quizCompletionBadges.innerHTML = "";
+          dom6.quizCompletionBadges.hidden = true;
+          dom6.quizCompletionBadges.innerHTML = "";
         }
       }
-      dom2.quizCompletionModalBackdrop.hidden = false;
+      dom6.quizCompletionModalBackdrop.hidden = false;
     }
     function closeCompletionModal() {
-      if (dom2.quizCompletionModalBackdrop) {
-        dom2.quizCompletionModalBackdrop.hidden = true;
+      if (dom6.quizCompletionModalBackdrop) {
+        dom6.quizCompletionModalBackdrop.hidden = true;
       }
     }
     function openDashboardModal() {
       renderDashboardModal();
-      if (dom2.quizDashboardBackdrop) {
-        dom2.quizDashboardBackdrop.hidden = false;
+      if (dom6.quizDashboardBackdrop) {
+        dom6.quizDashboardBackdrop.hidden = false;
       }
     }
     function closeDashboardModal() {
-      if (dom2.quizDashboardBackdrop) {
-        dom2.quizDashboardBackdrop.hidden = true;
+      if (dom6.quizDashboardBackdrop) {
+        dom6.quizDashboardBackdrop.hidden = true;
       }
     }
     function renderDashboardModal() {
       const progress = loadQuizProgress();
       const rank = getPlayerRank(progress.points);
-      if (dom2.quizRankTitle) dom2.quizRankTitle.textContent = rank.title;
-      if (dom2.quizRankLevel) dom2.quizRankLevel.textContent = `Livello ${rank.level}`;
-      if (dom2.quizRankAvatar) dom2.quizRankAvatar.textContent = rank.avatar;
-      if (dom2.quizXpText) dom2.quizXpText.textContent = `${rank.currentXp} XP`;
-      if (dom2.quizXpBar) dom2.quizXpBar.style.width = `${rank.progressPercent}%`;
-      if (dom2.quizStatTotal) dom2.quizStatTotal.textContent = String(progress.totalSolved || 0);
-      if (dom2.quizStatEasy) dom2.quizStatEasy.textContent = String(progress.solvedByLevel && progress.solvedByLevel.easy || 0);
-      if (dom2.quizStatMedium) dom2.quizStatMedium.textContent = String(progress.solvedByLevel && progress.solvedByLevel.medium || 0);
-      if (dom2.quizStatHard) dom2.quizStatHard.textContent = String(progress.solvedByLevel && progress.solvedByLevel.hard || 0);
-      if (dom2.quizStatEfficiency) dom2.quizStatEfficiency.textContent = `${progress.averageEfficiency || 100}%`;
-      if (dom2.quizStatStreak) dom2.quizStatStreak.textContent = `${progress.bestStreak || 0} \u{1F525}`;
-      if (dom2.quizBadgesGrid) {
+      if (dom6.quizRankTitle) dom6.quizRankTitle.textContent = rank.title;
+      if (dom6.quizRankLevel) dom6.quizRankLevel.textContent = `Livello ${rank.level}`;
+      if (dom6.quizRankAvatar) dom6.quizRankAvatar.textContent = rank.avatar;
+      if (dom6.quizXpText) dom6.quizXpText.textContent = `${rank.currentXp} XP`;
+      if (dom6.quizXpBar) dom6.quizXpBar.style.width = `${rank.progressPercent}%`;
+      if (dom6.quizStatTotal) dom6.quizStatTotal.textContent = String(progress.totalSolved || 0);
+      if (dom6.quizStatEasy) dom6.quizStatEasy.textContent = String(progress.solvedByLevel && progress.solvedByLevel.easy || 0);
+      if (dom6.quizStatMedium) dom6.quizStatMedium.textContent = String(progress.solvedByLevel && progress.solvedByLevel.medium || 0);
+      if (dom6.quizStatHard) dom6.quizStatHard.textContent = String(progress.solvedByLevel && progress.solvedByLevel.hard || 0);
+      if (dom6.quizStatEfficiency) dom6.quizStatEfficiency.textContent = `${progress.averageEfficiency || 100}%`;
+      if (dom6.quizStatStreak) dom6.quizStatStreak.textContent = `${progress.bestStreak || 0} \u{1F525}`;
+      if (dom6.quizBadgesGrid) {
         const unlockedCount = Object.values(progress.badges || {}).filter((b) => b && b.unlocked).length;
-        if (dom2.quizBadgesCountBadge) {
-          dom2.quizBadgesCountBadge.textContent = `${unlockedCount} / ${MASTERY_BADGES.length} Sbloccati`;
+        if (dom6.quizBadgesCountBadge) {
+          dom6.quizBadgesCountBadge.textContent = `${unlockedCount} / ${MASTERY_BADGES.length} Sbloccati`;
         }
-        dom2.quizBadgesGrid.innerHTML = MASTERY_BADGES.map((b) => {
+        dom6.quizBadgesGrid.innerHTML = MASTERY_BADGES.map((b) => {
           const isUnlocked = progress.badges && progress.badges[b.id] && progress.badges[b.id].unlocked;
           const cls = isUnlocked ? "quiz-badge-card unlocked" : "quiz-badge-card locked";
           const dateStr = isUnlocked && progress.badges[b.id].unlockedAt ? new Date(progress.badges[b.id].unlockedAt).toLocaleDateString("it-IT") : "Bloccato";
@@ -11134,11 +11141,11 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         `;
         }).join("");
       }
-      if (dom2.quizHistoryList) {
+      if (dom6.quizHistoryList) {
         if (!progress.recentHistory || progress.recentHistory.length === 0) {
-          dom2.quizHistoryList.innerHTML = '<li class="history-empty">Nessun esercizio completato finora.</li>';
+          dom6.quizHistoryList.innerHTML = '<li class="history-empty">Nessun esercizio completato finora.</li>';
         } else {
-          dom2.quizHistoryList.innerHTML = progress.recentHistory.map((h) => {
+          dom6.quizHistoryList.innerHTML = progress.recentHistory.map((h) => {
             const starsStr = "\u2B50".repeat(h.stars);
             return `
             <li class="quiz-history-item">
@@ -11186,8 +11193,2144 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     };
   }
 
+  // js/ui-history.js
+  var dom = null;
+  var state = null;
+  var ctx = null;
+  function escapeHtml3(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    })[c]);
+  }
+  function escapeLatexComment(s) {
+    return (s || "").replace(/([&%$#_{}~^\\])/g, "\\$1");
+  }
+  function initHistory(domRefs, appState, appCtx) {
+    dom = domRefs;
+    state = appState;
+    ctx = appCtx;
+    bindHistoryEvents();
+  }
+  function bindHistoryEvents() {
+    if (dom.btnUndo) dom.btnUndo.addEventListener("click", undo);
+    if (dom.btnRedo) dom.btnRedo.addEventListener("click", redo);
+    if (dom.btnReset) dom.btnReset.addEventListener("click", resetExercise);
+    if (dom.btnCopySteps) dom.btnCopySteps.addEventListener("click", copyStepsText);
+    if (dom.btnCopyStepsLatex) dom.btnCopyStepsLatex.addEventListener("click", copyStepsLatex);
+  }
+  function pushHistory(entry, isInitial = false, isFailed = false) {
+    if (!state) return;
+    if (!isInitial && state.historyIndex < state.history.length - 1) {
+      state.history = state.history.slice(0, state.historyIndex + 1);
+    }
+    entry.timestamp = Date.now();
+    entry.failed = !!isFailed;
+    state.history.push(entry);
+    state.historyIndex = state.history.length - 1;
+    renderHistory();
+    updateHistoryButtons();
+    if (!isInitial && state.quizManager) {
+      state.quizManager.onMoveExecuted(!isFailed);
+    }
+  }
+  function renderHistory() {
+    if (!dom || !dom.historyList || !state) return;
+    if (state.history.length === 0) {
+      dom.historyList.innerHTML = '<li class="history-empty">Nessun passaggio registrato.</li>';
+      return;
+    }
+    dom.historyList.innerHTML = "";
+    state.history.forEach((h, i) => {
+      const li = document.createElement("li");
+      li.className = "history-item";
+      if (i === state.historyIndex) li.classList.add("current");
+      if (h.failed) li.classList.add("failed");
+      if (i > state.historyIndex) li.classList.add("future");
+      li.innerHTML = `
+      <div class="history-head">
+        <span class="history-step">${h.failed ? "\u2717" : i === 0 ? "0" : i}</span> <span class="history-rule">${escapeHtml3(h.ruleName)}</span>
+      </div>
+      <div class="history-eq">${renderEquation(h.equation, {})}</div>
+      ${h.conditions && h.conditions.length ? `<div class="history-cond">Condizioni: ${h.conditions.map(escapeHtml3).join("; ")}</div>` : ""}
+      ${h.note ? `<div class="history-note">${escapeHtml3(h.note)}</div>` : ""}
+      <div class="history-status">${h.verified ? "\u2713 controllo matematico superato" : "\u2717 mossa rifiutata"}</div>
+    `;
+      li.addEventListener("click", () => goToHistory(i));
+      li.tabIndex = 0;
+      li.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") goToHistory(i);
+      });
+      dom.historyList.appendChild(li);
+    });
+    const cur = dom.historyList.querySelector(".current");
+    if (cur && dom.historyList) {
+      const top = cur.offsetTop - dom.historyList.offsetTop;
+      dom.historyList.scrollTop = Math.max(0, top);
+    }
+  }
+  function goToHistory(i) {
+    if (ctx && ctx.cancelCompoundFractionAnimation) ctx.cancelCompoundFractionAnimation();
+    if (i < 0 || i >= state.history.length) return;
+    if (state.history[i].failed) {
+      if (ctx && ctx.showMessage) ctx.showMessage("Questo \xE8 un tentativo non valido: l'equazione non \xE8 cambiata.", "info");
+      return;
+    }
+    state.historyIndex = i;
+    state.currentEq = clone(state.history[i].equation);
+    state.conditions = collectConditionsUpTo(i);
+    state.selectedId = null;
+    if (ctx && ctx.clearPreview) ctx.clearPreview();
+    if (ctx && ctx.updateObjective) ctx.updateObjective();
+    if (ctx && ctx.renderEquationView) ctx.renderEquationView();
+    renderHistory();
+    updateHistoryButtons();
+    if (i > 0) {
+      const h = state.history[i];
+      const rule = h.ruleId ? Object.values(RULES).find((r) => r.id === h.ruleId) : null;
+      if (ctx && ctx.showRulePanel) {
+        ctx.showRulePanel(rule || { name: h.ruleName, principle: h.rulePrinciple }, { steps: h.steps, conditions: h.conditions, note: h.note }, state.currentEq);
+      }
+    } else {
+      if (ctx && ctx.updateRulePanelInitial) ctx.updateRulePanelInitial(state.baseFormula);
+    }
+  }
+  function collectConditionsUpTo(i) {
+    const set = new Set(state.baseFormula && state.baseFormula.conditions ? state.baseFormula.conditions : []);
+    for (let k = 0; k <= i; k++) {
+      if (state.history[k].failed) continue;
+      for (const c of state.history[k].conditions || []) set.add(c);
+    }
+    return Array.from(set);
+  }
+  function undo() {
+    if (!state) return;
+    let i = state.historyIndex - 1;
+    while (i >= 0 && state.history[i].failed) i--;
+    if (i < 0) {
+      if (ctx && ctx.showMessage) ctx.showMessage("Non ci sono trasformazioni da annullare.", "info");
+      return;
+    }
+    goToHistory(i);
+  }
+  function redo() {
+    if (!state) return;
+    let i = state.historyIndex + 1;
+    while (i < state.history.length && state.history[i].failed) i++;
+    if (i >= state.history.length) {
+      if (ctx && ctx.showMessage) ctx.showMessage("Non ci sono trasformazioni da ripristinare.", "info");
+      return;
+    }
+    goToHistory(i);
+  }
+  function resetExercise() {
+    if (ctx && ctx.cancelCompoundFractionAnimation) ctx.cancelCompoundFractionAnimation();
+    if (!state || !state.startEq) return;
+    if (ctx && ctx.playSoundClick) ctx.playSoundClick();
+    if (ctx && ctx.dismissDidacticBubble) ctx.dismissDidacticBubble();
+    if (ctx && ctx.clearSelection) ctx.clearSelection();
+    if (ctx && ctx.clearPreview) ctx.clearPreview();
+    if (state.baseFormula && state.targetVar && ctx && ctx.loadFormula) {
+      ctx.loadFormula(state.baseFormula, state.targetVar);
+      if (ctx.showMessage) ctx.showMessage("Esercizio ricominciato dall'inizio.", "info");
+      return;
+    }
+    state.history = [];
+    state.historyIndex = -1;
+    state.currentEq = clone(state.startEq);
+    state.conditions = (state.baseFormula && state.baseFormula.conditions ? state.baseFormula.conditions : state.conditions || []).slice();
+    state.selectedId = null;
+    pushHistory({
+      equation: clone(state.startEq),
+      ruleName: "Formula di partenza",
+      rulePrinciple: state.baseFormula ? state.baseFormula.formula : toPretty(state.startEq, 0),
+      steps: [],
+      conditions: state.conditions.slice(),
+      explanationKey: null,
+      note: state.baseFormula && state.baseFormula.hypotheses || null,
+      verified: true
+    }, true);
+    if (ctx && ctx.updateObjective) ctx.updateObjective();
+    if (ctx && ctx.renderEquationView) ctx.renderEquationView();
+    if (state.baseFormula && ctx && ctx.updateRulePanelInitial) ctx.updateRulePanelInitial(state.baseFormula);
+    if (ctx && ctx.clearMessage) ctx.clearMessage();
+    if (ctx && ctx.showMessage) ctx.showMessage("Esercizio ricominciato dall'inizio.", "info");
+  }
+  function updateHistoryButtons() {
+    if (!dom || !dom.btnUndo || !dom.btnRedo || !state) return;
+    let prev = state.historyIndex - 1;
+    while (prev >= 0 && state.history[prev].failed) prev--;
+    let next = state.historyIndex + 1;
+    while (next < state.history.length && state.history[next].failed) next++;
+    dom.btnUndo.disabled = prev < 0;
+    dom.btnRedo.disabled = next >= state.history.length;
+  }
+  function copyStepsText() {
+    if (!state || state.history.length === 0) return;
+    const lines = state.history.filter((h) => !h.failed).map((h, i) => `${i === 0 ? "Partenza" : "Passo " + i}: ${toPretty(h.equation, 0)} (${h.ruleName})`);
+    const text = lines.join("\n");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        if (ctx && ctx.showMessage) ctx.showMessage(`${lines.length} passaggi copiati negli appunti!`, "success");
+      }).catch(() => {
+        prompt("Copia i passaggi:", text);
+      });
+    } else {
+      prompt("Copia i passaggi:", text);
+    }
+  }
+  function copyStepsLatex() {
+    if (!state || state.history.length === 0) return;
+    const validSteps = state.history.filter((h) => !h.failed);
+    const lines = validSteps.map((h, i) => {
+      const ltx = toLatex(h.equation);
+      const aligned = ltx.includes("=") ? ltx.replace("=", "&=") : ltx + " &=";
+      const label = escapeLatexComment(h.ruleName || (i === 0 ? "Formula di partenza" : "Passo " + i));
+      return `  ${aligned} && \\text{(${label})}`;
+    });
+    const block = `\\begin{align*}
+${lines.join(" \\\\\n")}
+\\end{align*}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(block).then(() => {
+        if (ctx && ctx.showMessage) ctx.showMessage(`Svolgimento LaTeX (align*) copiato negli appunti!`, "success");
+      }).catch(() => {
+        prompt("Copia lo svolgimento LaTeX:", block);
+      });
+    } else {
+      prompt("Copia lo svolgimento LaTeX:", block);
+    }
+  }
+
+  // js/ui-modals.js
+  var dom2 = null;
+  var state2 = null;
+  var ctx2 = null;
+  var bubbleTimeout = null;
+  function escapeHtml4(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    })[c]);
+  }
+  function triviallyIsolated(formulaStr, v) {
+    const parts = formulaStr.split("=");
+    if (parts.length !== 2) return false;
+    return parts[0].trim() === v;
+  }
+  function initModals(domRefs, appState, appCtx) {
+    dom2 = domRefs;
+    state2 = appState;
+    ctx2 = appCtx;
+    bindEditorEvents();
+    bindLatexEvents();
+    bindStorageEvents();
+    bindBubbleEvents();
+    renderMyFormulas();
+  }
+  function bindBubbleEvents() {
+    if (dom2.btnCloseBubble) dom2.btnCloseBubble.addEventListener("click", dismissDidacticBubble);
+    if (dom2.btnBubbleOk) {
+      dom2.btnBubbleOk.addEventListener("click", () => {
+        if (ctx2 && ctx2.playSoundClick) ctx2.playSoundClick();
+        dismissDidacticBubble();
+      });
+    }
+  }
+  function showDidacticBubble({ error, hint, action }) {
+    if (!dom2 || !dom2.didacticBubbleAnchor) return;
+    if (bubbleTimeout) {
+      clearTimeout(bubbleTimeout);
+      bubbleTimeout = null;
+    }
+    const diag = diagnoseStudentMisconception(error, hint, action);
+    const badgeText = diag.badge || "Principio di Equivalenza";
+    const ruleReminder = diag.ruleReminder || "Ricorda di applicare correttamente i principi di equivalenza delle equazioni.";
+    const explanationText = diag.explanation || error || "Operazione non consentita.";
+    const adviceText = diag.advice || hint || "";
+    if (dom2.bubbleBadge) dom2.bubbleBadge.textContent = badgeText;
+    if (dom2.bubbleMessage) dom2.bubbleMessage.textContent = explanationText;
+    if (dom2.bubbleHintBox && dom2.bubbleHintText) {
+      if (adviceText) {
+        dom2.bubbleHintText.textContent = adviceText;
+        dom2.bubbleHintBox.hidden = false;
+      } else {
+        dom2.bubbleHintBox.hidden = true;
+      }
+    }
+    if (dom2.bubbleFooterRule) dom2.bubbleFooterRule.textContent = ruleReminder;
+    dom2.didacticBubbleAnchor.hidden = false;
+    if (dom2.didacticBubble) dom2.didacticBubble.classList.remove("bubble-closing");
+    bubbleTimeout = setTimeout(() => {
+      dismissDidacticBubble();
+    }, 9e3);
+  }
+  function dismissDidacticBubble() {
+    if (!dom2 || !dom2.didacticBubbleAnchor || dom2.didacticBubbleAnchor.hidden) return;
+    if (bubbleTimeout) {
+      clearTimeout(bubbleTimeout);
+      bubbleTimeout = null;
+    }
+    if (dom2.didacticBubble) {
+      dom2.didacticBubble.classList.add("bubble-closing");
+      setTimeout(() => {
+        if (dom2.didacticBubbleAnchor) dom2.didacticBubbleAnchor.hidden = true;
+        if (dom2.didacticBubble) dom2.didacticBubble.classList.remove("bubble-closing");
+      }, 220);
+    } else {
+      dom2.didacticBubbleAnchor.hidden = true;
+    }
+  }
+  function showHelp() {
+    if (!dom2 || !dom2.modalTitle) return;
+    dom2.modalTitle.textContent = "Guida rapida";
+    dom2.modalBody.innerHTML = `
+    <h4>Come si usa l'app</h4>
+    <ol>
+      <li><strong>A. Libreria</strong>: scegli una formula, oppure scrivine una nell'editor.</li>
+      <li><strong>E. Obiettivo</strong>: in alto compare la grandezza da isolare.</li>
+      <li><strong>B. Area di lavoro</strong>: <em>clicca</em> una lettera, un termine, un fattore o un denominatore. Appaiono le operazioni lecite.</li>
+      <li>Scegli un'operazione: vedrai un'<strong>anteprima</strong>. Conferma o annulla.</li>
+      <li><strong>C. Regola</strong>: leggi la spiegazione intuitiva e il principio di equivalenza.</li>
+      <li><strong>D. Cronologia</strong>: ripercorri i passaggi; usa <em>Annulla</em>/<em>Ripristina</em>. Puoi cliccare un passaggio per tornarci.</li>
+    </ol>
+    <h4>Concetti chiave</h4>
+    <ul>
+      <li><strong>Trasporto di un termine</strong>: non \xE8 uno "spostamento", ma sommare l'opposto a entrambi i membri (primo principio). Vale solo per i termini additivi.</li>
+      <li><strong>Trasporto di un fattore</strong>: si divide entrambi i membri per il fattore, che deve essere \u2260 0 (secondo principio). Vale solo per fattori che moltiplicano tutto il membro.</li>
+      <li><strong>Segno \xB1</strong>: risolvendo x\xB2 = a si ottiene x = \xB1\u221Aa: il segno non va eliminato.</li>
+      <li><strong>Condizioni di validit\xE0</strong>: i denominatori devono essere \u2260 0 e i radicandi \u2265 0; l'app le registra e le mostra.</li>
+    </ul>
+    <h4>Scorciatoie</h4>
+    <p>Ctrl/Cmd+Z annulla, Ctrl/Cmd+Y ripristina, Esc annulla l'anteprima o la selezione.</p>
+  `;
+    dom2.modalActions.innerHTML = '<button class="btn btn-secondary" type="button" data-close-help>Chiudi</button>';
+    dom2.modalActions.querySelector("[data-close-help]").addEventListener("click", () => {
+      dom2.modalBackdrop.hidden = true;
+    });
+    dom2.modalBackdrop.hidden = false;
+  }
+  function copyLatexFormula() {
+    if (!state2 || !state2.currentEq) return;
+    const latexStr = toLatex(state2.currentEq);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(latexStr).then(() => {
+        if (ctx2 && ctx2.showMessage) ctx2.showMessage(`Formula LaTeX copiata negli appunti: "${latexStr}"`, "success");
+      }).catch(() => {
+        prompt("Copia il codice LaTeX:", latexStr);
+      });
+    } else {
+      prompt("Copia il codice LaTeX:", latexStr);
+    }
+  }
+  function bindEditorEvents() {
+    if (dom2.btnLoadCustom) dom2.btnLoadCustom.addEventListener("click", loadCustomFormula);
+    if (dom2.customFormula) {
+      dom2.customFormula.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") loadCustomFormula();
+      });
+    }
+  }
+  function loadCustomFormula() {
+    if (!dom2.customFormula || !dom2.customTarget) return;
+    const text = dom2.customFormula.value.trim();
+    const target = dom2.customTarget.value.trim();
+    if (dom2.customError) dom2.customError.hidden = true;
+    if (!text) {
+      showCustomError("Inserisci una formula.");
+      return;
+    }
+    let eq;
+    try {
+      eq = parseEquation(text);
+    } catch (e) {
+      showCustomError("Errore di sintassi: " + e.message);
+      return;
+    }
+    const vars = collectVars(eq);
+    let t = target;
+    let multipleSpecified = false;
+    if (t && (t.includes(",") || t.includes(";"))) {
+      const parts = t.split(/[,;\s]+/).filter(Boolean);
+      const validParts = parts.filter((p) => vars.has(p) || [...vars].some((v) => v.toLowerCase() === p.toLowerCase()));
+      if (validParts.length > 0) {
+        t = [...vars].find((v) => v.toLowerCase() === validParts[0].toLowerCase()) || validParts[0];
+        multipleSpecified = true;
+      } else {
+        showCustomError(`Inserisci una sola grandezza da isolare alla volta (es. "${[...vars][0]}"). Grandezze presenti: ${[...vars].join(", ")}.`);
+        return;
+      }
+    }
+    if (!t) {
+      const L = unwrap(eq.left);
+      if (L.type === "Var") t = L.name;
+      else {
+        showCustomError("Specifica la grandezza da isolare (una sola lettera, es. " + [...vars][0] + ").");
+        return;
+      }
+    }
+    if (!vars.has(t)) {
+      const alt = [...vars].find((v) => v.toLowerCase() === t.toLowerCase());
+      if (alt) t = alt;
+      else {
+        showCustomError(`La grandezza "${t}" non compare nella formula. Inserisci una sola grandezza presente: ${[...vars].join(", ")}.`);
+        return;
+      }
+    }
+    if (ctx2 && ctx2.loadFormula) {
+      ctx2.loadFormula({
+        id: "custom-" + Date.now(),
+        topic: "formula personalizzata",
+        name: "formula personalizzata",
+        formula: text,
+        isolate: [...vars],
+        conditions: [],
+        difficulty: 3,
+        notes: "Formula inserita manualmente."
+      }, t);
+    }
+    if (multipleSpecified) {
+      if (ctx2 && ctx2.showMessage) {
+        ctx2.showMessage(`\xC8 possibile isolare una sola grandezza alla volta: impostato obiettivo su "${prettyVar(t)}". Puoi cambiare grandezza da isolare in qualsiasi momento dall'interfaccia!`, "info");
+      }
+    } else {
+      if (ctx2 && ctx2.showMessage) {
+        ctx2.showMessage(`Formula personalizzata caricata. Obiettivo: isolare ${prettyVar(t)}.`, "success");
+      }
+    }
+  }
+  function showCustomError(msg) {
+    if (dom2.customError) {
+      dom2.customError.hidden = false;
+      dom2.customError.textContent = msg;
+    }
+  }
+  function bindLatexEvents() {
+    if (dom2.btnLatexPreview) dom2.btnLatexPreview.addEventListener("click", previewLatex);
+    if (dom2.btnLatexSave) dom2.btnLatexSave.addEventListener("click", saveLatex);
+    if (dom2.latexInput) {
+      dom2.latexInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          previewLatex();
+        }
+      });
+    }
+  }
+  function clearLatexError() {
+    if (dom2.latexError) {
+      dom2.latexError.hidden = true;
+      dom2.latexError.textContent = "";
+    }
+  }
+  function showLatexError(msg) {
+    if (dom2.latexError) {
+      dom2.latexError.hidden = false;
+      dom2.latexError.textContent = msg;
+    }
+  }
+  function previewLatex() {
+    clearLatexError();
+    const raw = (dom2.latexInput.value || "").trim();
+    if (!raw) {
+      showLatexError("Incolla un'equazione LaTeX.");
+      return null;
+    }
+    let syntax;
+    try {
+      syntax = latexToSyntax(raw);
+      parseEquation(syntax);
+    } catch (e) {
+      const msg = e instanceof LatexError || e instanceof ParseError ? e.message : "Conversione non riuscita: " + e.message;
+      showLatexError(msg);
+      if (dom2.latexPreview) dom2.latexPreview.hidden = true;
+      return null;
+    }
+    if (dom2.latexPreview) {
+      dom2.latexPreview.hidden = false;
+      let mathHtml = "";
+      try {
+        mathHtml = renderEquation(parseEquation(syntax), {});
+      } catch (e) {
+        mathHtml = escapeHtml4(syntax);
+      }
+      dom2.latexPreview.innerHTML = `<span class="conv-label">Sintassi per l'editor</span><div class="conv-code">` + escapeHtml4(syntax) + '</div><span class="conv-label" style="margin-top:.5rem">Anteprima</span><div class="latex-math-preview">' + mathHtml + "</div>";
+    }
+    return syntax;
+  }
+  function resolveVar(token, vars) {
+    if (vars.has(token)) return token;
+    const clean = token.replace(/^\\/, "");
+    if (vars.has(clean)) return clean;
+    const lower = clean.toLowerCase();
+    const greek = GREEK_MAP && GREEK_MAP[lower];
+    if (greek && vars.has(greek)) return greek;
+    const alt = [...vars].find((v) => v.toLowerCase() === lower);
+    if (alt) return alt;
+    return null;
+  }
+  function saveLatex() {
+    const syntax = previewLatex();
+    if (!syntax) return;
+    const name = (dom2.latexName.value || "").trim() || "formula da LaTeX";
+    const targetRaw = (dom2.latexTarget.value || "").trim();
+    let eq;
+    try {
+      eq = parseEquation(syntax);
+    } catch (e) {
+      showLatexError("Errore di sintassi: " + e.message);
+      return;
+    }
+    const vars = collectVars(eq);
+    let isolateList = [...vars];
+    if (targetRaw) {
+      const parts = targetRaw.split(/[,;\s]+/).filter(Boolean);
+      const resolved = [];
+      for (const p of parts) {
+        const match = resolveVar(p, vars);
+        if (match) {
+          if (!resolved.includes(match)) resolved.push(match);
+        } else {
+          showLatexError(`La grandezza "${p}" non compare nella formula. Presenti: ${[...vars].join(", ")}.`);
+          return;
+        }
+      }
+      if (resolved.length > 0) {
+        isolateList = resolved;
+      }
+    }
+    try {
+      saveUserFormula({
+        name,
+        formula: syntax,
+        latex: (dom2.latexInput.value || "").trim(),
+        topic: "Le mie formule",
+        isolate: isolateList,
+        conditions: [],
+        difficulty: 3,
+        notes: "Importata da LaTeX."
+      });
+    } catch (e) {
+      showLatexError(e.message);
+      return;
+    }
+    renderMyFormulas();
+    clearLatexError();
+    dom2.latexInput.value = "";
+    dom2.latexName.value = "";
+    dom2.latexTarget.value = "";
+    if (dom2.latexPreview) dom2.latexPreview.hidden = true;
+    if (ctx2 && ctx2.showMessage) ctx2.showMessage(`Formula "${name}" salvata nell'archivio.`, "success");
+  }
+  function bindStorageEvents() {
+    if (dom2.btnExportFormulas) dom2.btnExportFormulas.addEventListener("click", exportFormulas);
+    if (dom2.btnImportFormulas) dom2.btnImportFormulas.addEventListener("click", importFormulas);
+    if (dom2.btnClearFormulas) dom2.btnClearFormulas.addEventListener("click", clearFormulas);
+  }
+  function clearStorageError() {
+    if (dom2.storageError) {
+      dom2.storageError.hidden = true;
+      dom2.storageError.textContent = "";
+    }
+  }
+  function showStorageError(msg) {
+    if (dom2.storageError) {
+      dom2.storageError.hidden = false;
+      dom2.storageError.textContent = msg;
+    }
+  }
+  function renderMyFormulas() {
+    const list = getUserFormulas();
+    if (dom2.myFormulasCount) {
+      dom2.myFormulasCount.textContent = list.length === 0 ? "Nessuna formula salvata. Importa da LaTeX o salva una formula personalizzata." : `${list.length} formula/e nell'archivio (persistente su questo dispositivo).`;
+    }
+    if (!dom2.myFormulasList) return;
+    dom2.myFormulasList.innerHTML = "";
+    if (list.length === 0) {
+      dom2.myFormulasList.innerHTML = '<p class="placeholder">Archivio vuoto.</p>';
+      return;
+    }
+    for (const f of list) {
+      const card = document.createElement("div");
+      card.className = "formula-card";
+      card.setAttribute("role", "option");
+      card.tabIndex = 0;
+      let mathHtml = "";
+      try {
+        mathHtml = renderEquation(parseEquation(f.formula), {});
+      } catch (e) {
+        mathHtml = escapeHtml4(f.formula);
+      }
+      card.innerHTML = `
+      <div class="formula-card-head">
+        <span class="formula-topic">${escapeHtml4(f.topic || "Le mie formule")}</span>
+        <button class="icon-btn" type="button" title="Elimina" aria-label="Elimina formula">\u2715</button>
+      </div>
+      <div class="formula-name">${escapeHtml4(f.name)}</div>
+      <div class="formula-math">${mathHtml}</div>
+      ${f.isolate && f.isolate.length ? `<div class="formula-isolate">Isola: ${f.isolate.map((v) => prettyVar(v)).join(", ")}</div>` : ""}
+    `;
+      const load = () => {
+        const cands = (f.isolate || []).filter((v) => !triviallyIsolated(f.formula, v));
+        const tgt = (cands.length ? cands : f.isolate || [])[0];
+        const vars = [...collectVars(parseEquation(f.formula))];
+        const target = tgt || vars[0];
+        if (ctx2 && ctx2.loadFormula) {
+          ctx2.loadFormula({
+            id: f.id,
+            topic: f.topic,
+            name: f.name,
+            formula: f.formula,
+            isolate: f.isolate && f.isolate.length ? f.isolate : vars,
+            conditions: f.conditions || [],
+            difficulty: f.difficulty || 3,
+            notes: f.notes || ""
+          }, target);
+        }
+      };
+      card.addEventListener("click", (e) => {
+        if (e.target.closest(".icon-btn")) return;
+        load();
+      });
+      card.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          load();
+        }
+      });
+      card.querySelector(".icon-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (window.confirm(`Eliminare la formula "${f.name}"?`)) {
+          deleteUserFormula(f.id);
+          renderMyFormulas();
+          if (ctx2 && ctx2.showMessage) ctx2.showMessage("Formula eliminata dall'archivio.", "info");
+        }
+      });
+      dom2.myFormulasList.appendChild(card);
+    }
+  }
+  function exportFormulas() {
+    clearStorageError();
+    const json = exportUserFormulasJSON();
+    if (dom2.jsonArea) {
+      dom2.jsonArea.hidden = false;
+      dom2.jsonArea.value = json;
+      dom2.jsonArea.focus();
+      dom2.jsonArea.select();
+    }
+    try {
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "formule-inverse.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1e3);
+    } catch (e) {
+    }
+    if (ctx2 && ctx2.showMessage) ctx2.showMessage("Archivio esportato (JSON nell'area e file scaricato).", "success");
+  }
+  function importFormulas() {
+    clearStorageError();
+    if (!dom2.jsonArea) return;
+    if (dom2.jsonArea.hidden) {
+      dom2.jsonArea.hidden = false;
+      dom2.jsonArea.focus();
+      if (ctx2 && ctx2.showMessage) ctx2.showMessage(`Incolla il JSON nell'area e premi di nuovo "Importa JSON".`, "info");
+      return;
+    }
+    const json = dom2.jsonArea.value.trim();
+    if (!json) {
+      showStorageError("Incolla prima un JSON da importare.");
+      return;
+    }
+    try {
+      const added = importUserFormulasJSON(json);
+      renderMyFormulas();
+      if (ctx2 && ctx2.showMessage) ctx2.showMessage(`${added} formula/e importate nell'archivio.`, "success");
+    } catch (e) {
+      showStorageError(e.message);
+    }
+  }
+  function clearFormulas() {
+    clearStorageError();
+    if (!window.confirm("Svuotare l'archivio delle formule salvate? Operazione non annullabile.")) return;
+    clearUserFormulas();
+    renderMyFormulas();
+    if (ctx2 && ctx2.showMessage) ctx2.showMessage("Archivio svuotato.", "info");
+  }
+
+  // js/ui-numpad.js
+  var dom3 = null;
+  var state3 = null;
+  var ctx3 = null;
+  function initNumpad(domRefs, appState, appCtx) {
+    dom3 = domRefs;
+    state3 = appState;
+    ctx3 = appCtx;
+    if (dom3.btnMirror) dom3.btnMirror.addEventListener("click", applyMirrorRule);
+    if (dom3.btnReciprocal) dom3.btnReciprocal.addEventListener("click", applyReciprocalRule);
+    if (dom3.btnDistribute) dom3.btnDistribute.addEventListener("click", applyDistributeRule);
+    if (dom3.btnFactorCommon) dom3.btnFactorCommon.addEventListener("click", applyFactorCommonRule);
+    if (dom3.btnCommonDenom) dom3.btnCommonDenom.addEventListener("click", applyCommonDenominatorRule);
+    if (dom3.btnChangeSign) dom3.btnChangeSign.addEventListener("click", applyChangeSignRule);
+  }
+  function renderKeypad() {
+    if (!dom3 || !dom3.keypadOps || !dom3.keypadOperands || !state3) return;
+    dom3.keypadOps.innerHTML = "";
+    for (const op of KEYPAD_OPERATIONS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "keypad-op" + (state3.keypadOp === op.id ? " active" : "");
+      btn.dataset.op = op.id;
+      btn.textContent = op.label;
+      btn.title = op.title;
+      btn.setAttribute("aria-label", op.title);
+      btn.setAttribute("aria-pressed", state3.keypadOp === op.id ? "true" : "false");
+      btn.disabled = !state3.currentEq;
+      btn.addEventListener("click", () => handleKeypadOpClick(op));
+      dom3.keypadOps.appendChild(btn);
+    }
+    dom3.keypadOperands.innerHTML = "";
+    if (!state3.currentEq) {
+      dom3.keypadOperands.innerHTML = '<p class="placeholder small">Carica una formula per usare il tastierino.</p>';
+      updateKeypadHint();
+      return;
+    }
+    const { letters, numbers } = equationKeypadTokens(state3.currentEq);
+    for (const name of letters) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "keypad-operand keypad-letter";
+      btn.textContent = prettyVar(name);
+      btn.title = `Applica ${name}`;
+      btn.addEventListener("click", () => handleKeypadOperandClick(name));
+      dom3.keypadOperands.appendChild(btn);
+    }
+    for (const value of numbers) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "keypad-operand keypad-number";
+      btn.textContent = String(value);
+      btn.title = `Applica ${value}`;
+      btn.addEventListener("click", () => handleKeypadOperandClick(String(value)));
+      dom3.keypadOperands.appendChild(btn);
+    }
+    const custom = document.createElement("span");
+    custom.className = "keypad-custom";
+    custom.innerHTML = `<input class="keypad-custom-value" type="text" inputmode="numeric" placeholder="n" aria-label="Altro numero o grandezza" size="3"><button type="button" class="btn-mini keypad-custom-apply" title="Applica all'equazione">Applica</button>`;
+    dom3.keypadOperands.appendChild(custom);
+    const input = custom.querySelector(".keypad-custom-value");
+    const applyBtn = custom.querySelector(".keypad-custom-apply");
+    const submit = () => {
+      const value = (input.value || "").trim();
+      if (!value) return;
+      handleKeypadOperandClick(value);
+      input.value = "";
+    };
+    applyBtn.addEventListener("click", submit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      }
+    });
+    updateKeypadHint();
+  }
+  function updateKeypadHint() {
+    if (!dom3 || !dom3.keypadHint || !state3) return;
+    if (!state3.currentEq) {
+      dom3.keypadHint.textContent = "Carica una formula per usare il tastierino.";
+      return;
+    }
+    if (!state3.keypadOp) {
+      dom3.keypadHint.textContent = "Scegli un'operazione: verr\xE0 applicata a entrambi i membri.";
+      return;
+    }
+    const op = KEYPAD_OPERATIONS.find((o) => o.id === state3.keypadOp);
+    dom3.keypadHint.textContent = op && !op.needsOperand ? `Premi di nuovo per applicare ${op.label} a entrambi i membri.` : `Operazione ${op ? op.label : ""} scelta: ora tocca una grandezza o un numero.`;
+  }
+  function handleKeypadOpClick(op) {
+    if (!state3 || !state3.currentEq) return;
+    if (state3.keypadOp === op.id) {
+      if (op.needsOperand) {
+        state3.keypadOp = null;
+        renderKeypad();
+        return;
+      }
+      applyKeypadMove(op.id, null, null);
+      return;
+    }
+    state3.keypadOp = op.id;
+    renderKeypad();
+    if (!op.needsOperand) applyKeypadMove(op.id, null, null);
+  }
+  function handleKeypadOperandClick(text) {
+    if (!state3 || !state3.currentEq) return;
+    if (!state3.keypadOp) {
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage("Prima scegli un'operazione nel tastierino, poi la grandezza o il numero.", "info");
+      return;
+    }
+    applyKeypadMove(state3.keypadOp, parseOperand(text), text);
+  }
+  function applyKeypadMove(opId, operandNode, operandText) {
+    const op = KEYPAD_OPERATIONS.find((o) => o.id === opId);
+    const label = op ? op.label : opId;
+    const before = state3.currentEq;
+    const res = applyKeypadOperation(before, opId, operandNode, operandText, state3.targetVar);
+    if (!res.ok) {
+      state3.keypadOp = null;
+      renderKeypad();
+      if (ctx3 && ctx3.clearPreview) ctx3.clearPreview();
+      if (ctx3 && ctx3.animateOperationBadge) ctx3.animateOperationBadge(label, operandText);
+      if (ctx3 && ctx3.showInvalidMove) ctx3.showInvalidMove(res.error, res.hint, { label: `Applica ${label} a entrambi i membri` });
+      return;
+    }
+    const newEq = res.equation;
+    if (equivalentEq(newEq, before)) {
+      state3.keypadOp = null;
+      renderKeypad();
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage("Questa operazione non cambia l'equazione: prova un'altra trasformazione.", "info");
+      return;
+    }
+    if (opId === "add" || opId === "sub") {
+      if (ctx3 && ctx3.playSoundTransport) ctx3.playSoundTransport();
+    } else {
+      if (ctx3 && ctx3.playSoundFraction) ctx3.playSoundFraction();
+    }
+    state3.currentEq = newEq;
+    state3.conditions = mergeConditions(state3.conditions, res.conditions || []);
+    state3.selectedId = null;
+    state3.keypadOp = null;
+    if (ctx3 && ctx3.clearPreview) ctx3.clearPreview();
+    const ruleName = `Applica ${label}${operandText ? " " + prettyVar(operandText) : ""} a entrambi i membri`;
+    if (ctx3 && ctx3.pushHistory) {
+      ctx3.pushHistory({
+        equation: clone(newEq),
+        ruleName,
+        rulePrinciple: res.note || "",
+        ruleId: "keypad-" + opId,
+        steps: res.steps || [],
+        conditions: (res.conditions || []).slice(),
+        explanationKey: null,
+        note: res.note || null,
+        verified: true
+      }, false);
+    }
+    if (ctx3 && ctx3.updateObjective) ctx3.updateObjective();
+    if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
+    if (ctx3 && ctx3.showRulePanel) {
+      ctx3.showRulePanel(
+        { name: ruleName, principle: res.steps && res.steps.length ? res.steps.join(" ") : "", explanation: null },
+        { steps: res.steps || [], conditions: res.conditions || [], note: res.note || null },
+        newEq
+      );
+    }
+    if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
+    if (ctx3 && ctx3.animateOperationBadge) ctx3.animateOperationBadge(label, operandText);
+    if (ctx3 && ctx3.showMessage) {
+      ctx3.showMessage(`\u2713 ${ruleName}.`, "success");
+      if (res.note) ctx3.showMessage(res.note, "info");
+    }
+    if (state3.goalReached) {
+      if (ctx3 && ctx3.checkAndAnimateCompoundFraction && ctx3.checkAndAnimateCompoundFraction()) return;
+      if (ctx3 && ctx3.playSuccessChime) ctx3.playSuccessChime();
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state3.targetVar)} \xE8 isolata!`, "success");
+    } else if (state3.mode === "auto" && ctx3 && ctx3.showAutoMode) {
+      ctx3.showAutoMode();
+    }
+  }
+  function applyMirrorRule() {
+    if (!state3 || !state3.currentEq) return;
+    const newEq = Eq(clone(state3.currentEq.right), clone(state3.currentEq.left));
+    const onDone = () => {
+      state3.currentEq = newEq;
+      state3.selectedId = null;
+      if (ctx3 && ctx3.clearPreview) ctx3.clearPreview();
+      const rule = {
+        id: "swapSides",
+        name: "Regola dello specchio (scambio membri)",
+        principle: "Propriet\xE0 simmetrica dell'uguaglianza: se A = B allora B = A.",
+        explanation: "scambioMembri"
+      };
+      if (ctx3 && ctx3.pushHistory) {
+        ctx3.pushHistory({
+          equation: clone(newEq),
+          ruleName: rule.name,
+          rulePrinciple: rule.principle,
+          ruleId: "swapSides",
+          steps: ["Scambio i due membri dell'equazione (propriet\xE0 simmetrica: A = B \u2194 B = A)."],
+          conditions: state3.conditions.slice(),
+          explanationKey: "scambioMembri",
+          note: null,
+          verified: true
+        }, false);
+      }
+      if (ctx3 && ctx3.updateObjective) ctx3.updateObjective();
+      if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
+      if (ctx3 && ctx3.showRulePanel) {
+        ctx3.showRulePanel(rule, { steps: ["Scambio i due membri per la propriet\xE0 simmetrica."], conditions: [] }, newEq);
+      }
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage("\u{1FA9E} Regola dello specchio applicata: se A = B allora B = A!", "success");
+      if (state3.goalReached) {
+        if (ctx3 && ctx3.playSuccessChime) ctx3.playSuccessChime();
+        if (ctx3 && ctx3.spawnVictoryConfetti) ctx3.spawnVictoryConfetti();
+        if (ctx3 && ctx3.showMessage) ctx3.showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state3.targetVar)} \xE8 isolata!`, "success");
+      }
+    };
+    if (ctx3 && ctx3.animateMirrorSwap) {
+      ctx3.animateMirrorSwap(state3.currentEq, newEq, onDone);
+    } else {
+      onDone();
+    }
+  }
+  function applyReciprocalRule() {
+    if (!state3 || !state3.currentEq) return;
+    if (ctx3 && ctx3.playSoundFraction) ctx3.playSoundFraction();
+    const eq = state3.currentEq;
+    const res = reciprocalEquation(eq);
+    if (!res.ok) {
+      if (ctx3 && ctx3.clearPreview) ctx3.clearPreview();
+      if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
+      if (ctx3 && ctx3.showInvalidMove) ctx3.showInvalidMove(res.error, res.hint, { label: "Regola dei reciproci" });
+      return;
+    }
+    const newEq = res.newEq;
+    if (equivalentEq(newEq, eq)) {
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage("Questa operazione non cambia l'equazione: prova un'altra trasformazione.", "info");
+      return;
+    }
+    state3.currentEq = newEq;
+    state3.selectedId = null;
+    if (ctx3 && ctx3.clearPreview) ctx3.clearPreview();
+    const rule = {
+      id: "reciprocal",
+      name: "Regola dei reciproci (inversione dei membri)",
+      principle: "Propriet\xE0 dell'inversione: se A = B allora 1/A = 1/B; in una proporzione A/B = C/D si ottiene B/A = D/C.",
+      explanation: "reciprocal-both"
+    };
+    if (ctx3 && ctx3.pushHistory) {
+      ctx3.pushHistory({
+        equation: clone(newEq),
+        ruleName: rule.name,
+        rulePrinciple: rule.principle,
+        ruleId: "reciprocal",
+        steps: [`Calcolo il reciproco di entrambi i membri: ${toPretty(eq, 0)} \u2192 ${toPretty(newEq, 0)}.`],
+        conditions: state3.conditions.slice(),
+        explanationKey: "reciprocal-both",
+        note: null,
+        verified: true
+      }, false);
+    }
+    if (ctx3 && ctx3.updateObjective) ctx3.updateObjective();
+    if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
+    if (ctx3 && ctx3.showRulePanel) ctx3.showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
+    if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
+    if (ctx3 && ctx3.showMessage) ctx3.showMessage("\u{1F501} Regola dei reciproci applicata a entrambi i membri!", "success");
+    if (state3.goalReached) {
+      if (ctx3 && ctx3.checkAndAnimateCompoundFraction && ctx3.checkAndAnimateCompoundFraction()) return;
+      if (ctx3 && ctx3.playSuccessChime) ctx3.playSuccessChime();
+      if (ctx3 && ctx3.spawnVictoryConfetti) ctx3.spawnVictoryConfetti();
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state3.targetVar)} \xE8 isolata!`, "success");
+    } else if (state3.mode === "auto" && ctx3 && ctx3.showAutoMode) {
+      ctx3.showAutoMode();
+    }
+  }
+  function applyDistributeRule() {
+    if (!state3 || !state3.currentEq) return;
+    const eq = state3.currentEq;
+    const leftDist = canDistribute(eq.left);
+    const rightDist = canDistribute(eq.right);
+    if (!leftDist && !rightDist) {
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage("Non ci sono prodotti con parentesi (somme o differenze) da sviluppare.", "info");
+      return;
+    }
+    let chosenSide = null;
+    if (state3.selectedId) {
+      const selInfo = analyseElementId(state3.selectedId);
+      if (selInfo && selInfo.side) {
+        if (selInfo.side === "left" && leftDist) chosenSide = "left";
+        if (selInfo.side === "right" && rightDist) chosenSide = "right";
+      }
+    }
+    if (!chosenSide) {
+      const targetLeft = hasDistributableSum(eq.left, state3.targetVar);
+      const targetRight = hasDistributableSum(eq.right, state3.targetVar);
+      if (targetRight && !targetLeft && rightDist) chosenSide = "right";
+      else if (targetLeft && !targetRight && leftDist) chosenSide = "left";
+      else if (rightDist && !leftDist) chosenSide = "right";
+      else if (leftDist && !rightDist) chosenSide = "left";
+      else chosenSide = "right";
+    }
+    if (ctx3 && ctx3.playSoundTransport) ctx3.playSoundTransport();
+    const res = applyRule(RULES.distribute, eq, { side: chosenSide });
+    if (!res.ok) {
+      if (ctx3 && ctx3.showInvalidMove) ctx3.showInvalidMove(res.error, res.hint);
+      return;
+    }
+    state3.currentEq = res.equation;
+    state3.selectedId = null;
+    if (ctx3 && ctx3.clearPreview) ctx3.clearPreview();
+    const rule = RULES.distribute;
+    if (ctx3 && ctx3.pushHistory) {
+      ctx3.pushHistory({
+        equation: clone(res.equation),
+        ruleName: rule.name,
+        rulePrinciple: rule.principle,
+        ruleId: "distribute",
+        steps: [`Sviluppo le parentesi con la propriet\xE0 distributiva al ${chosenSide === "left" ? "primo" : "secondo"} membro: ${toPretty(eq, 0)} \u2192 ${toPretty(res.equation, 0)}.`],
+        conditions: state3.conditions.slice(),
+        explanationKey: "distribute",
+        note: null,
+        verified: true
+      }, false);
+    }
+    if (ctx3 && ctx3.updateObjective) ctx3.updateObjective();
+    if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
+    if (ctx3 && ctx3.showRulePanel) {
+      ctx3.showRulePanel(rule, { steps: ["Sviluppate le parentesi con la propriet\xE0 distributiva"], conditions: [] }, res.equation);
+    }
+    if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
+    if (ctx3 && ctx3.showMessage) ctx3.showMessage("\u{1F4E6} Propriet\xE0 distributiva applicata: parentesi sviluppate!", "success");
+    if (state3.goalReached) {
+      if (ctx3 && ctx3.checkAndAnimateCompoundFraction && ctx3.checkAndAnimateCompoundFraction()) return;
+      if (ctx3 && ctx3.playSuccessChime) ctx3.playSuccessChime();
+      if (ctx3 && ctx3.spawnVictoryConfetti) ctx3.spawnVictoryConfetti();
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state3.targetVar)} \xE8 isolata!`, "success");
+    } else if (state3.mode === "auto" && ctx3 && ctx3.showAutoMode) {
+      ctx3.showAutoMode();
+    }
+  }
+  function applyFactorCommonRule() {
+    if (!state3 || !state3.currentEq) return;
+    const eq = state3.currentEq;
+    const targetSide = whichSideHas(eq, state3.targetVar) || "right";
+    const sidesToCheck = targetSide === "both" ? ["right", "left"] : [targetSide, targetSide === "left" ? "right" : "left"];
+    let foundSide = null;
+    let commonNode = null;
+    for (const s of sidesToCheck) {
+      const member = s === "left" ? eq.left : eq.right;
+      const common = findCommonFactor(member, state3.targetVar);
+      if (common) {
+        foundSide = s;
+        commonNode = common;
+        break;
+      }
+    }
+    if (!commonNode) {
+      for (const s of sidesToCheck) {
+        const member = s === "left" ? eq.left : eq.right;
+        const common = findCommonFactor(member, null);
+        if (common) {
+          foundSide = s;
+          commonNode = common;
+          break;
+        }
+      }
+    }
+    if (!commonNode) {
+      const member = targetSide === "left" ? eq.left : eq.right;
+      if (hasTrigConflict(member, state3.targetVar)) {
+        if (ctx3 && ctx3.showMessage) {
+          ctx3.showMessage(`\u26A0\uFE0F Non \xE8 possibile raccogliere ${prettyVar(state3.targetVar)} a fattor comune: ${prettyVar(state3.targetVar)} \xE8 l'argomento di funzioni trigonometriche distinte (sin e cos), non un fattore moltiplicativo.`, "warning");
+        }
+        return;
+      }
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage("Nessun fattore comune trovato da raccogliere tra tutti i termini del membro.", "info");
+      return;
+    }
+    if (ctx3 && ctx3.playSoundTransport) ctx3.playSoundTransport();
+    const commonText = toPretty(commonNode, 0);
+    const res = applyRule(RULES.factorCommon, eq, { side: foundSide, common: commonNode, commonText });
+    if (!res.ok) {
+      if (ctx3 && ctx3.showInvalidMove) ctx3.showInvalidMove(res.error, res.hint);
+      return;
+    }
+    state3.currentEq = res.equation;
+    state3.selectedId = null;
+    if (ctx3 && ctx3.clearPreview) ctx3.clearPreview();
+    const rule = RULES.factorCommon;
+    if (ctx3 && ctx3.pushHistory) {
+      ctx3.pushHistory({
+        equation: clone(res.equation),
+        ruleName: rule.name,
+        rulePrinciple: rule.principle,
+        ruleId: "factorCommon",
+        steps: [`Raccolgo ${commonText} a fattor comune al ${foundSide === "left" ? "primo" : "secondo"} membro: ${toPretty(eq, 0)} \u2192 ${toPretty(res.equation, 0)}.`],
+        conditions: state3.conditions.slice(),
+        explanationKey: null,
+        note: null,
+        verified: true
+      }, false);
+    }
+    if (ctx3 && ctx3.updateObjective) ctx3.updateObjective();
+    if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
+    if (ctx3 && ctx3.showRulePanel) {
+      ctx3.showRulePanel(rule, { steps: [`Raccolto ${commonText} a fattor comune`], conditions: [] }, res.equation);
+    }
+    if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
+    if (ctx3 && ctx3.showMessage) ctx3.showMessage(`\u{1F9E9} Raccoglimento a fattor comune applicato: ${commonText} messo in evidenza!`, "success");
+    if (state3.goalReached) {
+      if (ctx3 && ctx3.checkAndAnimateCompoundFraction && ctx3.checkAndAnimateCompoundFraction()) return;
+      if (ctx3 && ctx3.playSuccessChime) ctx3.playSuccessChime();
+      if (ctx3 && ctx3.spawnVictoryConfetti) ctx3.spawnVictoryConfetti();
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state3.targetVar)} \xE8 isolata!`, "success");
+    } else if (state3.mode === "auto" && ctx3 && ctx3.showAutoMode) {
+      ctx3.showAutoMode();
+    }
+  }
+  function applyCommonDenominatorRule() {
+    if (!state3 || !state3.currentEq) return;
+    const eq = state3.currentEq;
+    let chosenSide = null;
+    if (state3.selectedId) {
+      if (state3.selectedId.startsWith("left")) chosenSide = "left";
+      else if (state3.selectedId.startsWith("right")) chosenSide = "right";
+    }
+    const res = reduceEquationToCommonDenominator(eq, chosenSide);
+    if (!res.ok) {
+      if (ctx3 && ctx3.showInvalidMove) ctx3.showInvalidMove(res.error, res.hint, { label: "Minimo comune multiplo (m.c.m.)" });
+      return;
+    }
+    const newEq = res.newEq;
+    if (equivalentEq(newEq, eq)) {
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage("L'equazione \xE8 gi\xE0 espressa a denominatore comune.", "info");
+      return;
+    }
+    if (ctx3 && ctx3.playSoundFraction) ctx3.playSoundFraction();
+    if (dom3.equationDisplay) {
+      dom3.equationDisplay.classList.add("sign-flip-pulse");
+      setTimeout(() => {
+        if (dom3.equationDisplay) dom3.equationDisplay.classList.remove("sign-flip-pulse");
+      }, 450);
+    }
+    state3.currentEq = newEq;
+    state3.selectedId = null;
+    if (ctx3 && ctx3.clearPreview) ctx3.clearPreview();
+    const rule = RULES.commonDenom;
+    if (ctx3 && ctx3.pushHistory) {
+      ctx3.pushHistory({
+        equation: clone(newEq),
+        ruleName: rule.name,
+        rulePrinciple: rule.principle,
+        ruleId: "common-denom",
+        steps: res.steps,
+        conditions: state3.conditions.slice(),
+        explanationKey: "common-denom",
+        note: null,
+        verified: true
+      }, false);
+    }
+    if (ctx3 && ctx3.updateObjective) ctx3.updateObjective();
+    if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
+    if (ctx3 && ctx3.showRulePanel) ctx3.showRulePanel(rule, { steps: res.steps, conditions: [] }, newEq);
+    if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
+    if (ctx3 && ctx3.showMessage) ctx3.showMessage("\u{1F9EE} Frazioni ridotte a denominatore comune (m.c.m.) in un'unica frazione!", "success");
+    if (state3.targetVar && isolatedSide(newEq.right, state3.targetVar) && !collectVars(newEq.left).has(state3.targetVar)) {
+      const swapped = Eq(newEq.right, newEq.left);
+      setTimeout(() => {
+        if (ctx3 && ctx3.animateMirrorSwap) {
+          ctx3.animateMirrorSwap(newEq, swapped, () => {
+            state3.currentEq = swapped;
+            if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
+            if (ctx3 && ctx3.updateObjective) ctx3.updateObjective();
+          });
+        }
+      }, 200);
+    }
+    if (state3.goalReached) {
+      if (ctx3 && ctx3.checkAndAnimateCompoundFraction && ctx3.checkAndAnimateCompoundFraction()) return;
+      if (ctx3 && ctx3.playSuccessChime) ctx3.playSuccessChime();
+      if (ctx3 && ctx3.spawnVictoryConfetti) ctx3.spawnVictoryConfetti();
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state3.targetVar)} \xE8 isolata!`, "success");
+    } else if (state3.mode === "auto" && ctx3 && ctx3.showAutoMode) {
+      ctx3.showAutoMode();
+    }
+  }
+  function applyChangeSignRule() {
+    if (!state3 || !state3.currentEq) return;
+    if (ctx3 && ctx3.playSoundTransport) ctx3.playSoundTransport();
+    const eq = state3.currentEq;
+    const newEq = Eq(negateExpr(eq.left), negateExpr(eq.right));
+    state3.currentEq = newEq;
+    state3.selectedId = null;
+    if (ctx3 && ctx3.clearPreview) ctx3.clearPreview();
+    const rule = {
+      id: "changeSign",
+      name: "Regola del cambio di segno",
+      principle: "Secondo principio di equivalenza: moltiplicando entrambi i membri per \u22121, tutti i segni si invertono (+ \u2194 \u2212).",
+      explanation: null
+    };
+    if (ctx3 && ctx3.pushHistory) {
+      ctx3.pushHistory({
+        equation: clone(newEq),
+        ruleName: rule.name,
+        rulePrinciple: rule.principle,
+        ruleId: "changeSign",
+        steps: [`Moltiplico entrambi i membri per \u22121: ${toPretty(eq, 0)} \u2192 ${toPretty(newEq, 0)}.`],
+        conditions: state3.conditions.slice(),
+        explanationKey: null,
+        note: null,
+        verified: true
+      }, false);
+    }
+    const isTargetIsolatedOnRight = isolatedSide(newEq.right, state3.targetVar);
+    if (isTargetIsolatedOnRight) {
+      if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
+      if (ctx3 && ctx3.flashSignChanged) ctx3.flashSignChanged();
+      if (ctx3 && ctx3.showRulePanel) ctx3.showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
+      if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage(`\xB1 Cambio segno applicato: ${prettyVar(state3.targetVar)} \xE8 ora positivo!`, "info");
+      setTimeout(() => {
+        const flipped = ensureTargetOnFirstMember(state3.currentEq, state3.targetVar);
+        if (flipped !== state3.currentEq) {
+          const onSwapDone = () => {
+            state3.currentEq = flipped;
+            state3.goalReached = true;
+            if (ctx3 && ctx3.pushHistory) {
+              ctx3.pushHistory({
+                equation: clone(flipped),
+                ruleName: "Regola dello specchio (scambio membri)",
+                rulePrinciple: "Propriet\xE0 simmetrica dell'uguaglianza: se A = B allora B = A.",
+                ruleId: "swapSides",
+                steps: ["Scambio i due membri per la propriet\xE0 simmetrica: la grandezza cercata \xE8 al primo membro."],
+                conditions: state3.conditions.slice(),
+                explanationKey: "scambioMembri",
+                note: null,
+                verified: true
+              }, false);
+            }
+            if (ctx3 && ctx3.updateObjective) ctx3.updateObjective();
+            if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
+            if (ctx3 && ctx3.showRulePanel) {
+              ctx3.showRulePanel({
+                id: "swapSides",
+                name: "Regola dello specchio (scambio membri)",
+                principle: "Propriet\xE0 simmetrica dell'uguaglianza: se A = B allora B = A."
+              }, { steps: ["Scambio i due membri dell'equazione per la propriet\xE0 simmetrica."], conditions: [] }, flipped);
+            }
+            if (ctx3 && ctx3.checkAndAnimateCompoundFraction && ctx3.checkAndAnimateCompoundFraction()) return;
+            if (ctx3 && ctx3.playSuccessChime) ctx3.playSuccessChime();
+            if (ctx3 && ctx3.spawnVictoryConfetti) ctx3.spawnVictoryConfetti();
+            if (ctx3 && ctx3.showMessage) ctx3.showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state3.targetVar)} \xE8 isolata!`, "success");
+          };
+          if (ctx3 && ctx3.animateMirrorSwap) {
+            ctx3.animateMirrorSwap(state3.currentEq, flipped, onSwapDone);
+          } else {
+            onSwapDone();
+          }
+        } else {
+          if (ctx3 && ctx3.updateObjective) ctx3.updateObjective();
+          if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
+        }
+      }, 450);
+      return;
+    }
+    if (ctx3 && ctx3.updateObjective) ctx3.updateObjective();
+    if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
+    if (ctx3 && ctx3.flashSignChanged) ctx3.flashSignChanged();
+    if (ctx3 && ctx3.showRulePanel) ctx3.showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
+    if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
+    if (ctx3 && ctx3.showMessage) ctx3.showMessage("\xB1 Regola del cambio di segno applicata: tutti i segni invertiti!", "success");
+    if (state3.goalReached) {
+      if (ctx3 && ctx3.checkAndAnimateCompoundFraction && ctx3.checkAndAnimateCompoundFraction()) return;
+      if (ctx3 && ctx3.playSuccessChime) ctx3.playSuccessChime();
+      if (ctx3 && ctx3.spawnVictoryConfetti) ctx3.spawnVictoryConfetti();
+      if (ctx3 && ctx3.showMessage) ctx3.showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state3.targetVar)} \xE8 isolata!`, "success");
+    }
+  }
+
+  // js/ui-canvas.js
+  var dom4 = null;
+  var state4 = null;
+  var ctx4 = null;
+  var _neutralCleanupTimer = null;
+  var _isMirrorSwapping = false;
+  var _currentMirrorAnims = [];
+  function initCanvas(domRefs, appState, appCtx) {
+    dom4 = domRefs;
+    state4 = appState;
+    ctx4 = appCtx;
+    if (dom4.btnCross) dom4.btnCross.addEventListener("click", () => toggleCrossMode());
+    bindCrossDrag();
+    initDragArrow();
+  }
+  function renderEquationView() {
+    if (!state4 || !dom4 || !dom4.equationDisplay) return;
+    state4.clickDragToken = null;
+    dom4.equationDisplay.classList.remove("is-dragging-equation", "is-click-drag-mode");
+    hideDragArrow();
+    if (!state4.currentEq) {
+      dom4.equationDisplay.innerHTML = '<p class="placeholder">Nessuna equazione caricata.</p>';
+      if (dom4.latexLiveCode) dom4.latexLiveCode.textContent = "";
+      if (ctx4 && ctx4.renderKeypad) ctx4.renderKeypad();
+      return;
+    }
+    dom4.equationDisplay.innerHTML = renderEquation(state4.currentEq, {
+      selectedId: state4.selectedId,
+      targetVar: state4.targetVar,
+      interactive: true,
+      showImplicitDen: state4.showImplicitDen
+    });
+    if (dom4.latexLiveCode) {
+      dom4.latexLiveCode.textContent = toLatex(state4.currentEq);
+    }
+    attachEquationHandlers();
+    setupEquationDragAndDrop(dom4.equationDisplay, {
+      getCurrentEquation: () => state4.currentEq,
+      onApplyMove: applyDragResult
+    });
+    attachDropzoneClickHandlers();
+    if (ctx4 && ctx4.renderConditions) ctx4.renderConditions();
+    if (ctx4 && ctx4.renderKeypad) ctx4.renderKeypad();
+    const card = dom4.equationDisplay ? dom4.equationDisplay.closest(".equation-display-card") : null;
+    if (card) card.classList.toggle("is-auto-mode", state4.mode === "auto");
+    if (state4.mode === "auto") {
+      const hintBadge = document.querySelector(".drag-hint-badge");
+      const hintText = document.querySelector(".drag-hint-text");
+      if (hintBadge && hintText) {
+        hintBadge.textContent = "\u26A1 Modalit\xE0 Automatica";
+        hintText.innerHTML = "<strong>Fai clic ovunque con il mouse</strong> (sull'equazione o sul pulsante) per eseguire il passaggio con la giustificazione della regola!";
+      }
+    }
+    if (state4.currentEq) {
+      announceMathLive(`Equazione attiva: ${verbalizeEquation(state4.currentEq)}`);
+    }
+    scheduleNeutralCleanup();
+  }
+  function scheduleNeutralCleanup() {
+    if (_neutralCleanupTimer) clearTimeout(_neutralCleanupTimer);
+    _neutralCleanupTimer = setTimeout(() => {
+      if (!state4 || !state4.currentEq) return;
+      const cleaned = stripNeutrals(state4.currentEq);
+      if (!structurallyEqual(cleaned, state4.currentEq)) {
+        const wraps = dom4.equationDisplay ? dom4.equationDisplay.querySelectorAll(".neutral-fade-wrap") : [];
+        if (wraps.length > 0) {
+          wraps.forEach((w) => {
+            w.classList.add("var-exploding");
+            spawnVariableExplosion(w, "gold");
+          });
+          setTimeout(() => {
+            state4.currentEq = cleaned;
+            renderEquationView();
+          }, 400);
+        } else {
+          state4.currentEq = cleaned;
+          renderEquationView();
+        }
+      }
+    }, 1600);
+  }
+  function enterClickDragMode(tokenEl) {
+    const varName = tokenEl.dataset.varName;
+    if (!varName || !state4.currentEq) return;
+    state4.clickDragToken = {
+      varName,
+      fromSide: tokenEl.dataset.side,
+      fromSlot: tokenEl.dataset.slot || "num",
+      nodeType: tokenEl.dataset.nodeType || "Var"
+    };
+    tokenEl.classList.add("token-in-flight");
+    dom4.equationDisplay.classList.add("is-dragging-equation", "is-click-drag-mode");
+    highlightDropzones(dom4.equationDisplay, state4.clickDragToken);
+    if (ctx4 && ctx4.showMessage) {
+      ctx4.showMessage(`"${prettyVar(varName)}" selezionato \u2014 clicca la destinazione (denominatore o membro opposto) per applicare il trasporto, oppure scegli un'operazione in basso. Riclicca per annullare.`, "info");
+    }
+    const foundEl = findElement(state4.currentEq, tokenEl.dataset.id);
+    if (foundEl) {
+      state4.selectedId = tokenEl.dataset.id;
+      const actions = availableActions(state4.currentEq, foundEl, state4.targetVar);
+      if (ctx4 && ctx4.renderActions) ctx4.renderActions(foundEl, actions);
+    }
+  }
+  function exitClickDragMode() {
+    state4.clickDragToken = null;
+    if (dom4.equationDisplay) {
+      dom4.equationDisplay.classList.remove("is-dragging-equation", "is-click-drag-mode");
+      dom4.equationDisplay.querySelectorAll(".token-in-flight").forEach((el) => el.classList.remove("token-in-flight"));
+      clearDropzonesHighlight(dom4.equationDisplay);
+    }
+    hideDragArrow();
+  }
+  function applyClickDragToDropzone(dz) {
+    if (!state4.clickDragToken) return;
+    const drag = state4.clickDragToken;
+    const tokenEl = dom4.equationDisplay ? dom4.equationDisplay.querySelector(".token-in-flight") : null;
+    const sourceRect = tokenEl ? tokenEl.getBoundingClientRect() : null;
+    const targetRect = dz.getBoundingClientRect();
+    const tokenText = drag.varName;
+    exitClickDragMode();
+    const result = applyDragMove({
+      currentEq: state4.currentEq,
+      varName: drag.varName,
+      nodeType: drag.nodeType,
+      fromSide: drag.fromSide,
+      fromSlot: drag.fromSlot,
+      targetSide: dz.dataset.side,
+      targetSlot: dz.dataset.slot
+    });
+    if (!result.ok) {
+      flashTokenRejected(drag.varName, drag.fromSide);
+      applyDragResult(result);
+      return;
+    }
+    applyDragResult(result, { sourceRect, targetRect, tokenText, targetSide: dz.dataset.side, varName: drag.varName });
+  }
+  function attachEquationHandlers() {
+    if (!dom4.equationDisplay) return;
+    dom4.equationDisplay.querySelectorAll(".math-node").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (wasRecentTouchDrag()) return;
+        if (state4.mode === "auto") {
+          if (ctx4 && ctx4.executeNextAutoStep) ctx4.executeNextAutoStep();
+          return;
+        }
+        if (state4.crossMode) {
+          crossPickToken(el.dataset.id, el);
+          return;
+        }
+        if (el.classList.contains("draggable-token") && el.dataset.varName) {
+          if (state4.clickDragToken) {
+            if (el.classList.contains("token-in-flight")) {
+              exitClickDragMode();
+              return;
+            }
+            if (el.dataset.side === state4.clickDragToken.fromSide) {
+              exitClickDragMode();
+              enterClickDragMode(el);
+              return;
+            }
+            const dz = el.closest(".dropzone");
+            if (dz && dz.dataset.side && dz.dataset.slot) {
+              applyClickDragToDropzone(dz);
+              return;
+            }
+            exitClickDragMode();
+            return;
+          }
+          enterClickDragMode(el);
+          return;
+        }
+        if (state4.clickDragToken) {
+          const dz = el.closest(".dropzone");
+          if (dz && dz.dataset.side && dz.dataset.side !== state4.clickDragToken.fromSide) {
+            applyClickDragToDropzone(dz);
+            return;
+          }
+          exitClickDragMode();
+          return;
+        }
+        if (ctx4 && ctx4.selectElement) ctx4.selectElement(el.dataset.id);
+      });
+      const rawVal = el.dataset.varName || (el.textContent || "").trim();
+      const verbal = verbalizeVar(rawVal) || rawVal;
+      el.tabIndex = 0;
+      el.setAttribute("role", "button");
+      el.setAttribute("aria-label", "Elemento: " + verbal);
+      if (el.classList.contains("draggable-token")) {
+        el.setAttribute("aria-roledescription", "termine matematico trascinabile");
+      }
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          if (state4.mode === "auto") {
+            if (ctx4 && ctx4.executeNextAutoStep) ctx4.executeNextAutoStep();
+            return;
+          }
+          if (state4.crossMode) crossPickToken(el.dataset.id, el);
+          else if (ctx4 && ctx4.selectElement) ctx4.selectElement(el.dataset.id);
+        }
+      });
+    });
+  }
+  function attachDropzoneClickHandlers() {
+    if (!dom4.equationDisplay) return;
+    dom4.equationDisplay.querySelectorAll(".dropzone").forEach((dz) => {
+      dz.addEventListener("click", (e) => {
+        if (state4.mode === "auto") {
+          if (ctx4 && ctx4.executeNextAutoStep) ctx4.executeNextAutoStep();
+          return;
+        }
+        if (!state4.clickDragToken) return;
+        if (dz.dataset.side === state4.clickDragToken.fromSide) {
+          if (state4.clickDragToken.fromSlot === "num" && dz.dataset.slot === "den") {
+            const oppMember = state4.clickDragToken.fromSide === "right" ? "primo membro (sotto la linea di frazione a sinistra)" : "secondo membro (sotto la linea di frazione a destra)";
+            if (ctx4 && ctx4.showMessage) {
+              ctx4.showMessage(`Non puoi spostare "${prettyVar(state4.clickDragToken.varName)}" al denominatore dello stesso membro! Per il 2\xB0 principio di equivalenza, se dividi per esso va al denominatore del membro OPPOSTO (${oppMember}).`, "warning");
+            }
+          } else {
+            if (ctx4 && ctx4.showMessage) {
+              ctx4.showMessage(`Trascina o clicca sul membro opposto per applicare la regola del trasporto!`, "info");
+            }
+          }
+          flashTokenRejected(state4.clickDragToken.varName, state4.clickDragToken.fromSide);
+          return;
+        }
+        e.stopPropagation();
+        applyClickDragToDropzone(dz);
+      });
+      dz.addEventListener("mouseenter", () => {
+        if (!state4.clickDragToken) return;
+        const tokenEl = dom4.equationDisplay.querySelector(".token-in-flight");
+        if (!tokenEl) return;
+        const crossesMember = dz.dataset.side !== state4.clickDragToken.fromSide;
+        updateDragArrow(tokenEl, dz, crossesMember);
+      });
+      dz.addEventListener("mouseleave", () => {
+        if (state4.clickDragToken) hideDragArrow();
+      });
+    });
+  }
+  function flashTokenRejected(varName, side) {
+    if (!varName || !dom4.equationDisplay) return;
+    const el = dom4.equationDisplay.querySelector(`[data-var-name="${CSS.escape(varName)}"][data-side="${side}"]`);
+    if (!el) return;
+    el.classList.remove("token-rejected");
+    void el.offsetWidth;
+    el.classList.add("token-rejected");
+    setTimeout(() => el.classList.remove("token-rejected"), 600);
+  }
+  function highlightLandedToken(varName, side) {
+    if (!dom4.equationDisplay || !varName) return;
+    const tokens = dom4.equationDisplay.querySelectorAll(`.draggable-token[data-side="${side}"]`);
+    for (const t of tokens) {
+      if (t.dataset.varName === varName || t.textContent.trim() === varName) {
+        t.classList.add("token-landing-glow");
+        setTimeout(() => t.classList.remove("token-landing-glow"), 600);
+        break;
+      }
+    }
+  }
+  function flashSignChanged() {
+    if (!dom4.equationDisplay) return;
+    dom4.equationDisplay.querySelectorAll(".draggable-token, .node-target, .op").forEach((el) => {
+      el.classList.add("sign-flip-pulse");
+    });
+    setTimeout(() => {
+      if (dom4.equationDisplay) {
+        dom4.equationDisplay.querySelectorAll(".sign-flip-pulse").forEach((el) => el.classList.remove("sign-flip-pulse"));
+      }
+    }, 700);
+  }
+  function animateOperationBadge(label, operandText) {
+    if (!dom4.equationDisplay) return;
+    const card = dom4.equationDisplay.closest(".equation-display-card") || dom4.equationDisplay;
+    card.classList.remove("op-animating");
+    void card.offsetWidth;
+    card.classList.add("op-animating");
+    const badge = document.createElement("span");
+    badge.className = "op-anim-badge";
+    badge.textContent = operandText ? `${label}${prettyVar(operandText)}` : label;
+    badge.setAttribute("aria-hidden", "true");
+    card.appendChild(badge);
+    const cleanup = () => {
+      card.classList.remove("op-animating");
+      if (badge.parentNode) badge.parentNode.removeChild(badge);
+    };
+    badge.addEventListener("animationend", cleanup);
+    setTimeout(cleanup, 1200);
+  }
+  function cancelActiveSwapAnimations() {
+    _isMirrorSwapping = false;
+    if (_currentMirrorAnims.length > 0) {
+      _currentMirrorAnims.forEach((a) => {
+        try {
+          a.cancel();
+        } catch (_) {
+        }
+      });
+      _currentMirrorAnims = [];
+    }
+    cleanupTouchDrag(dom4.equationDisplay);
+    if (typeof document !== "undefined") {
+      document.querySelectorAll(".flying-math-token, .op-anim-badge").forEach((el) => el.remove());
+    }
+    if (dom4.crossDissolveLayer) {
+      dom4.crossDissolveLayer.innerHTML = "";
+    }
+  }
+  function animateMirrorSwap(fromEq, toEq, onComplete) {
+    if (_isMirrorSwapping) {
+      if (onComplete) onComplete();
+      return;
+    }
+    const memberL = dom4.equationDisplay ? dom4.equationDisplay.querySelector(".math-member-left") : null;
+    const memberR = dom4.equationDisplay ? dom4.equationDisplay.querySelector(".math-member-right") : null;
+    const eqSign = dom4.equationDisplay ? dom4.equationDisplay.querySelector(".eq-sign") : null;
+    if (!memberL || !memberR) {
+      if (onComplete) onComplete();
+      return;
+    }
+    _isMirrorSwapping = true;
+    if (ctx4 && ctx4.playSoundTransport) ctx4.playSoundTransport();
+    const rectL = memberL.getBoundingClientRect();
+    const rectR = memberR.getBoundingClientRect();
+    const deltaX = rectR.left - rectL.left;
+    if (eqSign) {
+      eqSign.classList.remove("eq-sign-mirror-active");
+      void eqSign.offsetWidth;
+      eqSign.classList.add("eq-sign-mirror-active");
+    }
+    const animL = memberL.animate([
+      { transform: "translate(0px, 0px) scale(1)", opacity: 1 },
+      { transform: `translate(${deltaX * 0.5}px, -20px) scale(1.04)`, opacity: 0.94, offset: 0.5 },
+      { transform: `translate(${deltaX}px, 0px) scale(1)`, opacity: 1 }
+    ], {
+      duration: 260,
+      easing: "cubic-bezier(0.25, 1, 0.4, 1)",
+      fill: "forwards"
+    });
+    const animR = memberR.animate([
+      { transform: "translate(0px, 0px) scale(1)", opacity: 1 },
+      { transform: `translate(${-deltaX * 0.5}px, 20px) scale(1.04)`, opacity: 0.94, offset: 0.5 },
+      { transform: `translate(${-deltaX}px, 0px) scale(1)`, opacity: 1 }
+    ], {
+      duration: 260,
+      easing: "cubic-bezier(0.25, 1, 0.4, 1)",
+      fill: "forwards"
+    });
+    _currentMirrorAnims = [animL, animR];
+    animL.onfinish = () => {
+      _isMirrorSwapping = false;
+      _currentMirrorAnims = [];
+      if (eqSign) eqSign.classList.remove("eq-sign-mirror-active");
+      if (onComplete) onComplete();
+    };
+  }
+  function animateTokenTravel(sourceRect, targetRect, tokenText, onComplete) {
+    if (!sourceRect || !targetRect) {
+      if (onComplete) onComplete();
+      return;
+    }
+    document.querySelectorAll(".flying-math-token").forEach((el) => el.remove());
+    const flyer = document.createElement("div");
+    flyer.className = "flying-math-token";
+    flyer.textContent = tokenText || "";
+    flyer.style.left = `${sourceRect.left}px`;
+    flyer.style.top = `${sourceRect.top}px`;
+    flyer.style.width = `${Math.max(30, sourceRect.width)}px`;
+    flyer.style.height = `${Math.max(28, sourceRect.height)}px`;
+    document.body.appendChild(flyer);
+    const dx = targetRect.left + targetRect.width / 2 - (sourceRect.left + sourceRect.width / 2);
+    const dy = targetRect.top + targetRect.height / 2 - (sourceRect.top + sourceRect.height / 2);
+    const midX = dx * 0.5;
+    const arcY = dy * 0.5 - Math.max(38, Math.min(85, Math.abs(dx) * 0.28));
+    let finished = false;
+    let fallbackTimer = null;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      if (flyer.parentNode) flyer.parentNode.removeChild(flyer);
+      if (onComplete) onComplete();
+    };
+    fallbackTimer = setTimeout(done, 520);
+    if (typeof flyer.animate === "function") {
+      const anim = flyer.animate([
+        { transform: "translate(0px, 0px) scale(1)", opacity: 0.95 },
+        { transform: `translate(${midX}px, ${arcY}px) scale(1.25)`, opacity: 1, offset: 0.5 },
+        { transform: `translate(${dx}px, ${dy}px) scale(1)`, opacity: 0.95 }
+      ], {
+        duration: 440,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        fill: "forwards"
+      });
+      anim.onfinish = done;
+      anim.oncancel = done;
+    } else {
+      done();
+    }
+  }
+  function toggleCrossMode(force) {
+    state4.crossMode = typeof force === "boolean" ? force : !state4.crossMode;
+    state4.crossPicked = [];
+    if (dom4.btnCross) {
+      dom4.btnCross.classList.toggle("active", state4.crossMode);
+      dom4.btnCross.setAttribute("aria-pressed", state4.crossMode ? "true" : "false");
+    }
+    if (dom4.crossLayer) {
+      dom4.crossLayer.hidden = !state4.crossMode;
+    }
+    const card = dom4.equationDisplay ? dom4.equationDisplay.closest(".equation-display-card") : null;
+    if (card) card.classList.toggle("cross-mode", state4.crossMode);
+    clearCrossMarks();
+    if (state4.crossMode) {
+      if (ctx4 && ctx4.showMessage) {
+        ctx4.showMessage("\u2715/ Semplificazione attiva \u2014 clicca due elementi da eliminare (fattori num./den., termini opposti o stessa grandezza su entrambi i membri).", "info");
+      }
+    }
+  }
+  function clearCrossMarks() {
+    if (!dom4.equationDisplay) return;
+    dom4.equationDisplay.querySelectorAll(".cross-marked").forEach((el) => el.classList.remove("cross-marked"));
+  }
+  function crossPickToken(id, element) {
+    if (!state4.currentEq || !id) return;
+    const already = state4.crossPicked.indexOf(id);
+    if (already >= 0) {
+      state4.crossPicked.splice(already, 1);
+      if (element) element.classList.remove("cross-marked");
+      if (state4.crossPicked.length === 0 && ctx4 && ctx4.clearPreview) ctx4.clearPreview();
+      return;
+    }
+    state4.crossPicked.push(id);
+    if (element) element.classList.add("cross-marked");
+    if (state4.crossPicked.length < 2) {
+      if (ctx4 && ctx4.showMessage) ctx4.showMessage("Primo elemento selezionato \u2014 ora scegli il secondo da semplificare.", "info");
+      return;
+    }
+    const [idA, idB] = state4.crossPicked;
+    const res = crossCancel(state4.currentEq, idA, idB);
+    if (!res.ok) {
+      state4.crossPicked = [];
+      clearCrossMarks();
+      flashCrossError();
+      if (ctx4 && ctx4.showInvalidMove) ctx4.showInvalidMove(res.error, res.hint, { label: "Semplificazione" });
+      return;
+    }
+    dissolveThenApplyCross(idA, idB, res);
+  }
+  function spawnVariableExplosion(el, colorScheme = "neon") {
+    const layer = dom4.crossDissolveLayer;
+    if (!el || !layer) return;
+    const layerRect = layer.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
+    const cx = rect.left + rect.width / 2 - layerRect.left;
+    const cy = rect.top + rect.height / 2 - layerRect.top;
+    const shockwave = document.createElement("div");
+    shockwave.className = "explosion-shockwave";
+    shockwave.style.left = `${cx}px`;
+    shockwave.style.top = `${cy}px`;
+    layer.appendChild(shockwave);
+    const palette = colorScheme === "gold" ? ["#fbbf24", "#f59e0b", "#fb7185", "#38bdf8", "#ffffff"] : ["#38bdf8", "#818cf8", "#c084fc", "#f43f5e", "#34d399", "#fbbf24"];
+    const symbols = ["\u2726", "\u2605", "\u25CF", "\u2726", "\u25B2", "\u25C6", "\u2728"];
+    const count = 12;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement("div");
+      p.className = "explosion-particle";
+      const angle = i / count * 2 * Math.PI + (Math.random() - 0.5) * 0.4;
+      const distance = 28 + Math.random() * 42;
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance;
+      const color = palette[i % palette.length];
+      const size = 11 + Math.random() * 9;
+      p.style.left = `${cx}px`;
+      p.style.top = `${cy}px`;
+      p.style.color = color;
+      p.style.fontSize = `${size}px`;
+      p.style.setProperty("--dx", `${dx}px`);
+      p.style.setProperty("--dy", `${dy}px`);
+      p.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+      layer.appendChild(p);
+    }
+    setTimeout(() => {
+      shockwave.remove();
+      layer.querySelectorAll(".explosion-particle").forEach((p) => p.remove());
+    }, 750);
+  }
+  function findCancellableDomElements(action) {
+    if (!dom4 || !dom4.equationDisplay || !action) return [];
+    if (action.ruleKey !== "cancelFactor" && action.id !== "cancel-factor") return [];
+    let denText = "";
+    try {
+      const actCtx = action.build ? action.build({}) : {};
+      denText = (actCtx.denText || "").trim();
+    } catch {
+    }
+    if (!denText) return [];
+    const found = [];
+    dom4.equationDisplay.querySelectorAll(".math-node").forEach((el) => {
+      const txt = (el.textContent || "").trim();
+      if (txt === denText || el.dataset.varName === denText) {
+        found.push(el);
+      }
+    });
+    return found;
+  }
+  function spawnVictoryConfetti() {
+    const layer = dom4.crossDissolveLayer;
+    if (!layer) return;
+    const layerRect = layer.getBoundingClientRect();
+    const width = layerRect.width || 600;
+    const height = layerRect.height || 200;
+    const colors = ["#38bdf8", "#ec4899", "#a855f7", "#fbbf24", "#10b981", "#6366f1"];
+    const symbols = ["\u2605", "\u2726", "\u{1F389}", "\u2728", "\u25C6", "\u25CF"];
+    for (let i = 0; i < 26; i++) {
+      const p = document.createElement("div");
+      p.className = "explosion-particle victory-particle";
+      const startX = Math.random() * width;
+      const startY = height * 0.2 + Math.random() * (height * 0.6);
+      const angle = Math.random() * Math.PI - Math.PI / 2;
+      const distance = 40 + Math.random() * 85;
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      p.style.left = `${startX}px`;
+      p.style.top = `${startY}px`;
+      p.style.color = color;
+      p.style.fontSize = `${12 + Math.random() * 12}px`;
+      p.style.setProperty("--dx", `${dx}px`);
+      p.style.setProperty("--dy", `${dy}px`);
+      p.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+      layer.appendChild(p);
+    }
+    setTimeout(() => {
+      layer.querySelectorAll(".victory-particle").forEach((p) => p.remove());
+    }, 950);
+  }
+  function dissolveThenApplyCross(idA, idB, res) {
+    clearCrossMarks();
+    if (ctx4 && ctx4.clearPreview) ctx4.clearPreview();
+    if (ctx4 && ctx4.playSoundExplosion) ctx4.playSoundExplosion();
+    const elA = dom4.equationDisplay.querySelector(`[data-id="${CSS.escape(idA)}"]`);
+    const elB = dom4.equationDisplay.querySelector(`[data-id="${CSS.escape(idB)}"]`);
+    [elA, elB].forEach((el) => {
+      if (el) {
+        el.classList.add("cross-dissolving", "var-exploding");
+        spawnVariableExplosion(el);
+      }
+    });
+    setTimeout(() => {
+      state4.currentEq = res.newEq;
+      state4.conditions = mergeConditions(state4.conditions, res.conditions || []);
+      state4.selectedId = null;
+      state4.crossPicked = [];
+      if (ctx4 && ctx4.pushHistory) {
+        ctx4.pushHistory({
+          equation: clone(res.newEq),
+          ruleName: res.ruleName,
+          rulePrinciple: res.rulePrinciple,
+          ruleId: "cross-cancel",
+          steps: [`Elimino "${res.cancelled}" (semplificazione).`],
+          conditions: (res.conditions || []).slice(),
+          explanationKey: null,
+          note: null,
+          verified: true
+        }, false);
+      }
+      if (ctx4 && ctx4.updateObjective) ctx4.updateObjective();
+      renderEquationView();
+      if (ctx4 && ctx4.showRulePanel) {
+        ctx4.showRulePanel(
+          { name: res.ruleName, principle: res.rulePrinciple, explanation: null },
+          { steps: [`Elimino ${res.cancelled}.`], conditions: res.conditions || [] },
+          res.newEq
+        );
+      }
+      if (ctx4 && ctx4.clearMessage) ctx4.clearMessage();
+      if (ctx4 && ctx4.showMessage) ctx4.showMessage(`\u2713 ${res.ruleName}.`, "success");
+      toggleCrossMode(false);
+      if (state4.goalReached) {
+        if (checkAndAnimateCompoundFraction()) return;
+        if (ctx4 && ctx4.playSuccessChime) ctx4.playSuccessChime();
+        spawnVictoryConfetti();
+        if (ctx4 && ctx4.showMessage) ctx4.showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state4.targetVar)} \xE8 isolata!`, "success");
+      } else if (state4.mode === "auto" && ctx4 && ctx4.showAutoMode) {
+        ctx4.showAutoMode();
+      }
+    }, 460);
+  }
+  function flashCrossError() {
+    const card = dom4.equationDisplay ? dom4.equationDisplay.closest(".equation-display-card") : null;
+    if (!card) return;
+    card.classList.remove("cross-error");
+    void card.offsetWidth;
+    card.classList.add("cross-error");
+    setTimeout(() => card.classList.remove("cross-error"), 500);
+  }
+  function bindCrossDrag() {
+    const handle = dom4.crossHandle;
+    if (!handle) return;
+    let dragging = false;
+    const tokenUnder = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      if (!el) return null;
+      const node = el.closest(".math-node");
+      if (!node || !dom4.equationDisplay.contains(node)) return null;
+      return node;
+    };
+    const moveHandle = (x, y) => {
+      const card = handle.closest(".cross-layer");
+      const host = card || handle.parentElement;
+      const rect = host.getBoundingClientRect();
+      handle.style.left = `${x - rect.left}px`;
+      handle.style.top = `${y - rect.top}px`;
+    };
+    const highlight = (node) => {
+      dom4.equationDisplay.querySelectorAll(".cross-hover").forEach((el) => el.classList.remove("cross-hover"));
+      if (node && !node.classList.contains("cross-marked")) node.classList.add("cross-hover");
+    };
+    handle.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      dragging = true;
+      handle.classList.add("dragging");
+      handle.setPointerCapture(e.pointerId);
+      moveHandle(e.clientX, e.clientY);
+    });
+    handle.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      moveHandle(e.clientX, e.clientY);
+      highlight(tokenUnder(e.clientX, e.clientY));
+    });
+    const finish = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      handle.classList.remove("dragging");
+      highlight(null);
+      const node = tokenUnder(e.clientX, e.clientY);
+      if (node) crossPickToken(node.dataset.id, node);
+      handle.style.left = "";
+      handle.style.top = "";
+    };
+    handle.addEventListener("pointerup", finish);
+    const cancelCrossDrag = () => {
+      dragging = false;
+      handle.classList.remove("dragging");
+      highlight(null);
+      handle.style.left = "";
+      handle.style.top = "";
+    };
+    handle.addEventListener("pointercancel", cancelCrossDrag);
+    handle.addEventListener("lostpointercapture", cancelCrossDrag);
+    handle.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        if (ctx4 && ctx4.showMessage) ctx4.showMessage("Usa Tab per raggiungere un fattore e Invio per sceglierlo.", "info");
+      }
+    });
+  }
+  function applyDragResult(result, meta = {}) {
+    if (!result || state4.isAnimatingCompoundFraction) return;
+    if (!result.ok) {
+      if (ctx4 && ctx4.clearPreview) ctx4.clearPreview();
+      const card = dom4.equationDisplay.closest(".equation-display-card") || dom4.equationDisplay;
+      card.classList.remove("cross-error");
+      void card.offsetWidth;
+      card.classList.add("cross-error");
+      setTimeout(() => card.classList.remove("cross-error"), 500);
+      if (ctx4 && ctx4.showInvalidMove) {
+        ctx4.showInvalidMove(result.error, "Verifica di aver applicato correttamente il primo o secondo principio di equivalenza.", { label: result.ruleName || "Trasporto" });
+      }
+      return;
+    }
+    if (meta.sourceRect && meta.targetRect && meta.tokenText) {
+      animateTokenTravel(meta.sourceRect, meta.targetRect, meta.tokenText, () => {
+        finalizeDragResult(result, meta);
+      });
+    } else {
+      finalizeDragResult(result, meta);
+    }
+  }
+  function finalizeDragResult(result, meta = {}) {
+    if (result.principle === "first") {
+      if (ctx4 && ctx4.playSoundTransport) ctx4.playSoundTransport();
+    } else {
+      if (ctx4 && ctx4.playSoundFraction) ctx4.playSoundFraction();
+    }
+    if (ctx4 && ctx4.dismissDidacticBubble) ctx4.dismissDidacticBubble();
+    if (ctx4 && ctx4.clearPreview) ctx4.clearPreview();
+    const nextEq = result.newEq;
+    state4.conditions = mergeConditions(state4.conditions, result.conditions || []);
+    state4.selectedId = null;
+    const pseudoRule = {
+      name: result.ruleName,
+      principle: result.rulePrinciple,
+      explanation: null
+    };
+    const pseudoResult = {
+      equation: nextEq,
+      rule: pseudoRule,
+      steps: result.steps || [],
+      conditions: result.conditions || []
+    };
+    const isTargetIsolatedOnRight = isolatedSide(nextEq.right, state4.targetVar);
+    if (isTargetIsolatedOnRight) {
+      state4.currentEq = nextEq;
+      renderEquationView();
+      highlightLandedToken(meta.varName, meta.targetSide);
+      if (ctx4 && ctx4.showRulePanel) ctx4.showRulePanel(pseudoRule, pseudoResult, nextEq);
+      if (ctx4 && ctx4.showMessage) ctx4.showMessage(`\u2713 ${result.ruleName}!`, "success");
+      setTimeout(() => {
+        const flipped = ensureTargetOnFirstMember(state4.currentEq, state4.targetVar);
+        if (flipped !== state4.currentEq) {
+          animateMirrorSwap(state4.currentEq, flipped, () => {
+            state4.currentEq = flipped;
+            state4.goalReached = true;
+            if (ctx4 && ctx4.pushHistory) {
+              ctx4.pushHistory({
+                equation: clone(flipped),
+                ruleName: "Regola dello specchio (scambio membri)",
+                rulePrinciple: "Propriet\xE0 simmetrica dell'uguaglianza: se A = B allora B = A.",
+                ruleId: "swapSides",
+                steps: ["Scambio i due membri per la propriet\xE0 simmetrica: la grandezza cercata \xE8 al primo membro."],
+                conditions: state4.conditions.slice(),
+                explanationKey: "scambioMembri",
+                note: null,
+                verified: true
+              }, false);
+            }
+            if (ctx4 && ctx4.updateObjective) ctx4.updateObjective();
+            renderEquationView();
+            if (checkAndAnimateCompoundFraction()) return;
+            if (ctx4 && ctx4.playSuccessChime) ctx4.playSuccessChime();
+            spawnVictoryConfetti();
+            if (ctx4 && ctx4.showMessage) ctx4.showMessage(`\u{1F389} Ottimo lavoro! La grandezza ${prettyVar(state4.targetVar)} \xE8 isolata con successo!`, "success");
+          });
+        }
+      }, 450);
+      return;
+    }
+    state4.currentEq = nextEq;
+    if (ctx4 && ctx4.pushHistory) {
+      ctx4.pushHistory({
+        equation: clone(nextEq),
+        ruleName: result.ruleName,
+        rulePrinciple: result.rulePrinciple,
+        ruleId: null,
+        steps: result.steps || [],
+        conditions: (result.conditions || []).slice(),
+        explanationKey: null,
+        note: null,
+        verified: true
+      }, false);
+    }
+    if (ctx4 && ctx4.updateObjective) ctx4.updateObjective();
+    renderEquationView();
+    highlightLandedToken(meta.varName, meta.targetSide);
+    if (ctx4 && ctx4.showRulePanel) ctx4.showRulePanel(pseudoRule, pseudoResult, result.newEq);
+    if (ctx4 && ctx4.clearMessage) ctx4.clearMessage();
+    if (ctx4 && ctx4.showMessage) ctx4.showMessage(`\u2713 ${result.ruleName}!`, "success");
+    if (state4.goalReached) {
+      if (checkAndAnimateCompoundFraction()) return;
+      if (ctx4 && ctx4.playSuccessChime) ctx4.playSuccessChime();
+      if (ctx4 && ctx4.showMessage) ctx4.showMessage(`\u{1F389} Ottimo lavoro! La grandezza ${prettyVar(state4.targetVar)} \xE8 isolata con successo!`, "success");
+    } else if (state4.mode === "auto" && ctx4 && ctx4.showAutoMode) {
+      ctx4.showAutoMode();
+    }
+  }
+  function cancelCompoundFractionAnimation() {
+    if (state4 && state4.compoundAnimTimers && state4.compoundAnimTimers.length) {
+      for (const t of state4.compoundAnimTimers) clearTimeout(t);
+      state4.compoundAnimTimers = [];
+    }
+    if (state4) state4.isAnimatingCompoundFraction = false;
+    if (dom4 && dom4.equationDisplay) {
+      dom4.equationDisplay.classList.remove("compound-anim-step1", "compound-anim-step2", "compound-anim-step3");
+    }
+    if (dom4 && dom4.compoundFractionBanner) {
+      dom4.compoundFractionBanner.hidden = true;
+    }
+  }
+  function checkAndAnimateCompoundFraction(onComplete) {
+    if (!state4 || state4.isAnimatingCompoundFraction) return false;
+    if (!state4.currentEq || !state4.targetVar) return false;
+    if (!isGoalReached(state4.currentEq, state4.targetVar)) return false;
+    const steps = getCompoundFractionSteps(state4.currentEq, state4.targetVar);
+    if (!steps) return false;
+    startCompoundFractionAnimation(steps, onComplete);
+    return true;
+  }
+  function startCompoundFractionAnimation(steps, onComplete) {
+    cancelCompoundFractionAnimation();
+    state4.isAnimatingCompoundFraction = true;
+    if (dom4.completionBanner) dom4.completionBanner.hidden = true;
+    if (dom4.compoundFractionBanner) {
+      dom4.compoundFractionBanner.hidden = false;
+      if (dom4.compoundFractionStepBadge) dom4.compoundFractionStepBadge.textContent = "Passaggio 1 di 2";
+      if (dom4.compoundFractionTitle) dom4.compoundFractionTitle.textContent = "Frazione di frazione rilevata";
+      if (dom4.compoundFractionMsg) {
+        dom4.compoundFractionMsg.textContent = "La formula presenta una frazione al denominatore. Dividere per una frazione equivale a moltiplicare per la sua reciproca (inversa).";
+      }
+    }
+    if (dom4.equationDisplay) {
+      dom4.equationDisplay.classList.remove("compound-anim-step2", "compound-anim-step3");
+      dom4.equationDisplay.classList.add("compound-anim-step1");
+    }
+    state4.currentEq = steps.step1Eq;
+    renderEquationView();
+    if (ctx4 && ctx4.updateObjective) ctx4.updateObjective();
+    const t1 = setTimeout(() => {
+      if (!state4.isAnimatingCompoundFraction) return;
+      if (ctx4 && ctx4.playSoundFraction) ctx4.playSoundFraction();
+      state4.currentEq = steps.step2Eq;
+      renderEquationView();
+      if (dom4.compoundFractionBanner) {
+        if (dom4.compoundFractionStepBadge) dom4.compoundFractionStepBadge.textContent = "Passaggio 2 di 2";
+        if (dom4.compoundFractionTitle) dom4.compoundFractionTitle.textContent = "Inversione del denominatore";
+        if (dom4.compoundFractionMsg) {
+          dom4.compoundFractionMsg.textContent = "Moltiplichiamo il numeratore per la frazione reciproca del denominatore: la frazione si capovolge.";
+        }
+      }
+      if (dom4.equationDisplay) {
+        dom4.equationDisplay.classList.remove("compound-anim-step1");
+        dom4.equationDisplay.classList.add("compound-anim-step2");
+      }
+      const t2 = setTimeout(() => {
+        if (!state4.isAnimatingCompoundFraction) return;
+        if (ctx4 && ctx4.playSuccessChime) ctx4.playSuccessChime();
+        spawnVictoryConfetti();
+        state4.currentEq = steps.step3Eq;
+        state4.isAnimatingCompoundFraction = false;
+        renderEquationView();
+        const rule = {
+          name: "Semplificazione frazione di frazione",
+          principle: "Dividere per una frazione equivale a moltiplicare per la sua reciproca (inversa): a / (b/c) = (a \xB7 c) / b.",
+          explanation: null
+        };
+        if (ctx4 && ctx4.pushHistory) {
+          ctx4.pushHistory({
+            equation: clone(steps.step3Eq),
+            ruleName: rule.name,
+            rulePrinciple: rule.principle,
+            ruleId: "compound_frac_simplify",
+            steps: [
+              `Frazione di frazione rilevata: ${steps.step1Pretty}`,
+              `Moltiplicazione per la reciproca: ${steps.step2Pretty}`,
+              `Frazione normale semplificata: ${steps.step3Pretty}`
+            ],
+            conditions: (state4.conditions || []).slice(),
+            explanationKey: null,
+            note: "Semplificazione automatica frazione di frazione",
+            verified: true
+          }, false);
+        }
+        if (dom4.compoundFractionBanner) {
+          if (dom4.compoundFractionStepBadge) dom4.compoundFractionStepBadge.textContent = "Completato \u2713";
+          if (dom4.compoundFractionTitle) dom4.compoundFractionTitle.textContent = "Frazione normale ottenuta!";
+          if (dom4.compoundFractionMsg) {
+            dom4.compoundFractionMsg.textContent = `Formula finale semplificata: ${steps.step3Pretty}.`;
+          }
+        }
+        if (dom4.equationDisplay) {
+          dom4.equationDisplay.classList.remove("compound-anim-step2");
+          dom4.equationDisplay.classList.add("compound-anim-step3");
+        }
+        if (ctx4 && ctx4.updateObjective) ctx4.updateObjective();
+        if (ctx4 && ctx4.showMessage) ctx4.showMessage(`\u{1F389} Frazione di frazione semplificata! Formula inversa finale ricavata con successo.`, "success");
+        const t3 = setTimeout(() => {
+          if (dom4.compoundFractionBanner) dom4.compoundFractionBanner.hidden = true;
+          if (dom4.equationDisplay) dom4.equationDisplay.classList.remove("compound-anim-step3");
+          if (typeof onComplete === "function") onComplete();
+        }, 3200);
+        state4.compoundAnimTimers.push(t3);
+      }, 2500);
+      state4.compoundAnimTimers.push(t2);
+    }, 2200);
+    state4.compoundAnimTimers.push(t1);
+  }
+
   // js/app.js
-  var state = {
+  var state5 = {
     baseFormula: null,
     startEq: null,
     currentEq: null,
@@ -11209,7 +13352,7 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     compoundAnimTimers: []
   };
   var $ = (sel) => document.querySelector(sel);
-  var dom = {
+  var dom5 = {
     btnInstallPwa: $("#btn-install-pwa"),
     libraryList: $("#library-list"),
     librarySearch: $("#library-search"),
@@ -11405,25 +13548,61 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     quizBtnResetProgress: $("#quiz-btn-reset-progress"),
     quizBtnCloseDashboardBottom: $("#quiz-btn-close-dashboard-bottom")
   };
+  var appContext = {
+    loadFormula,
+    updateObjective,
+    updateRulePanelInitial,
+    showRulePanel,
+    showAutoMode,
+    executeNextAutoStep,
+    clearPreview,
+    clearSelection,
+    selectElement,
+    renderActions,
+    renderConditions,
+    renderEquationView,
+    renderKeypad,
+    pushHistory,
+    renderHistory,
+    undo,
+    redo,
+    resetExercise,
+    showMessage,
+    clearMessage,
+    showInvalidMove,
+    showDidacticBubble,
+    dismissDidacticBubble,
+    playSoundClick,
+    playSoundTransport,
+    playSoundFraction,
+    playSoundExplosion,
+    playSoundInvalid,
+    playSuccessChime,
+    animateOperationBadge,
+    animateMirrorSwap,
+    flashSignChanged,
+    spawnVictoryConfetti,
+    checkAndAnimateCompoundFraction,
+    cancelCompoundFractionAnimation,
+    cancelActiveSwapAnimations
+  };
   function init() {
     initTheme();
     populateTopics();
     renderLibrary();
     bindLibraryEvents();
+    initCanvas(dom5, state5, appContext);
+    initNumpad(dom5, state5, appContext);
+    initHistory(dom5, state5, appContext);
+    initModals(dom5, state5, appContext);
     bindWorkAreaEvents();
-    bindHistoryEvents();
-    bindEditorEvents();
     bindModeEvents();
     bindGlobalEvents();
-    bindLatexEvents();
-    bindStorageEvents();
-    renderMyFormulas();
-    if (dom.crossLayer) dom.crossLayer.hidden = true;
-    initDragArrow();
+    if (dom5.crossLayer) dom5.crossLayer.hidden = true;
     initPwa();
     initMobileNav();
-    initWorksheetExporter(dom, state);
-    state.quizManager = initQuizManager(dom, state, { loadFormula });
+    initWorksheetExporter(dom5, state5);
+    state5.quizManager = initQuizManager(dom5, state5, { loadFormula });
     loadFormula(getFormulaById("v-st"), "t");
   }
   var deferredInstallPrompt = null;
@@ -11450,14 +13629,14 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     window.addEventListener("beforeinstallprompt", (e) => {
       e.preventDefault();
       deferredInstallPrompt = e;
-      if (dom.btnInstallPwa && !isStandalone) {
-        dom.btnInstallPwa.style.display = "inline-flex";
+      if (dom5.btnInstallPwa && !isStandalone) {
+        dom5.btnInstallPwa.style.display = "inline-flex";
       }
     });
-    if (dom.btnInstallPwa) {
-      dom.btnInstallPwa.addEventListener("click", async () => {
+    if (dom5.btnInstallPwa) {
+      dom5.btnInstallPwa.addEventListener("click", async () => {
         if (!deferredInstallPrompt) return;
-        dom.btnInstallPwa.style.display = "none";
+        dom5.btnInstallPwa.style.display = "none";
         deferredInstallPrompt.prompt();
         try {
           const choice = await deferredInstallPrompt.userChoice;
@@ -11470,14 +13649,14 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       });
     }
     window.addEventListener("appinstalled", () => {
-      if (dom.btnInstallPwa) dom.btnInstallPwa.style.display = "none";
+      if (dom5.btnInstallPwa) dom5.btnInstallPwa.style.display = "none";
       deferredInstallPrompt = null;
       showMessage('\u{1F389} "Formule Inverse" \xE8 ora installata sul tuo dispositivo!', "success");
     });
   }
   function initMobileNav() {
-    if (!dom.mobileNavBar) return;
-    const items = dom.mobileNavBar.querySelectorAll(".mobile-nav-item");
+    if (!dom5.mobileNavBar) return;
+    const items = dom5.mobileNavBar.querySelectorAll(".mobile-nav-item");
     if (!items.length) return;
     function setActive(targetId) {
       items.forEach((btn) => {
@@ -11489,40 +13668,37 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       });
     }
     items.forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
+      btn.addEventListener("click", () => {
         const targetId = btn.dataset.jump;
         if (!targetId) return;
         const targetEl = document.getElementById(targetId);
         if (targetEl) {
-          targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
           setActive(targetId);
+          targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       });
     });
-    const targetIds = ["workarea", "library-panel", "history-panel", "numerical-calc-card"];
-    const targets = targetIds.map((id) => document.getElementById(id)).filter(Boolean);
-    if ("IntersectionObserver" in window && targets.length > 0) {
+    const sectionIds = ["library-panel", "equation-display-card", "history-panel", "numerical-calc-card"];
+    const sections = sectionIds.map((id) => document.getElementById(id)).filter(Boolean);
+    if ("IntersectionObserver" in window && sections.length) {
       const observer = new IntersectionObserver((entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.2) {
-            setActive(entry.target.id);
+        let mostVisible = null;
+        let maxRatio = 0;
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio > maxRatio) {
+            maxRatio = entry.intersectionRatio;
+            mostVisible = entry.target;
           }
+        });
+        if (mostVisible) {
+          setActive(mostVisible.id);
         }
       }, {
         root: null,
-        rootMargin: "-10% 0px -40% 0px",
-        threshold: [0.2, 0.5]
+        threshold: [0.1, 0.3, 0.6],
+        rootMargin: "-50px 0px -100px 0px"
       });
-      targets.forEach((el) => observer.observe(el));
-    }
-  }
-  function populateTopics() {
-    for (const t of TOPICS) {
-      const opt = document.createElement("option");
-      opt.value = t;
-      opt.textContent = t;
-      dom.libraryTopic.appendChild(opt);
+      sections.forEach((s) => observer.observe(s));
     }
   }
   var parsedFormulaCache = /* @__PURE__ */ new Map();
@@ -11532,20 +13708,30 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     }
     return parsedFormulaCache.get(formulaStr);
   }
+  function populateTopics() {
+    if (!dom5.libraryTopic) return;
+    dom5.libraryTopic.innerHTML = '<option value="">Tutti gli argomenti</option>';
+    for (const t of TOPICS) {
+      const opt = document.createElement("option");
+      opt.value = t;
+      opt.textContent = t;
+      dom5.libraryTopic.appendChild(opt);
+    }
+  }
   function renderLibrary() {
-    const topic = dom.libraryTopic ? dom.libraryTopic.value : "";
-    const search = dom.librarySearch ? dom.librarySearch.value.trim() : "";
-    const difficulty = dom.libraryDifficulty ? dom.libraryDifficulty.value : "";
+    const topic = dom5.libraryTopic ? dom5.libraryTopic.value : "";
+    const search = dom5.librarySearch ? dom5.librarySearch.value.trim() : "";
+    const difficulty = dom5.libraryDifficulty ? dom5.libraryDifficulty.value : "";
     const list = filterFormulas({ topic, search, difficulty });
     if (topic && search && list.length > 0 && list.some((f) => f.topic !== topic)) {
-      if (dom.libraryTopic) dom.libraryTopic.value = "";
+      if (dom5.libraryTopic) dom5.libraryTopic.value = "";
     }
-    if (dom.libraryCountBadge) {
-      dom.libraryCountBadge.textContent = list.length + (list.length === 1 ? " formula" : " formule");
+    if (dom5.libraryCountBadge) {
+      dom5.libraryCountBadge.textContent = list.length + (list.length === 1 ? " formula" : " formule");
     }
-    dom.libraryList.innerHTML = "";
+    dom5.libraryList.innerHTML = "";
     if (list.length === 0) {
-      dom.libraryList.innerHTML = '<p class="placeholder">Nessuna formula trovata per i filtri selezionati.</p>';
+      dom5.libraryList.innerHTML = '<p class="placeholder">Nessuna formula trovata per i filtri selezionati.</p>';
       return;
     }
     for (const f of list) {
@@ -11559,14 +13745,14 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       try {
         mathHtml = renderEquation(parseFormulaCached(f.formula), {});
       } catch (e) {
-        mathHtml = escapeHtml3(f.formula);
+        mathHtml = escapeHtml5(f.formula);
       }
       card.innerHTML = `
       <div class="formula-card-head">
-        <span class="formula-topic">${escapeHtml3(f.topic)}</span>
+        <span class="formula-topic">${escapeHtml5(f.topic)}</span>
         <span class="formula-diff" title="Difficolt\xE0 ${f.difficulty}/5">${dif}</span>
       </div>
-      <div class="formula-name">${escapeHtml3(f.name)}</div>
+      <div class="formula-name">${escapeHtml5(f.name)}</div>
       <div class="formula-math">${mathHtml}</div>
       <div class="formula-isolate">
         <span class="isolate-label">Scegli cosa ricavare:</span>
@@ -11599,96 +13785,64 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
           select();
         }
       });
-      dom.libraryList.appendChild(card);
+      dom5.libraryList.appendChild(card);
     }
   }
   function openPickTargetModal(formulaEntry) {
-    if (!dom.pickTargetBackdrop) {
+    if (!dom5.pickTargetBackdrop) {
       loadFormula(formulaEntry, formulaEntry.isolate[0]);
       return;
     }
-    dom.pickTargetFormulaName.textContent = formulaEntry.name;
+    dom5.pickTargetFormulaName.textContent = formulaEntry.name;
     try {
-      dom.pickTargetFormulaPreview.innerHTML = renderEquation(parseFormulaCached(formulaEntry.formula), {});
+      dom5.pickTargetFormulaPreview.innerHTML = renderEquation(parseFormulaCached(formulaEntry.formula), {});
     } catch {
-      dom.pickTargetFormulaPreview.textContent = formulaEntry.formula;
+      dom5.pickTargetFormulaPreview.textContent = formulaEntry.formula;
     }
-    dom.pickTargetButtons.innerHTML = "";
+    dom5.pickTargetButtons.innerHTML = "";
     formulaEntry.isolate.forEach((v) => {
       const btn = document.createElement("button");
       btn.className = "pick-target-btn";
       btn.type = "button";
-      btn.innerHTML = `<span>${escapeHtml3(prettyVar(v))}</span><small>ricava ${escapeHtml3(prettyVar(v))}</small>`;
+      btn.innerHTML = `<span>${escapeHtml5(prettyVar(v))}</span><small>ricava ${escapeHtml5(prettyVar(v))}</small>`;
       btn.addEventListener("click", () => {
-        dom.pickTargetBackdrop.hidden = true;
+        dom5.pickTargetBackdrop.hidden = true;
         loadFormula(formulaEntry, v);
       });
-      dom.pickTargetButtons.appendChild(btn);
+      dom5.pickTargetButtons.appendChild(btn);
     });
-    dom.pickTargetBackdrop.hidden = false;
-  }
-  function triviallyIsolated(formulaStr, v) {
-    const parts = formulaStr.split("=");
-    if (parts.length !== 2) return false;
-    return parts[0].trim() === v;
-  }
-  function bindLibraryEvents() {
-    if (dom.librarySearch) {
-      dom.librarySearch.addEventListener("input", renderLibrary);
-      dom.librarySearch.addEventListener("search", renderLibrary);
-    }
-    if (dom.libraryTopic) dom.libraryTopic.addEventListener("change", renderLibrary);
-    if (dom.libraryDifficulty) dom.libraryDifficulty.addEventListener("change", renderLibrary);
-    if (dom.btnRandom) {
-      dom.btnRandom.addEventListener("click", () => {
-        const { id, target } = randomExercise();
-        loadFormula(getFormulaById(id), target);
-      });
-    }
+    dom5.pickTargetBackdrop.hidden = false;
   }
   function loadFormula(formulaEntry, targetVar) {
     cancelCompoundFractionAnimation();
     cancelActiveSwapAnimations();
+    dismissDidacticBubble();
+    state5.baseFormula = formulaEntry;
     let eq;
     try {
       eq = parseEquation(formulaEntry.formula);
     } catch (e) {
-      showMessage("Errore nel caricamento della formula: " + e.message, "error");
+      showMessage("Impossibile caricare la formula: " + e.message, "error");
       return;
     }
-    const vars = collectVars(eq);
-    if (!vars.has(targetVar)) {
-      const alt = [...vars].find((v) => v.toLowerCase() === targetVar.toLowerCase());
-      if (alt) targetVar = alt;
-      else {
-        showMessage(`La grandezza "${targetVar}" non compare nella formula.`, "error");
-        return;
-      }
-    }
-    state.baseFormula = formulaEntry;
-    state.startEq = clone(eq);
-    state.currentEq = clone(eq);
-    state.targetVar = targetVar;
-    state.conditions = (formulaEntry.conditions || []).slice();
-    state.history = [];
-    state.historyIndex = -1;
-    state.selectedId = null;
-    state.pendingMove = null;
-    state.goalReached = false;
-    state.keypadOp = null;
-    state.crossMode = false;
-    state.crossPicked = [];
-    state.clickDragToken = null;
-    if (dom.btnCross) {
-      dom.btnCross.classList.remove("active");
-      dom.btnCross.setAttribute("aria-pressed", "false");
-    }
+    state5.startEq = clone(eq);
+    state5.currentEq = clone(eq);
+    state5.targetVar = targetVar;
+    state5.conditions = (formulaEntry.conditions || []).slice();
+    state5.history = [];
+    state5.historyIndex = -1;
+    state5.selectedId = null;
+    state5.pendingMove = null;
+    state5.goalReached = false;
+    state5.keypadOp = null;
+    toggleCrossMode(false);
+    clearPreview();
     pushHistory({
       equation: clone(eq),
       ruleName: "Formula di partenza",
       rulePrinciple: formulaEntry.formula,
       steps: [],
-      conditions: state.conditions.slice(),
+      conditions: state5.conditions.slice(),
       explanationKey: null,
       note: formulaEntry.hypotheses || null,
       verified: true
@@ -11697,1269 +13851,75 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     renderEquationView();
     updateRulePanelInitial(formulaEntry);
     clearMessage();
-    clearPreview();
-    clearSelection();
+    showMessage(`Formula "${formulaEntry.name}" caricata. Obiettivo: isolare ${prettyVar(targetVar)}.`, "info");
+    renderLibrary();
+    if (state5.mode === "auto") {
+      showAutoMode();
+    }
+  }
+  function setTargetVar(v) {
+    state5.targetVar = v;
     dismissDidacticBubble();
-    if (state.goalReached && checkAndAnimateCompoundFraction()) {
-      return;
-    }
-    if (state.mode === "auto") {
-      showAutoMode();
-    }
-  }
-  function renderEquationView() {
-    state.clickDragToken = null;
-    if (dom.equationDisplay) {
-      dom.equationDisplay.classList.remove("is-dragging-equation", "is-click-drag-mode");
-    }
-    hideDragArrow();
-    if (!state.currentEq) {
-      dom.equationDisplay.innerHTML = '<p class="placeholder">Nessuna equazione caricata.</p>';
-      if (dom.latexLiveCode) dom.latexLiveCode.textContent = "";
-      renderKeypad();
-      return;
-    }
-    dom.equationDisplay.innerHTML = renderEquation(state.currentEq, {
-      selectedId: state.selectedId,
-      targetVar: state.targetVar,
-      interactive: true,
-      showImplicitDen: state.showImplicitDen
-    });
-    if (dom.latexLiveCode) {
-      dom.latexLiveCode.textContent = toLatex(state.currentEq);
-    }
-    attachEquationHandlers();
-    setupEquationDragAndDrop(dom.equationDisplay, {
-      getCurrentEquation: () => state.currentEq,
-      onApplyMove: applyDragResult
-    });
-    attachDropzoneClickHandlers();
-    renderConditions();
-    renderKeypad();
-    const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
-    if (card) card.classList.toggle("is-auto-mode", state.mode === "auto");
-    if (state.mode === "auto") {
-      const hintBadge = document.querySelector(".drag-hint-badge");
-      const hintText = document.querySelector(".drag-hint-text");
-      if (hintBadge && hintText) {
-        hintBadge.textContent = "\u26A1 Modalit\xE0 Automatica";
-        hintText.innerHTML = "<strong>Fai clic ovunque con il mouse</strong> (sull'equazione o sul pulsante) per eseguire il passaggio con la giustificazione della regola!";
-      }
-    }
-    if (state.currentEq) {
-      announceMathLive(`Equazione attiva: ${verbalizeEquation(state.currentEq)}`);
-    }
-    scheduleNeutralCleanup();
-  }
-  var _neutralCleanupTimer = null;
-  function scheduleNeutralCleanup() {
-    if (_neutralCleanupTimer) clearTimeout(_neutralCleanupTimer);
-    _neutralCleanupTimer = setTimeout(() => {
-      if (!state.currentEq) return;
-      const cleaned = stripNeutrals(state.currentEq);
-      if (!structurallyEqual(cleaned, state.currentEq)) {
-        const wraps = dom.equationDisplay ? dom.equationDisplay.querySelectorAll(".neutral-fade-wrap") : [];
-        if (wraps.length > 0) {
-          wraps.forEach((w) => {
-            w.classList.add("var-exploding");
-            spawnVariableExplosion(w, "gold");
-          });
-          setTimeout(() => {
-            state.currentEq = cleaned;
-            renderEquationView();
-          }, 400);
-        } else {
-          state.currentEq = cleaned;
-          renderEquationView();
-        }
-      }
-    }, 1600);
-  }
-  function renderKeypad() {
-    if (!dom.keypadOps || !dom.keypadOperands) return;
-    dom.keypadOps.innerHTML = "";
-    for (const op of KEYPAD_OPERATIONS) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "keypad-op" + (state.keypadOp === op.id ? " active" : "");
-      btn.dataset.op = op.id;
-      btn.textContent = op.label;
-      btn.title = op.title;
-      btn.setAttribute("aria-label", op.title);
-      btn.setAttribute("aria-pressed", state.keypadOp === op.id ? "true" : "false");
-      btn.disabled = !state.currentEq;
-      btn.addEventListener("click", () => handleKeypadOpClick(op));
-      dom.keypadOps.appendChild(btn);
-    }
-    dom.keypadOperands.innerHTML = "";
-    if (!state.currentEq) {
-      dom.keypadOperands.innerHTML = '<p class="placeholder small">Carica una formula per usare il tastierino.</p>';
-      updateKeypadHint();
-      return;
-    }
-    const { letters, numbers } = equationKeypadTokens(state.currentEq);
-    for (const name of letters) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "keypad-operand keypad-letter";
-      btn.textContent = prettyVar(name);
-      btn.title = `Applica ${name}`;
-      btn.addEventListener("click", () => handleKeypadOperandClick(name));
-      dom.keypadOperands.appendChild(btn);
-    }
-    for (const value of numbers) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "keypad-operand keypad-number";
-      btn.textContent = String(value);
-      btn.title = `Applica ${value}`;
-      btn.addEventListener("click", () => handleKeypadOperandClick(String(value)));
-      dom.keypadOperands.appendChild(btn);
-    }
-    const custom = document.createElement("span");
-    custom.className = "keypad-custom";
-    custom.innerHTML = `<input class="keypad-custom-value" type="text" inputmode="numeric" placeholder="n" aria-label="Altro numero o grandezza" size="3"><button type="button" class="btn-mini keypad-custom-apply" title="Applica all'equazione">Applica</button>`;
-    dom.keypadOperands.appendChild(custom);
-    const input = custom.querySelector(".keypad-custom-value");
-    const applyBtn = custom.querySelector(".keypad-custom-apply");
-    const submit = () => {
-      const value = (input.value || "").trim();
-      if (!value) return;
-      handleKeypadOperandClick(value);
-      input.value = "";
-    };
-    applyBtn.addEventListener("click", submit);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submit();
-      }
-    });
-    updateKeypadHint();
-  }
-  function updateKeypadHint() {
-    if (!dom.keypadHint) return;
-    if (!state.currentEq) {
-      dom.keypadHint.textContent = "Carica una formula per usare il tastierino.";
-      return;
-    }
-    if (!state.keypadOp) {
-      dom.keypadHint.textContent = "Scegli un'operazione: verr\xE0 applicata a entrambi i membri.";
-      return;
-    }
-    const op = KEYPAD_OPERATIONS.find((o) => o.id === state.keypadOp);
-    dom.keypadHint.textContent = op && !op.needsOperand ? `Premi di nuovo per applicare ${op.label} a entrambi i membri.` : `Operazione ${op ? op.label : ""} scelta: ora tocca una grandezza o un numero.`;
-  }
-  function handleKeypadOpClick(op) {
-    if (!state.currentEq) return;
-    if (state.keypadOp === op.id) {
-      if (op.needsOperand) {
-        state.keypadOp = null;
-        renderKeypad();
-        return;
-      }
-      applyKeypadMove(op.id, null, null);
-      return;
-    }
-    state.keypadOp = op.id;
-    renderKeypad();
-    if (!op.needsOperand) applyKeypadMove(op.id, null, null);
-  }
-  function handleKeypadOperandClick(text) {
-    if (!state.currentEq) return;
-    if (!state.keypadOp) {
-      showMessage("Prima scegli un'operazione nel tastierino, poi la grandezza o il numero.", "info");
-      return;
-    }
-    applyKeypadMove(state.keypadOp, parseOperand(text), text);
-  }
-  function applyKeypadMove(opId, operandNode, operandText) {
-    const op = KEYPAD_OPERATIONS.find((o) => o.id === opId);
-    const label = op ? op.label : opId;
-    const before = state.currentEq;
-    const res = applyKeypadOperation(before, opId, operandNode, operandText, state.targetVar);
-    if (!res.ok) {
-      state.keypadOp = null;
-      renderKeypad();
-      clearPreview();
-      animateOperationBadge(label, operandText);
-      showInvalidMove(res.error, res.hint, { label: `Applica ${label} a entrambi i membri` });
-      return;
-    }
-    const newEq = res.equation;
-    if (equivalentEq(newEq, before)) {
-      state.keypadOp = null;
-      renderKeypad();
-      showMessage("Questa operazione non cambia l'equazione: prova un'altra trasformazione.", "info");
-      return;
-    }
-    if (opId === "add" || opId === "sub") playSoundTransport();
-    else playSoundFraction();
-    state.currentEq = newEq;
-    state.conditions = mergeConditions(state.conditions, res.conditions || []);
-    state.selectedId = null;
-    state.keypadOp = null;
-    clearPreview();
-    const ruleName = `Applica ${label}${operandText ? " " + prettyVar(operandText) : ""} a entrambi i membri`;
-    pushHistory({
-      equation: clone(newEq),
-      ruleName,
-      rulePrinciple: res.note || "",
-      ruleId: "keypad-" + opId,
-      steps: res.steps || [],
-      conditions: (res.conditions || []).slice(),
-      explanationKey: null,
-      note: res.note || null,
-      verified: true
-    }, false);
     updateObjective();
     renderEquationView();
-    showRulePanel(
-      { name: ruleName, principle: res.steps && res.steps.length ? res.steps.join(" ") : "", explanation: null },
-      { steps: res.steps || [], conditions: res.conditions || [], note: res.note || null },
-      newEq
-    );
     clearMessage();
-    animateOperationBadge(label, operandText);
-    showMessage(`\u2713 ${ruleName}.`, "success");
-    if (res.note) showMessage(res.note, "info");
-    if (state.goalReached) {
+    if (state5.goalReached) {
       if (checkAndAnimateCompoundFraction()) return;
       playSuccessChime();
-      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-    } else if (state.mode === "auto") {
-      showAutoMode();
-    }
-  }
-  function animateOperationBadge(label, operandText) {
-    if (!dom.equationDisplay) return;
-    const card = dom.equationDisplay.closest(".equation-display-card") || dom.equationDisplay;
-    card.classList.remove("op-animating");
-    void card.offsetWidth;
-    card.classList.add("op-animating");
-    const badge = document.createElement("span");
-    badge.className = "op-anim-badge";
-    badge.textContent = operandText ? `${label}${prettyVar(operandText)}` : label;
-    badge.setAttribute("aria-hidden", "true");
-    card.appendChild(badge);
-    const cleanup = () => {
-      card.classList.remove("op-animating");
-      if (badge.parentNode) badge.parentNode.removeChild(badge);
-    };
-    badge.addEventListener("animationend", cleanup);
-    setTimeout(cleanup, 1200);
-  }
-  var _isMirrorSwapping = false;
-  var _currentMirrorAnims = [];
-  function cancelActiveSwapAnimations() {
-    _isMirrorSwapping = false;
-    if (_currentMirrorAnims.length > 0) {
-      _currentMirrorAnims.forEach((a) => {
-        try {
-          a.cancel();
-        } catch (_) {
-        }
-      });
-      _currentMirrorAnims = [];
-    }
-    cleanupTouchDrag(dom.equationDisplay);
-    if (typeof document !== "undefined") {
-      document.querySelectorAll(".flying-math-token, .op-anim-badge").forEach((el) => el.remove());
-    }
-    if (dom.crossDissolveLayer) {
-      dom.crossDissolveLayer.innerHTML = "";
-    }
-  }
-  function animateMirrorSwap(fromEq, toEq, onComplete) {
-    if (_isMirrorSwapping) {
-      if (onComplete) onComplete();
-      return;
-    }
-    const memberL = dom.equationDisplay ? dom.equationDisplay.querySelector(".math-member-left") : null;
-    const memberR = dom.equationDisplay ? dom.equationDisplay.querySelector(".math-member-right") : null;
-    const eqSign = dom.equationDisplay ? dom.equationDisplay.querySelector(".eq-sign") : null;
-    if (!memberL || !memberR) {
-      if (onComplete) onComplete();
-      return;
-    }
-    _isMirrorSwapping = true;
-    playSoundTransport();
-    const rectL = memberL.getBoundingClientRect();
-    const rectR = memberR.getBoundingClientRect();
-    const deltaX = rectR.left - rectL.left;
-    if (eqSign) {
-      eqSign.classList.remove("eq-sign-mirror-active");
-      void eqSign.offsetWidth;
-      eqSign.classList.add("eq-sign-mirror-active");
-    }
-    const animL = memberL.animate([
-      { transform: "translate(0px, 0px) scale(1)", opacity: 1 },
-      { transform: `translate(${deltaX * 0.5}px, -20px) scale(1.04)`, opacity: 0.94, offset: 0.5 },
-      { transform: `translate(${deltaX}px, 0px) scale(1)`, opacity: 1 }
-    ], {
-      duration: 260,
-      easing: "cubic-bezier(0.25, 1, 0.4, 1)",
-      fill: "forwards"
-    });
-    const animR = memberR.animate([
-      { transform: "translate(0px, 0px) scale(1)", opacity: 1 },
-      { transform: `translate(${-deltaX * 0.5}px, 20px) scale(1.04)`, opacity: 0.94, offset: 0.5 },
-      { transform: `translate(${-deltaX}px, 0px) scale(1)`, opacity: 1 }
-    ], {
-      duration: 260,
-      easing: "cubic-bezier(0.25, 1, 0.4, 1)",
-      fill: "forwards"
-    });
-    _currentMirrorAnims = [animL, animR];
-    animL.onfinish = () => {
-      _isMirrorSwapping = false;
-      _currentMirrorAnims = [];
-      if (eqSign) eqSign.classList.remove("eq-sign-mirror-active");
-      if (onComplete) onComplete();
-    };
-  }
-  function animateTokenTravel(sourceRect, targetRect, tokenText, onComplete) {
-    if (!sourceRect || !targetRect) {
-      if (onComplete) onComplete();
-      return;
-    }
-    document.querySelectorAll(".flying-math-token").forEach((el) => el.remove());
-    const flyer = document.createElement("div");
-    flyer.className = "flying-math-token";
-    flyer.textContent = tokenText || "";
-    flyer.style.left = `${sourceRect.left}px`;
-    flyer.style.top = `${sourceRect.top}px`;
-    flyer.style.width = `${Math.max(30, sourceRect.width)}px`;
-    flyer.style.height = `${Math.max(28, sourceRect.height)}px`;
-    document.body.appendChild(flyer);
-    const dx = targetRect.left + targetRect.width / 2 - (sourceRect.left + sourceRect.width / 2);
-    const dy = targetRect.top + targetRect.height / 2 - (sourceRect.top + sourceRect.height / 2);
-    const midX = dx * 0.5;
-    const arcY = dy * 0.5 - Math.max(38, Math.min(85, Math.abs(dx) * 0.28));
-    let finished = false;
-    let fallbackTimer = null;
-    const done = () => {
-      if (finished) return;
-      finished = true;
-      if (fallbackTimer) clearTimeout(fallbackTimer);
-      if (flyer.parentNode) flyer.parentNode.removeChild(flyer);
-      if (onComplete) onComplete();
-    };
-    fallbackTimer = setTimeout(done, 520);
-    if (typeof flyer.animate === "function") {
-      const anim = flyer.animate([
-        { transform: "translate(0px, 0px) scale(1)", opacity: 0.95 },
-        { transform: `translate(${midX}px, ${arcY}px) scale(1.25)`, opacity: 1, offset: 0.5 },
-        { transform: `translate(${dx}px, ${dy}px) scale(1)`, opacity: 0.95 }
-      ], {
-        duration: 440,
-        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-        fill: "forwards"
-      });
-      anim.onfinish = done;
-      anim.oncancel = done;
+      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(v)} \xE8 gi\xE0 isolata!`, "success");
     } else {
-      done();
+      showMessage(`\u{1F3AF} Nuovo obiettivo impostato: isolare ${prettyVar(v)}.`, "info");
     }
   }
-  function flashSignChanged() {
-    if (!dom.equationDisplay) return;
-    dom.equationDisplay.querySelectorAll(".draggable-token, .node-target, .op").forEach((el) => {
-      el.classList.add("sign-flip-pulse");
-    });
-    setTimeout(() => {
-      if (dom.equationDisplay) {
-        dom.equationDisplay.querySelectorAll(".sign-flip-pulse").forEach((el) => el.classList.remove("sign-flip-pulse"));
-      }
-    }, 700);
-  }
-  function highlightLandedToken(varName, side) {
-    if (!dom.equationDisplay || !varName) return;
-    const tokens = dom.equationDisplay.querySelectorAll(`.draggable-token[data-side="${side}"]`);
-    for (const t of tokens) {
-      if (t.dataset.varName === varName || t.textContent.trim() === varName) {
-        t.classList.add("token-landing-glow");
-        setTimeout(() => t.classList.remove("token-landing-glow"), 600);
-        break;
-      }
+  function bindLibraryEvents() {
+    if (dom5.librarySearch) {
+      dom5.librarySearch.addEventListener("input", renderLibrary);
+      dom5.librarySearch.addEventListener("search", renderLibrary);
     }
-  }
-  function enterClickDragMode(tokenEl) {
-    const varName = tokenEl.dataset.varName;
-    if (!varName || !state.currentEq) return;
-    state.clickDragToken = {
-      varName,
-      fromSide: tokenEl.dataset.side,
-      fromSlot: tokenEl.dataset.slot || "num",
-      nodeType: tokenEl.dataset.nodeType || "Var"
-    };
-    tokenEl.classList.add("token-in-flight");
-    dom.equationDisplay.classList.add("is-dragging-equation", "is-click-drag-mode");
-    highlightDropzones(dom.equationDisplay, state.clickDragToken);
-    showMessage(`"${prettyVar(varName)}" selezionato \u2014 clicca la destinazione (denominatore o membro opposto) per applicare il trasporto, oppure scegli un'operazione in basso. Riclicca per annullare.`, "info");
-    const foundEl = findElement(state.currentEq, tokenEl.dataset.id);
-    if (foundEl) {
-      state.selectedId = tokenEl.dataset.id;
-      const actions = availableActions(state.currentEq, foundEl, state.targetVar);
-      renderActions(foundEl, actions);
-    }
-  }
-  function exitClickDragMode() {
-    state.clickDragToken = null;
-    dom.equationDisplay.classList.remove("is-dragging-equation", "is-click-drag-mode");
-    dom.equationDisplay.querySelectorAll(".token-in-flight").forEach((el) => el.classList.remove("token-in-flight"));
-    clearDropzonesHighlight(dom.equationDisplay);
-    hideDragArrow();
-  }
-  function applyClickDragToDropzone(dz) {
-    if (!state.clickDragToken) return;
-    const drag = state.clickDragToken;
-    const tokenEl = dom.equationDisplay.querySelector(".token-in-flight");
-    const sourceRect = tokenEl ? tokenEl.getBoundingClientRect() : null;
-    const targetRect = dz.getBoundingClientRect();
-    const tokenText = drag.varName;
-    exitClickDragMode();
-    const result = applyDragMove({
-      currentEq: state.currentEq,
-      varName: drag.varName,
-      nodeType: drag.nodeType,
-      fromSide: drag.fromSide,
-      fromSlot: drag.fromSlot,
-      targetSide: dz.dataset.side,
-      targetSlot: dz.dataset.slot
-    });
-    if (!result.ok) {
-      flashTokenRejected(drag.varName, drag.fromSide);
-      applyDragResult(result);
-      return;
-    }
-    applyDragResult(result, { sourceRect, targetRect, tokenText, targetSide: dz.dataset.side, varName: drag.varName });
-  }
-  function attachEquationHandlers() {
-    dom.equationDisplay.querySelectorAll(".math-node").forEach((el) => {
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (wasRecentTouchDrag()) return;
-        if (state.mode === "auto") {
-          executeNextAutoStep();
-          return;
-        }
-        if (state.crossMode) {
-          crossPickToken(el.dataset.id, el);
-          return;
-        }
-        if (el.classList.contains("draggable-token") && el.dataset.varName) {
-          if (state.clickDragToken) {
-            if (el.classList.contains("token-in-flight")) {
-              exitClickDragMode();
-              return;
-            }
-            if (el.dataset.side === state.clickDragToken.fromSide) {
-              exitClickDragMode();
-              enterClickDragMode(el);
-              return;
-            }
-            const dz = el.closest(".dropzone");
-            if (dz && dz.dataset.side && dz.dataset.slot) {
-              applyClickDragToDropzone(dz);
-              return;
-            }
-            exitClickDragMode();
-            return;
-          }
-          enterClickDragMode(el);
-          return;
-        }
-        if (state.clickDragToken) {
-          const dz = el.closest(".dropzone");
-          if (dz && dz.dataset.side && dz.dataset.side !== state.clickDragToken.fromSide) {
-            applyClickDragToDropzone(dz);
-            return;
-          }
-          exitClickDragMode();
-          return;
-        }
-        selectElement(el.dataset.id);
+    if (dom5.libraryTopic) dom5.libraryTopic.addEventListener("change", renderLibrary);
+    if (dom5.libraryDifficulty) dom5.libraryDifficulty.addEventListener("change", renderLibrary);
+    if (dom5.btnRandom) {
+      dom5.btnRandom.addEventListener("click", () => {
+        const { id, target } = randomExercise();
+        loadFormula(getFormulaById(id), target);
       });
-      const rawVal = el.dataset.varName || (el.textContent || "").trim();
-      const verbal = verbalizeVar(rawVal) || rawVal;
-      el.tabIndex = 0;
-      el.setAttribute("role", "button");
-      el.setAttribute("aria-label", "Elemento: " + verbal);
-      if (el.classList.contains("draggable-token")) {
-        el.setAttribute("aria-roledescription", "termine matematico trascinabile");
-      }
-      el.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          if (state.mode === "auto") {
-            executeNextAutoStep();
-            return;
-          }
-          if (state.crossMode) crossPickToken(el.dataset.id, el);
-          else selectElement(el.dataset.id);
-        }
-      });
-    });
-  }
-  function attachDropzoneClickHandlers() {
-    dom.equationDisplay.querySelectorAll(".dropzone").forEach((dz) => {
-      dz.addEventListener("click", (e) => {
-        if (state.mode === "auto") {
-          executeNextAutoStep();
-          return;
-        }
-        if (!state.clickDragToken) return;
-        if (dz.dataset.side === state.clickDragToken.fromSide) {
-          if (state.clickDragToken.fromSlot === "num" && dz.dataset.slot === "den") {
-            const oppMember = state.clickDragToken.fromSide === "right" ? "primo membro (sotto la linea di frazione a sinistra)" : "secondo membro (sotto la linea di frazione a destra)";
-            showMessage(`Non puoi spostare "${prettyVar(state.clickDragToken.varName)}" al denominatore dello stesso membro! Per il 2\xB0 principio di equivalenza, se dividi per esso va al denominatore del membro OPPOSTO (${oppMember}).`, "warning");
-          } else {
-            showMessage(`Trascina o clicca sul membro opposto per applicare la regola del trasporto!`, "info");
-          }
-          flashTokenRejected(state.clickDragToken.varName, state.clickDragToken.fromSide);
-          return;
-        }
-        e.stopPropagation();
-        applyClickDragToDropzone(dz);
-      });
-      dz.addEventListener("mouseenter", () => {
-        if (!state.clickDragToken) return;
-        const tokenEl = dom.equationDisplay.querySelector(".token-in-flight");
-        if (!tokenEl) return;
-        const crossesMember = dz.dataset.side !== state.clickDragToken.fromSide;
-        updateDragArrow(tokenEl, dz, crossesMember);
-      });
-      dz.addEventListener("mouseleave", () => {
-        if (state.clickDragToken) hideDragArrow();
-      });
-    });
-  }
-  function toggleCrossMode(force) {
-    state.crossMode = typeof force === "boolean" ? force : !state.crossMode;
-    state.crossPicked = [];
-    if (dom.btnCross) {
-      dom.btnCross.classList.toggle("active", state.crossMode);
-      dom.btnCross.setAttribute("aria-pressed", state.crossMode ? "true" : "false");
     }
-    if (dom.crossLayer) {
-      dom.crossLayer.hidden = !state.crossMode;
-    }
-    const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
-    if (card) card.classList.toggle("cross-mode", state.crossMode);
-    clearCrossMarks();
-    if (state.crossMode) {
-      showMessage("\u2715/ Semplificazione attiva \u2014 clicca due elementi da eliminare (fattori num./den., termini opposti o stessa grandezza su entrambi i membri).", "info");
-    }
-  }
-  function clearCrossMarks() {
-    dom.equationDisplay.querySelectorAll(".cross-marked").forEach((el) => el.classList.remove("cross-marked"));
-  }
-  function crossPickToken(id, element) {
-    if (!state.currentEq || !id) return;
-    const already = state.crossPicked.indexOf(id);
-    if (already >= 0) {
-      state.crossPicked.splice(already, 1);
-      if (element) element.classList.remove("cross-marked");
-      if (state.crossPicked.length === 0) clearPreview();
-      return;
-    }
-    state.crossPicked.push(id);
-    if (element) element.classList.add("cross-marked");
-    if (state.crossPicked.length < 2) {
-      showMessage("Primo elemento selezionato \u2014 ora scegli il secondo da semplificare.", "info");
-      return;
-    }
-    const [idA, idB] = state.crossPicked;
-    const res = crossCancel(state.currentEq, idA, idB);
-    if (!res.ok) {
-      state.crossPicked = [];
-      clearCrossMarks();
-      flashCrossError();
-      showInvalidMove(res.error, res.hint, { label: "Semplificazione" });
-      return;
-    }
-    dissolveThenApplyCross(idA, idB, res);
-  }
-  function spawnVariableExplosion(el, colorScheme = "neon") {
-    const layer = dom.crossDissolveLayer;
-    if (!el || !layer) return;
-    const layerRect = layer.getBoundingClientRect();
-    const rect = el.getBoundingClientRect();
-    if (rect.width === 0 && rect.height === 0) return;
-    const cx = rect.left + rect.width / 2 - layerRect.left;
-    const cy = rect.top + rect.height / 2 - layerRect.top;
-    const shockwave = document.createElement("div");
-    shockwave.className = "explosion-shockwave";
-    shockwave.style.left = `${cx}px`;
-    shockwave.style.top = `${cy}px`;
-    layer.appendChild(shockwave);
-    const palette = colorScheme === "gold" ? ["#fbbf24", "#f59e0b", "#fb7185", "#38bdf8", "#ffffff"] : ["#38bdf8", "#818cf8", "#c084fc", "#f43f5e", "#34d399", "#fbbf24"];
-    const symbols = ["\u2726", "\u2605", "\u25CF", "\u2726", "\u25B2", "\u25C6", "\u2728"];
-    const count = 12;
-    for (let i = 0; i < count; i++) {
-      const p = document.createElement("div");
-      p.className = "explosion-particle";
-      const angle = i / count * 2 * Math.PI + (Math.random() - 0.5) * 0.4;
-      const distance = 28 + Math.random() * 42;
-      const dx = Math.cos(angle) * distance;
-      const dy = Math.sin(angle) * distance;
-      const color = palette[i % palette.length];
-      const size = 11 + Math.random() * 9;
-      p.style.left = `${cx}px`;
-      p.style.top = `${cy}px`;
-      p.style.color = color;
-      p.style.fontSize = `${size}px`;
-      p.style.setProperty("--dx", `${dx}px`);
-      p.style.setProperty("--dy", `${dy}px`);
-      p.textContent = symbols[Math.floor(Math.random() * symbols.length)];
-      layer.appendChild(p);
-    }
-    setTimeout(() => {
-      shockwave.remove();
-      layer.querySelectorAll(".explosion-particle").forEach((p) => p.remove());
-    }, 750);
-  }
-  function spawnVictoryConfetti() {
-    const layer = dom.crossDissolveLayer;
-    if (!layer) return;
-    const layerRect = layer.getBoundingClientRect();
-    const width = layerRect.width || 600;
-    const height = layerRect.height || 200;
-    const colors = ["#38bdf8", "#ec4899", "#a855f7", "#fbbf24", "#10b981", "#6366f1"];
-    const symbols = ["\u2605", "\u2726", "\u{1F389}", "\u2728", "\u25C6", "\u25CF"];
-    for (let i = 0; i < 26; i++) {
-      const p = document.createElement("div");
-      p.className = "explosion-particle victory-particle";
-      const startX = Math.random() * width;
-      const startY = height * 0.2 + Math.random() * (height * 0.6);
-      const angle = Math.random() * Math.PI - Math.PI / 2;
-      const distance = 40 + Math.random() * 85;
-      const dx = Math.cos(angle) * distance;
-      const dy = Math.sin(angle) * distance;
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      p.style.left = `${startX}px`;
-      p.style.top = `${startY}px`;
-      p.style.color = color;
-      p.style.fontSize = `${12 + Math.random() * 12}px`;
-      p.style.setProperty("--dx", `${dx}px`);
-      p.style.setProperty("--dy", `${dy}px`);
-      p.textContent = symbols[Math.floor(Math.random() * symbols.length)];
-      layer.appendChild(p);
-    }
-    setTimeout(() => {
-      layer.querySelectorAll(".victory-particle").forEach((p) => p.remove());
-    }, 950);
-  }
-  function findCancellableDomElements(action) {
-    if (!dom.equationDisplay || !action) return [];
-    if (action.ruleKey !== "cancelFactor" && action.id !== "cancel-factor") return [];
-    let denText = "";
-    try {
-      const ctx = action.build ? action.build({}) : {};
-      denText = (ctx.denText || "").trim();
-    } catch {
-    }
-    if (!denText) return [];
-    const found = [];
-    dom.equationDisplay.querySelectorAll(".math-node").forEach((el) => {
-      const txt = (el.textContent || "").trim();
-      if (txt === denText || el.dataset.varName === denText) {
-        found.push(el);
-      }
-    });
-    return found;
-  }
-  function dissolveThenApplyCross(idA, idB, res) {
-    clearCrossMarks();
-    clearPreview();
-    playSoundExplosion();
-    const elA = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idA)}"]`);
-    const elB = dom.equationDisplay.querySelector(`[data-id="${CSS.escape(idB)}"]`);
-    [elA, elB].forEach((el) => {
-      if (el) {
-        el.classList.add("cross-dissolving", "var-exploding");
-        spawnVariableExplosion(el);
-      }
-    });
-    setTimeout(() => {
-      state.currentEq = res.newEq;
-      state.conditions = mergeConditions(state.conditions, res.conditions || []);
-      state.selectedId = null;
-      state.crossPicked = [];
-      pushHistory({
-        equation: clone(res.newEq),
-        ruleName: res.ruleName,
-        rulePrinciple: res.rulePrinciple,
-        ruleId: "cross-cancel",
-        steps: [`Elimino "${res.cancelled}" (semplificazione).`],
-        conditions: (res.conditions || []).slice(),
-        explanationKey: null,
-        note: null,
-        verified: true
-      }, false);
-      updateObjective();
-      renderEquationView();
-      showRulePanel(
-        { name: res.ruleName, principle: res.rulePrinciple, explanation: null },
-        { steps: [`Elimino ${res.cancelled}.`], conditions: res.conditions || [] },
-        res.newEq
-      );
-      clearMessage();
-      showMessage(`\u2713 ${res.ruleName}.`, "success");
-      toggleCrossMode(false);
-      if (state.goalReached) {
-        if (checkAndAnimateCompoundFraction()) return;
-        playSuccessChime();
-        spawnVictoryConfetti();
-        showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-      } else if (state.mode === "auto") {
-        showAutoMode();
-      }
-    }, 460);
-  }
-  function flashCrossError() {
-    const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
-    if (!card) return;
-    card.classList.remove("cross-error");
-    void card.offsetWidth;
-    card.classList.add("cross-error");
-    setTimeout(() => card.classList.remove("cross-error"), 500);
-  }
-  function bindCrossDrag() {
-    const handle = dom.crossHandle;
-    if (!handle) return;
-    let dragging = false;
-    const tokenUnder = (x, y) => {
-      const el = document.elementFromPoint(x, y);
-      if (!el) return null;
-      const node = el.closest(".math-node");
-      if (!node || !dom.equationDisplay.contains(node)) return null;
-      return node;
-    };
-    const moveHandle = (x, y) => {
-      const card = handle.closest(".cross-layer");
-      const host = card || handle.parentElement;
-      const rect = host.getBoundingClientRect();
-      handle.style.left = `${x - rect.left}px`;
-      handle.style.top = `${y - rect.top}px`;
-    };
-    const highlight = (node) => {
-      dom.equationDisplay.querySelectorAll(".cross-hover").forEach((el) => el.classList.remove("cross-hover"));
-      if (node && !node.classList.contains("cross-marked")) node.classList.add("cross-hover");
-    };
-    handle.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      dragging = true;
-      handle.classList.add("dragging");
-      handle.setPointerCapture(e.pointerId);
-      moveHandle(e.clientX, e.clientY);
-    });
-    handle.addEventListener("pointermove", (e) => {
-      if (!dragging) return;
-      moveHandle(e.clientX, e.clientY);
-      highlight(tokenUnder(e.clientX, e.clientY));
-    });
-    const finish = (e) => {
-      if (!dragging) return;
-      dragging = false;
-      handle.classList.remove("dragging");
-      highlight(null);
-      const node = tokenUnder(e.clientX, e.clientY);
-      if (node) crossPickToken(node.dataset.id, node);
-      handle.style.left = "";
-      handle.style.top = "";
-    };
-    handle.addEventListener("pointerup", finish);
-    const cancelCrossDrag = () => {
-      dragging = false;
-      handle.classList.remove("dragging");
-      highlight(null);
-      handle.style.left = "";
-      handle.style.top = "";
-    };
-    handle.addEventListener("pointercancel", cancelCrossDrag);
-    handle.addEventListener("lostpointercapture", cancelCrossDrag);
-    handle.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        showMessage("Usa Tab per raggiungere un fattore e Invio per sceglierlo.", "info");
-      }
-    });
-  }
-  function applyDragResult(result, meta = {}) {
-    if (!result || state.isAnimatingCompoundFraction) return;
-    if (!result.ok) {
-      clearPreview();
-      const card = dom.equationDisplay.closest(".equation-display-card") || dom.equationDisplay;
-      card.classList.remove("cross-error");
-      void card.offsetWidth;
-      card.classList.add("cross-error");
-      setTimeout(() => card.classList.remove("cross-error"), 500);
-      showInvalidMove(result.error, "Verifica di aver applicato correttamente il primo o secondo principio di equivalenza.", { label: result.ruleName || "Trasporto" });
-      return;
-    }
-    if (meta.sourceRect && meta.targetRect && meta.tokenText) {
-      animateTokenTravel(meta.sourceRect, meta.targetRect, meta.tokenText, () => {
-        finalizeDragResult(result, meta);
-      });
-    } else {
-      finalizeDragResult(result, meta);
-    }
-  }
-  function finalizeDragResult(result, meta = {}) {
-    if (result.principle === "first") playSoundTransport();
-    else playSoundFraction();
-    dismissDidacticBubble();
-    clearPreview();
-    const nextEq = result.newEq;
-    state.conditions = mergeConditions(state.conditions, result.conditions || []);
-    state.selectedId = null;
-    const pseudoRule = {
-      name: result.ruleName,
-      principle: result.rulePrinciple,
-      explanation: null
-    };
-    const pseudoResult = {
-      equation: nextEq,
-      rule: pseudoRule,
-      steps: result.steps || [],
-      conditions: result.conditions || []
-    };
-    const isTargetIsolatedOnRight = isolatedSide(nextEq.right, state.targetVar);
-    if (isTargetIsolatedOnRight) {
-      state.currentEq = nextEq;
-      renderEquationView();
-      highlightLandedToken(meta.varName, meta.targetSide);
-      showRulePanel(pseudoRule, pseudoResult, nextEq);
-      showMessage(`\u2713 ${result.ruleName}!`, "success");
-      setTimeout(() => {
-        const flipped = ensureTargetOnFirstMember(state.currentEq, state.targetVar);
-        if (flipped !== state.currentEq) {
-          animateMirrorSwap(state.currentEq, flipped, () => {
-            state.currentEq = flipped;
-            state.goalReached = true;
-            pushHistory({
-              equation: clone(flipped),
-              ruleName: "Regola dello specchio (scambio membri)",
-              rulePrinciple: "Propriet\xE0 simmetrica dell'uguaglianza: se A = B allora B = A.",
-              ruleId: "swapSides",
-              steps: ["Scambio i due membri per la propriet\xE0 simmetrica: la grandezza cercata \xE8 al primo membro."],
-              conditions: state.conditions.slice(),
-              explanationKey: "scambioMembri",
-              note: null,
-              verified: true
-            }, false);
-            updateObjective();
-            renderEquationView();
-            if (checkAndAnimateCompoundFraction()) return;
-            playSuccessChime();
-            spawnVictoryConfetti();
-            showMessage(`\u{1F389} Ottimo lavoro! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata con successo!`, "success");
-          });
-        }
-      }, 450);
-      return;
-    }
-    state.currentEq = nextEq;
-    pushHistory({
-      equation: clone(nextEq),
-      ruleName: result.ruleName,
-      rulePrinciple: result.rulePrinciple,
-      ruleId: null,
-      steps: result.steps || [],
-      conditions: (result.conditions || []).slice(),
-      explanationKey: null,
-      note: null,
-      verified: true
-    }, false);
-    updateObjective();
-    renderEquationView();
-    highlightLandedToken(meta.varName, meta.targetSide);
-    showRulePanel(pseudoRule, pseudoResult, result.newEq);
-    clearMessage();
-    showMessage(`\u2713 ${result.ruleName}!`, "success");
-    if (state.goalReached) {
-      if (checkAndAnimateCompoundFraction()) return;
-      playSuccessChime();
-      showMessage(`\u{1F389} Ottimo lavoro! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata con successo!`, "success");
-    } else if (state.mode === "auto") {
-      showAutoMode();
-    }
-  }
-  function applyReciprocalRule() {
-    if (!state.currentEq) return;
-    playSoundFraction();
-    const eq = state.currentEq;
-    const res = reciprocalEquation(eq);
-    if (!res.ok) {
-      clearPreview();
-      renderEquationView();
-      showInvalidMove(res.error, res.hint, { label: "Regola dei reciproci" });
-      return;
-    }
-    const newEq = res.newEq;
-    if (equivalentEq(newEq, eq)) {
-      showMessage("Questa operazione non cambia l'equazione: prova un'altra trasformazione.", "info");
-      return;
-    }
-    state.currentEq = newEq;
-    state.selectedId = null;
-    clearPreview();
-    const rule = {
-      id: "reciprocal",
-      name: "Regola dei reciproci (inversione dei membri)",
-      principle: "Propriet\xE0 dell'inversione: se A = B allora 1/A = 1/B; in una proporzione A/B = C/D si ottiene B/A = D/C.",
-      explanation: "reciprocal-both"
-    };
-    pushHistory({
-      equation: clone(newEq),
-      ruleName: rule.name,
-      rulePrinciple: rule.principle,
-      ruleId: "reciprocal",
-      steps: [`Calcolo il reciproco di entrambi i membri: ${toPretty(eq, 0)} \u2192 ${toPretty(newEq, 0)}.`],
-      conditions: state.conditions.slice(),
-      explanationKey: "reciprocal-both",
-      note: null,
-      verified: true
-    }, false);
-    updateObjective();
-    renderEquationView();
-    showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
-    clearMessage();
-    showMessage("\u{1F501} Regola dei reciproci applicata a entrambi i membri!", "success");
-    if (state.goalReached) {
-      if (checkAndAnimateCompoundFraction()) return;
-      playSuccessChime();
-      spawnVictoryConfetti();
-      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-    } else if (state.mode === "auto") {
-      showAutoMode();
-    }
-  }
-  function applyDistributeRule() {
-    if (!state.currentEq) return;
-    const eq = state.currentEq;
-    const leftDist = canDistribute(eq.left);
-    const rightDist = canDistribute(eq.right);
-    if (!leftDist && !rightDist) {
-      showMessage("Non ci sono prodotti con parentesi (somme o differenze) da sviluppare.", "info");
-      return;
-    }
-    let chosenSide = null;
-    if (state.selectedId) {
-      const selInfo = analyseElementId(state.selectedId);
-      if (selInfo && selInfo.side) {
-        if (selInfo.side === "left" && leftDist) chosenSide = "left";
-        if (selInfo.side === "right" && rightDist) chosenSide = "right";
-      }
-    }
-    if (!chosenSide) {
-      const targetLeft = hasDistributableSum(eq.left, state.targetVar);
-      const targetRight = hasDistributableSum(eq.right, state.targetVar);
-      if (targetRight && !targetLeft && rightDist) chosenSide = "right";
-      else if (targetLeft && !targetRight && leftDist) chosenSide = "left";
-      else if (rightDist && !leftDist) chosenSide = "right";
-      else if (leftDist && !rightDist) chosenSide = "left";
-      else chosenSide = "right";
-    }
-    playSoundTransport();
-    const res = applyRule(RULES.distribute, eq, { side: chosenSide });
-    if (!res.ok) {
-      showInvalidMove(res.error, res.hint);
-      return;
-    }
-    state.currentEq = res.equation;
-    state.selectedId = null;
-    clearPreview();
-    const rule = RULES.distribute;
-    pushHistory({
-      equation: clone(res.equation),
-      ruleName: rule.name,
-      rulePrinciple: rule.principle,
-      ruleId: "distribute",
-      steps: [`Sviluppo le parentesi con la propriet\xE0 distributiva al ${chosenSide === "left" ? "primo" : "secondo"} membro: ${toPretty(eq, 0)} \u2192 ${toPretty(res.equation, 0)}.`],
-      conditions: state.conditions.slice(),
-      explanationKey: "distribute",
-      note: null,
-      verified: true
-    }, false);
-    updateObjective();
-    renderEquationView();
-    showRulePanel(rule, { steps: ["Sviluppate le parentesi con la propriet\xE0 distributiva"], conditions: [] }, res.equation);
-    clearMessage();
-    showMessage("\u{1F4E6} Propriet\xE0 distributiva applicata: parentesi sviluppate!", "success");
-    if (state.goalReached) {
-      if (checkAndAnimateCompoundFraction()) return;
-      playSuccessChime();
-      spawnVictoryConfetti();
-      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-    } else if (state.mode === "auto") {
-      showAutoMode();
-    }
-  }
-  function applyFactorCommonRule() {
-    if (!state.currentEq) return;
-    const eq = state.currentEq;
-    const targetSide = whichSideHas(eq, state.targetVar) || "right";
-    const sidesToCheck = targetSide === "both" ? ["right", "left"] : [targetSide, targetSide === "left" ? "right" : "left"];
-    let foundSide = null;
-    let commonNode = null;
-    for (const s of sidesToCheck) {
-      const member = s === "left" ? eq.left : eq.right;
-      const common = findCommonFactor(member, state.targetVar);
-      if (common) {
-        foundSide = s;
-        commonNode = common;
-        break;
-      }
-    }
-    if (!commonNode) {
-      for (const s of sidesToCheck) {
-        const member = s === "left" ? eq.left : eq.right;
-        const common = findCommonFactor(member, null);
-        if (common) {
-          foundSide = s;
-          commonNode = common;
-          break;
-        }
-      }
-    }
-    if (!commonNode) {
-      const member = targetSide === "left" ? eq.left : eq.right;
-      if (hasTrigConflict(member, state.targetVar)) {
-        showMessage(`\u26A0\uFE0F Non \xE8 possibile raccogliere ${prettyVar(state.targetVar)} a fattor comune: ${prettyVar(state.targetVar)} \xE8 l'argomento di funzioni trigonometriche distinte (sin e cos), non un fattore moltiplicativo.`, "warning");
-        return;
-      }
-      showMessage("Nessun fattore comune trovato da raccogliere tra tutti i termini del membro.", "info");
-      return;
-    }
-    playSoundTransport();
-    const commonText = toPretty(commonNode, 0);
-    const res = applyRule(RULES.factorCommon, eq, { side: foundSide, common: commonNode, commonText });
-    if (!res.ok) {
-      showInvalidMove(res.error, res.hint);
-      return;
-    }
-    state.currentEq = res.equation;
-    state.selectedId = null;
-    clearPreview();
-    const rule = RULES.factorCommon;
-    pushHistory({
-      equation: clone(res.equation),
-      ruleName: rule.name,
-      rulePrinciple: rule.principle,
-      ruleId: "factorCommon",
-      steps: [`Raccolgo ${commonText} a fattor comune al ${foundSide === "left" ? "primo" : "secondo"} membro: ${toPretty(eq, 0)} \u2192 ${toPretty(res.equation, 0)}.`],
-      conditions: state.conditions.slice(),
-      explanationKey: null,
-      note: null,
-      verified: true
-    }, false);
-    updateObjective();
-    renderEquationView();
-    showRulePanel(rule, { steps: [`Raccolto ${commonText} a fattor comune`], conditions: [] }, res.equation);
-    clearMessage();
-    showMessage(`\u{1F9E9} Raccoglimento a fattor comune applicato: ${commonText} messo in evidenza!`, "success");
-    if (state.goalReached) {
-      if (checkAndAnimateCompoundFraction()) return;
-      playSuccessChime();
-      spawnVictoryConfetti();
-      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-    } else if (state.mode === "auto") {
-      showAutoMode();
-    }
-  }
-  function applyCommonDenominatorRule() {
-    if (!state.currentEq) return;
-    const eq = state.currentEq;
-    let chosenSide = null;
-    if (state.selectedId) {
-      if (state.selectedId.startsWith("left")) chosenSide = "left";
-      else if (state.selectedId.startsWith("right")) chosenSide = "right";
-    }
-    const res = reduceEquationToCommonDenominator(eq, chosenSide);
-    if (!res.ok) {
-      showInvalidMove(res.error, res.hint, { label: "Minimo comune multiplo (m.c.m.)" });
-      return;
-    }
-    const newEq = res.newEq;
-    if (equivalentEq(newEq, eq)) {
-      showMessage("L'equazione \xE8 gi\xE0 espressa a denominatore comune.", "info");
-      return;
-    }
-    playSoundFraction();
-    if (dom.equationDisplay) {
-      dom.equationDisplay.classList.add("sign-flip-pulse");
-      setTimeout(() => {
-        if (dom.equationDisplay) dom.equationDisplay.classList.remove("sign-flip-pulse");
-      }, 450);
-    }
-    state.currentEq = newEq;
-    state.selectedId = null;
-    clearPreview();
-    const rule = RULES.commonDenom;
-    pushHistory({
-      equation: clone(newEq),
-      ruleName: rule.name,
-      rulePrinciple: rule.principle,
-      ruleId: "common-denom",
-      steps: res.steps,
-      conditions: state.conditions.slice(),
-      explanationKey: "common-denom",
-      note: null,
-      verified: true
-    }, false);
-    updateObjective();
-    renderEquationView();
-    showRulePanel(rule, { steps: res.steps, conditions: [] }, newEq);
-    clearMessage();
-    showMessage("\u{1F9EE} Frazioni ridotte a denominatore comune (m.c.m.) in un'unica frazione!", "success");
-    if (state.targetVar && isolatedSide(newEq.right, state.targetVar) && !collectVars(newEq.left).has(state.targetVar)) {
-      const swapped = Eq(newEq.right, newEq.left);
-      setTimeout(() => {
-        animateMirrorSwap(newEq, swapped, () => {
-          state.currentEq = swapped;
-          renderEquationView();
-          updateObjective();
-        });
-      }, 200);
-    }
-    if (state.goalReached) {
-      if (checkAndAnimateCompoundFraction()) return;
-      playSuccessChime();
-      spawnVictoryConfetti();
-      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-    } else if (state.mode === "auto") {
-      showAutoMode();
-    }
-  }
-  function applyChangeSignRule() {
-    if (!state.currentEq) return;
-    playSoundTransport();
-    const eq = state.currentEq;
-    const newEq = Eq(negateExpr(eq.left), negateExpr(eq.right));
-    state.currentEq = newEq;
-    state.selectedId = null;
-    clearPreview();
-    const rule = {
-      id: "changeSign",
-      name: "Regola del cambio di segno",
-      principle: "Secondo principio di equivalenza: moltiplicando entrambi i membri per \u22121, tutti i segni si invertono (+ \u2194 \u2212).",
-      explanation: null
-    };
-    pushHistory({
-      equation: clone(newEq),
-      ruleName: rule.name,
-      rulePrinciple: rule.principle,
-      ruleId: "changeSign",
-      steps: [`Moltiplico entrambi i membri per \u22121: ${toPretty(eq, 0)} \u2192 ${toPretty(newEq, 0)}.`],
-      conditions: state.conditions.slice(),
-      explanationKey: null,
-      note: null,
-      verified: true
-    }, false);
-    const isTargetIsolatedOnRight = isolatedSide(newEq.right, state.targetVar);
-    if (isTargetIsolatedOnRight) {
-      renderEquationView();
-      flashSignChanged();
-      showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
-      clearMessage();
-      showMessage(`\xB1 Cambio segno applicato: ${prettyVar(state.targetVar)} \xE8 ora positivo!`, "info");
-      setTimeout(() => {
-        const flipped = ensureTargetOnFirstMember(state.currentEq, state.targetVar);
-        if (flipped !== state.currentEq) {
-          animateMirrorSwap(state.currentEq, flipped, () => {
-            state.currentEq = flipped;
-            state.goalReached = true;
-            pushHistory({
-              equation: clone(flipped),
-              ruleName: "Regola dello specchio (scambio membri)",
-              rulePrinciple: "Propriet\xE0 simmetrica dell'uguaglianza: se A = B allora B = A.",
-              ruleId: "swapSides",
-              steps: ["Scambio i due membri per la propriet\xE0 simmetrica: la grandezza cercata \xE8 al primo membro."],
-              conditions: state.conditions.slice(),
-              explanationKey: "scambioMembri",
-              note: null,
-              verified: true
-            }, false);
-            updateObjective();
-            renderEquationView();
-            showRulePanel({
-              id: "swapSides",
-              name: "Regola dello specchio (scambio membri)",
-              principle: "Propriet\xE0 simmetrica dell'uguaglianza: se A = B allora B = A."
-            }, { steps: ["Scambio i due membri dell'equazione per la propriet\xE0 simmetrica."], conditions: [] }, flipped);
-            if (checkAndAnimateCompoundFraction()) return;
-            playSuccessChime();
-            spawnVictoryConfetti();
-            showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-          });
-        } else {
-          updateObjective();
-          renderEquationView();
-        }
-      }, 450);
-      return;
-    }
-    updateObjective();
-    renderEquationView();
-    flashSignChanged();
-    showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
-    clearMessage();
-    showMessage("\xB1 Regola del cambio di segno applicata: tutti i segni invertiti!", "success");
-    if (state.goalReached) {
-      if (checkAndAnimateCompoundFraction()) return;
-      playSuccessChime();
-      spawnVictoryConfetti();
-      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-    } else if (state.mode === "auto") {
-      showAutoMode();
-    }
-  }
-  function renderConditions() {
-    if (!state.conditions || state.conditions.length === 0) {
-      dom.conditionsBox.hidden = true;
-      return;
-    }
-    dom.conditionsBox.hidden = false;
-    dom.conditionsList.innerHTML = state.conditions.map((c) => `<li>${escapeHtml3(c)}</li>`).join("");
   }
   function selectElement(id) {
-    if (!state.currentEq) return;
-    state.selectedId = id;
+    if (!state5.currentEq) return;
+    state5.selectedId = id;
     clearPreview();
     renderEquationView();
-    const element = findElement(state.currentEq, id);
+    const element = findElement(state5.currentEq, id);
     if (!element) {
-      dom.actionHint.textContent = "Elemento non trovato.";
-      dom.actionButtons.innerHTML = "";
+      dom5.actionHint.textContent = "Elemento non trovato.";
+      dom5.actionButtons.innerHTML = "";
       return;
     }
-    const actions = availableActions(state.currentEq, element, state.targetVar);
+    const actions = availableActions(state5.currentEq, element, state5.targetVar);
     renderActions(element, actions);
   }
   function renderActions(element, specificActions) {
-    dom.actionButtons.innerHTML = "";
-    const el = findElement(state.currentEq, state.selectedId);
-    dom.actionHint.textContent = `Selezionato: "${el ? el.pretty : ""}" (${roleLabel(el ? el.role : "")}). Operazioni disponibili:`;
+    dom5.actionButtons.innerHTML = "";
+    const el = findElement(state5.currentEq, state5.selectedId);
+    dom5.actionHint.textContent = `Selezionato: "${el ? el.pretty : ""}" (${roleLabel(el ? el.role : "")}). Operazioni disponibili:`;
     const all = [...specificActions];
-    for (const g of globalActions(state.currentEq, state.targetVar)) {
+    for (const g of globalActions(state5.currentEq, state5.targetVar)) {
       if (!all.find((a) => a.id === g.id)) all.push(g);
     }
     addValueOps(all, element);
     if (all.length === 0) {
-      dom.actionButtons.innerHTML = '<p class="placeholder small">Nessuna operazione diretta su questo elemento. Prova a selezionare un fattore, un termine o un denominatore.</p>';
+      dom5.actionButtons.innerHTML = '<p class="placeholder small">Nessuna operazione diretta su questo elemento. Prova a selezionare un fattore, un termine o un denominatore.</p>';
       return;
     }
     for (const action of all) {
       const btn = document.createElement("button");
       btn.className = "action-btn";
       btn.type = "button";
-      btn.innerHTML = `<span class="action-label">${escapeHtml3(action.label)}</span>
-      <span class="action-desc">${escapeHtml3(action.description || "")}</span>`;
+      btn.innerHTML = `<span class="action-label">${escapeHtml5(action.label)}</span>
+      <span class="action-desc">${escapeHtml5(action.description || "")}</span>`;
       btn.addEventListener("click", () => previewAction(action));
-      dom.actionButtons.appendChild(btn);
+      dom5.actionButtons.appendChild(btn);
     }
   }
   function addValueOps(actions, element) {
@@ -12998,46 +13958,46 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     return map[role] || role;
   }
   function previewAction(action) {
-    const res = performAction(state.currentEq, action);
+    const res = performAction(state5.currentEq, action);
     if (!res.ok) {
       showInvalidMove(res.error, res.hint, action);
       return;
     }
-    if (equivalentEq(res.equation, state.currentEq)) {
+    if (equivalentEq(res.equation, state5.currentEq)) {
       showMessage("Questa operazione non cambia l'equazione: prova un'altra trasformazione.", "info");
       return;
     }
-    state.pendingMove = { action, result: res };
+    state5.pendingMove = { action, result: res };
     showPreview(action, res);
   }
   function showPreview(action, res) {
-    dom.previewBox.hidden = false;
-    dom.previewText.innerHTML = `Anteprima: <span class="preview-eq">${escapeHtml3(toPretty(res.equation, 0))}</span> \u2014 regola: <em>${escapeHtml3(action.label)}</em>`;
-    dom.btnConfirm.focus();
+    dom5.previewBox.hidden = false;
+    dom5.previewText.innerHTML = `Anteprima: <span class="preview-eq">${escapeHtml5(toPretty(res.equation, 0))}</span> \u2014 regola: <em>${escapeHtml5(action.label)}</em>`;
+    dom5.btnConfirm.focus();
   }
   function clearPreview() {
-    state.pendingMove = null;
-    dom.previewBox.hidden = true;
-    dom.previewText.innerHTML = "";
+    state5.pendingMove = null;
+    dom5.previewBox.hidden = true;
+    dom5.previewText.innerHTML = "";
   }
   function confirmMove() {
-    if (!state.pendingMove) return;
-    if (state.pendingMove.kind === "cross") {
-      const { idA, idB, result: result2 } = state.pendingMove;
-      state.pendingMove = null;
+    if (!state5.pendingMove) return;
+    if (state5.pendingMove.kind === "cross") {
+      const { idA, idB, result: result2 } = state5.pendingMove;
+      state5.pendingMove = null;
       dissolveThenApplyCross(idA, idB, result2);
       return;
     }
-    if (state.pendingMove.kind === "drag") {
-      const res = state.pendingMove.result;
+    if (state5.pendingMove.kind === "drag") {
+      const res = state5.pendingMove.result;
       if (!res.ok) {
         clearPreview();
         showInvalidMove(res.error, "Verifica di aver applicato correttamente il primo o secondo principio di equivalenza.", { label: res.ruleName || "Trasporto" });
         return;
       }
-      state.currentEq = res.newEq;
-      state.conditions = mergeConditions(state.conditions, res.conditions || []);
-      state.selectedId = null;
+      state5.currentEq = res.newEq;
+      state5.conditions = mergeConditions(state5.conditions, res.conditions || []);
+      state5.selectedId = null;
       const pseudoRule = {
         name: res.ruleName,
         principle: res.rulePrinciple,
@@ -13065,19 +14025,19 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       renderEquationView();
       showRulePanel(pseudoRule, pseudoResult, res.newEq);
       clearMessage();
-      if (state.goalReached) {
+      if (state5.goalReached) {
         if (checkAndAnimateCompoundFraction()) return;
         playSuccessChime();
         spawnVictoryConfetti();
-        showMessage(`\u{1F389} Ottimo lavoro! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata con successo!`, "success");
+        showMessage(`\u{1F389} Ottimo lavoro! La grandezza ${prettyVar(state5.targetVar)} \xE8 isolata con successo!`, "success");
       }
       return;
     }
-    const { action, result } = state.pendingMove;
+    const { action, result } = state5.pendingMove;
     playSoundForRule(action.ruleKey);
-    state.currentEq = result.equation;
-    state.conditions = mergeConditions(state.conditions, result.conditions || []);
-    state.selectedId = null;
+    state5.currentEq = result.equation;
+    state5.conditions = mergeConditions(state5.conditions, result.conditions || []);
+    state5.selectedId = null;
     const rule = result.rule;
     pushHistory({
       equation: clone(result.equation),
@@ -13093,76 +14053,65 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     clearPreview();
     updateObjective();
     renderEquationView();
-    showRulePanel(rule, result, state.currentEq);
+    showRulePanel(rule, result, state5.currentEq);
     clearMessage();
-    if (state.goalReached) {
+    if (state5.goalReached) {
       if (checkAndAnimateCompoundFraction()) return;
       playSuccessChime();
       spawnVictoryConfetti();
-      showMessage(`\u{1F389} Ottimo lavoro! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata con successo!`, "success");
-    } else if (state.mode === "auto") {
+      showMessage(`\u{1F389} Ottimo lavoro! La grandezza ${prettyVar(state5.targetVar)} \xE8 isolata con successo!`, "success");
+    } else if (state5.mode === "auto") {
       showAutoMode();
     }
   }
   function cancelPreview() {
     clearPreview();
     clearCrossMarks();
-    state.crossPicked = [];
+    state5.crossPicked = [];
     renderEquationView();
   }
-  function flashTokenRejected(varName, side) {
-    if (!varName || !dom.equationDisplay) return;
-    const el = dom.equationDisplay.querySelector(`[data-var-name="${CSS.escape(varName)}"][data-side="${side}"]`);
-    if (!el) return;
-    el.classList.remove("token-rejected");
-    void el.offsetWidth;
-    el.classList.add("token-rejected");
-    setTimeout(() => el.classList.remove("token-rejected"), 600);
+  function clearSelection() {
+    state5.selectedId = null;
+    if (state5.clickDragToken) exitClickDragMode();
+    if (dom5.actionButtons && state5.mode === "free") dom5.actionButtons.innerHTML = "";
+    if (dom5.actionHint && state5.mode === "free") {
+      dom5.actionHint.textContent = "Seleziona un elemento dell'equazione per vedere le operazioni disponibili.";
+    }
   }
-  var bubbleTimeout = null;
-  function showDidacticBubble({ error, hint, action }) {
-    if (!dom.didacticBubbleAnchor) return;
-    if (bubbleTimeout) {
-      clearTimeout(bubbleTimeout);
-      bubbleTimeout = null;
+  function showRulePanel(rule, result, afterEq) {
+    const ex = rule ? getExplanation(rule.explanation) : null;
+    let html = `<div class="rule-name">\u{1F4DC} ${escapeHtml5(rule ? rule.name : "Trasformazione")}</div>`;
+    if (ex) {
+      html += `<div class="rule-section"><strong>\u{1F4A1} Spiegazione intuitiva</strong><p>${escapeHtml5(ex.intuitiva)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio di equivalenza</strong><p>${escapeHtml5(ex.principio)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u{1F3AF} Perch\xE9 \xE8 corretta</strong><p>${escapeHtml5(ex.perche)}</p></div>`;
+    } else if (rule && rule.principle) {
+      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio matematico</strong><p>${escapeHtml5(rule.principle)}</p></div>`;
     }
-    const diag = diagnoseStudentMisconception(error, hint, action);
-    const badgeText = diag.badge || "Principio di Equivalenza";
-    const ruleReminder = diag.ruleReminder || "Ricorda di applicare correttamente i principi di equivalenza delle equazioni.";
-    const explanationText = diag.explanation || error || "Operazione non consentita.";
-    const adviceText = diag.advice || hint || "";
-    if (dom.bubbleBadge) dom.bubbleBadge.textContent = badgeText;
-    if (dom.bubbleMessage) dom.bubbleMessage.textContent = explanationText;
-    if (dom.bubbleHintBox && dom.bubbleHintText) {
-      if (adviceText) {
-        dom.bubbleHintText.textContent = adviceText;
-        dom.bubbleHintBox.hidden = false;
-      } else {
-        dom.bubbleHintBox.hidden = true;
-      }
+    if (result.steps && result.steps.length) {
+      html += `<div class="rule-section"><strong>\u2699\uFE0F Operazione svolta</strong><ul class="steps-list">${result.steps.map((s) => `<li>${escapeHtml5(s)}</li>`).join("")}</ul></div>`;
     }
-    if (dom.bubbleFooterRule) dom.bubbleFooterRule.textContent = ruleReminder;
-    dom.didacticBubbleAnchor.hidden = false;
-    if (dom.didacticBubble) dom.didacticBubble.classList.remove("bubble-closing");
-    bubbleTimeout = setTimeout(() => {
-      dismissDidacticBubble();
-    }, 9e3);
+    html += `<div class="rule-section rule-eq"><strong>\u{1F4D0} Equazione dopo</strong><div class="rule-math">${renderEquation(afterEq, {})}</div></div>`;
+    if (result.conditions && result.conditions.length) {
+      html += `<div class="rule-section conditions"><strong>\u{1F50D} Condizioni di validit\xE0 richieste</strong><ul>${result.conditions.map((c) => `<li>${escapeHtml5(c)}</li>`).join("")}</ul></div>`;
+    }
+    if (ex && ex.attenzione && ex.attenzione.length) {
+      html += `<div class="rule-section warning"><strong>\u26A0\uFE0F Attenzione</strong><ul>${ex.attenzione.map((c) => `<li>${escapeHtml5(c)}</li>`).join("")}</ul></div>`;
+    }
+    if (result.note) {
+      html += `<div class="rule-section warning"><p>${escapeHtml5(result.note)}</p></div>`;
+    }
+    dom5.rulePanel.innerHTML = html;
   }
-  function dismissDidacticBubble() {
-    if (!dom.didacticBubbleAnchor || dom.didacticBubbleAnchor.hidden) return;
-    if (bubbleTimeout) {
-      clearTimeout(bubbleTimeout);
-      bubbleTimeout = null;
-    }
-    if (dom.didacticBubble) {
-      dom.didacticBubble.classList.add("bubble-closing");
-      setTimeout(() => {
-        if (dom.didacticBubbleAnchor) dom.didacticBubbleAnchor.hidden = true;
-        if (dom.didacticBubble) dom.didacticBubble.classList.remove("bubble-closing");
-      }, 220);
-    } else {
-      dom.didacticBubbleAnchor.hidden = true;
-    }
+  function updateRulePanelInitial(formulaEntry) {
+    dom5.rulePanel.innerHTML = `
+    <div class="rule-name">Formula di partenza</div>
+    <div class="rule-section"><strong>${escapeHtml5(formulaEntry.name)}</strong>
+      <div class="rule-math">${renderEquation(state5.startEq, {})}</div></div>
+    ${formulaEntry.notes ? `<div class="rule-section"><p>${escapeHtml5(formulaEntry.notes)}</p></div>` : ""}
+    ${formulaEntry.hypotheses ? `<div class="rule-section"><strong>Ipotesi</strong><p>${escapeHtml5(formulaEntry.hypotheses)}</p></div>` : ""}
+    <div class="rule-section"><p>Seleziona un elemento nell'area di lavoro per iniziare a ricavare la formula inversa.</p></div>
+  `;
   }
   function showInvalidMove(error, hint, action) {
     playSoundInvalid();
@@ -13174,7 +14123,7 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     showMessage(parts.join(" "), "error");
     showDidacticBubble({ error, hint: diag.advice || hint, action });
     pushHistory({
-      equation: clone(state.currentEq),
+      equation: clone(state5.currentEq),
       ruleName: "Tentativo non valido: " + (diag.badge || "Errore"),
       rulePrinciple: diag.ruleReminder || "",
       steps: [action ? action.label : ""],
@@ -13184,263 +14133,114 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       verified: false
     }, false, true);
   }
-  function showRulePanel(rule, result, afterEq) {
-    const ex = rule ? getExplanation(rule.explanation) : null;
-    let html = `<div class="rule-name">\u{1F4DC} ${escapeHtml3(rule ? rule.name : "Trasformazione")}</div>`;
-    if (ex) {
-      html += `<div class="rule-section"><strong>\u{1F4A1} Spiegazione intuitiva</strong><p>${escapeHtml3(ex.intuitiva)}</p></div>`;
-      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio di equivalenza</strong><p>${escapeHtml3(ex.principio)}</p></div>`;
-      html += `<div class="rule-section"><strong>\u{1F3AF} Perch\xE9 \xE8 corretta</strong><p>${escapeHtml3(ex.perche)}</p></div>`;
-    } else if (rule && rule.principle) {
-      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio matematico</strong><p>${escapeHtml3(rule.principle)}</p></div>`;
-    }
-    if (result.steps && result.steps.length) {
-      html += `<div class="rule-section"><strong>\u2699\uFE0F Operazione svolta</strong><ul class="steps-list">${result.steps.map((s) => `<li>${escapeHtml3(s)}</li>`).join("")}</ul></div>`;
-    }
-    html += `<div class="rule-section rule-eq"><strong>\u{1F4D0} Equazione dopo</strong><div class="rule-math">${renderEquation(afterEq, {})}</div></div>`;
-    if (result.conditions && result.conditions.length) {
-      html += `<div class="rule-section conditions"><strong>\u{1F50D} Condizioni di validit\xE0 richieste</strong><ul>${result.conditions.map((c) => `<li>${escapeHtml3(c)}</li>`).join("")}</ul></div>`;
-    }
-    if (ex && ex.attenzione && ex.attenzione.length) {
-      html += `<div class="rule-section warning"><strong>\u26A0\uFE0F Attenzione</strong><ul>${ex.attenzione.map((c) => `<li>${escapeHtml3(c)}</li>`).join("")}</ul></div>`;
-    }
-    if (result.note) {
-      html += `<div class="rule-section warning"><p>${escapeHtml3(result.note)}</p></div>`;
-    }
-    dom.rulePanel.innerHTML = html;
-  }
-  function updateRulePanelInitial(formulaEntry) {
-    dom.rulePanel.innerHTML = `
-    <div class="rule-name">Formula di partenza</div>
-    <div class="rule-section"><strong>${escapeHtml3(formulaEntry.name)}</strong>
-      <div class="rule-math">${renderEquation(state.startEq, {})}</div></div>
-    ${formulaEntry.notes ? `<div class="rule-section"><p>${escapeHtml3(formulaEntry.notes)}</p></div>` : ""}
-    ${formulaEntry.hypotheses ? `<div class="rule-section"><strong>Ipotesi</strong><p>${escapeHtml3(formulaEntry.hypotheses)}</p></div>` : ""}
-    <div class="rule-section"><p>Seleziona un elemento nell'area di lavoro per iniziare a ricavare la formula inversa.</p></div>
-  `;
-  }
-  function cancelCompoundFractionAnimation() {
-    if (state.compoundAnimTimers && state.compoundAnimTimers.length) {
-      for (const t of state.compoundAnimTimers) clearTimeout(t);
-      state.compoundAnimTimers = [];
-    }
-    state.isAnimatingCompoundFraction = false;
-    if (dom.equationDisplay) {
-      dom.equationDisplay.classList.remove("compound-anim-step1", "compound-anim-step2", "compound-anim-step3");
-    }
-    if (dom.compoundFractionBanner) {
-      dom.compoundFractionBanner.hidden = true;
-    }
-  }
-  function checkAndAnimateCompoundFraction(onComplete) {
-    if (state.isAnimatingCompoundFraction) return false;
-    if (!state.currentEq || !state.targetVar) return false;
-    if (!isGoalReached(state.currentEq, state.targetVar)) return false;
-    const steps = getCompoundFractionSteps(state.currentEq, state.targetVar);
-    if (!steps) return false;
-    startCompoundFractionAnimation(steps, onComplete);
-    return true;
-  }
-  function startCompoundFractionAnimation(steps, onComplete) {
-    cancelCompoundFractionAnimation();
-    state.isAnimatingCompoundFraction = true;
-    if (dom.completionBanner) dom.completionBanner.hidden = true;
-    if (dom.compoundFractionBanner) {
-      dom.compoundFractionBanner.hidden = false;
-      if (dom.compoundFractionStepBadge) dom.compoundFractionStepBadge.textContent = "Passaggio 1 di 2";
-      if (dom.compoundFractionTitle) dom.compoundFractionTitle.textContent = "Frazione di frazione rilevata";
-      if (dom.compoundFractionMsg) {
-        dom.compoundFractionMsg.textContent = "La formula presenta una frazione al denominatore. Dividere per una frazione equivale a moltiplicare per la sua reciproca (inversa).";
-      }
-    }
-    if (dom.equationDisplay) {
-      dom.equationDisplay.classList.remove("compound-anim-step2", "compound-anim-step3");
-      dom.equationDisplay.classList.add("compound-anim-step1");
-    }
-    state.currentEq = steps.step1Eq;
-    renderEquationView();
-    updateObjective();
-    const t1 = setTimeout(() => {
-      if (!state.isAnimatingCompoundFraction) return;
-      playSoundFraction();
-      state.currentEq = steps.step2Eq;
-      renderEquationView();
-      if (dom.compoundFractionBanner) {
-        if (dom.compoundFractionStepBadge) dom.compoundFractionStepBadge.textContent = "Passaggio 2 di 2";
-        if (dom.compoundFractionTitle) dom.compoundFractionTitle.textContent = "Inversione del denominatore";
-        if (dom.compoundFractionMsg) {
-          dom.compoundFractionMsg.textContent = "Moltiplichiamo il numeratore per la frazione reciproca del denominatore: la frazione si capovolge.";
-        }
-      }
-      if (dom.equationDisplay) {
-        dom.equationDisplay.classList.remove("compound-anim-step1");
-        dom.equationDisplay.classList.add("compound-anim-step2");
-      }
-      const t2 = setTimeout(() => {
-        if (!state.isAnimatingCompoundFraction) return;
-        playSuccessChime();
-        spawnVictoryConfetti();
-        state.currentEq = steps.step3Eq;
-        state.isAnimatingCompoundFraction = false;
-        renderEquationView();
-        const rule = {
-          name: "Semplificazione frazione di frazione",
-          principle: "Dividere per una frazione equivale a moltiplicare per la sua reciproca (inversa): a / (b/c) = (a \xB7 c) / b.",
-          explanation: null
-        };
-        pushHistory({
-          equation: clone(steps.step3Eq),
-          ruleName: rule.name,
-          rulePrinciple: rule.principle,
-          ruleId: "compound_frac_simplify",
-          steps: [
-            `Frazione di frazione rilevata: ${steps.step1Pretty}`,
-            `Moltiplicazione per la reciproca: ${steps.step2Pretty}`,
-            `Frazione normale semplificata: ${steps.step3Pretty}`
-          ],
-          conditions: (state.conditions || []).slice(),
-          explanationKey: null,
-          note: "Semplificazione automatica frazione di frazione",
-          verified: true
-        }, false);
-        if (dom.compoundFractionBanner) {
-          if (dom.compoundFractionStepBadge) dom.compoundFractionStepBadge.textContent = "Completato \u2713";
-          if (dom.compoundFractionTitle) dom.compoundFractionTitle.textContent = "Frazione normale ottenuta!";
-          if (dom.compoundFractionMsg) {
-            dom.compoundFractionMsg.textContent = `Formula finale semplificata: ${steps.step3Pretty}.`;
-          }
-        }
-        if (dom.equationDisplay) {
-          dom.equationDisplay.classList.remove("compound-anim-step2");
-          dom.equationDisplay.classList.add("compound-anim-step3");
-        }
-        updateObjective();
-        showMessage(`\u{1F389} Frazione di frazione semplificata! Formula inversa finale ricavata con successo.`, "success");
-        const t3 = setTimeout(() => {
-          if (dom.compoundFractionBanner) dom.compoundFractionBanner.hidden = true;
-          if (dom.equationDisplay) dom.equationDisplay.classList.remove("compound-anim-step3");
-          if (typeof onComplete === "function") onComplete();
-        }, 3200);
-        state.compoundAnimTimers.push(t3);
-      }, 2500);
-      state.compoundAnimTimers.push(t2);
-    }, 2200);
-    state.compoundAnimTimers.push(t1);
-  }
   var _lastAnnouncedSolvedEq = false;
   function updateObjective() {
-    const f = state.baseFormula;
-    const t = prettyVar(state.targetVar);
-    dom.objectiveText.textContent = f ? `ricavare ${t} \u2014 ${f.name} (${f.formula})` : `ricavare ${t}`;
-    state.goalReached = isGoalReached(state.currentEq, state.targetVar);
-    if (!_isMirrorSwapping && state.goalReached && state.currentEq && state.currentEq.type === "Eq") {
-      const flipped = ensureTargetOnFirstMember(state.currentEq, state.targetVar);
-      if (flipped !== state.currentEq) {
-        state.currentEq = flipped;
-        if (dom.equationDisplay) {
-          dom.equationDisplay.innerHTML = renderEquation(state.currentEq, {
-            selectedId: state.selectedId,
-            targetVar: state.targetVar,
+    const f = state5.baseFormula;
+    const t = prettyVar(state5.targetVar);
+    dom5.objectiveText.textContent = f ? `ricavare ${t} \u2014 ${f.name} (${f.formula})` : `ricavare ${t}`;
+    state5.goalReached = isGoalReached(state5.currentEq, state5.targetVar);
+    if (state5.goalReached && state5.currentEq && state5.currentEq.type === "Eq") {
+      const flipped = ensureTargetOnFirstMember(state5.currentEq, state5.targetVar);
+      if (flipped !== state5.currentEq) {
+        state5.currentEq = flipped;
+        if (dom5.equationDisplay) {
+          dom5.equationDisplay.innerHTML = renderEquation(state5.currentEq, {
+            selectedId: state5.selectedId,
+            targetVar: state5.targetVar,
             interactive: true,
-            showImplicitDen: state.showImplicitDen
+            showImplicitDen: state5.showImplicitDen
           });
-          if (dom.latexLiveCode) dom.latexLiveCode.textContent = toLatex(state.currentEq);
+          if (dom5.latexLiveCode) dom5.latexLiveCode.textContent = toLatex(state5.currentEq);
         }
       }
     }
-    const resSide = state.currentEq && state.currentEq.type === "Eq" ? isolatedSide(state.currentEq.left, state.targetVar) ? state.currentEq.right : isolatedSide(state.currentEq.right, state.targetVar) ? state.currentEq.left : null : null;
+    const resSide = state5.currentEq && state5.currentEq.type === "Eq" ? isolatedSide(state5.currentEq.left, state5.targetVar) ? state5.currentEq.right : isolatedSide(state5.currentEq.right, state5.targetVar) ? state5.currentEq.left : null : null;
     const hasCompound = hasCompoundFraction(resSide);
-    const isFullySolved = state.goalReached && !hasCompound && !state.isAnimatingCompoundFraction;
+    const isFullySolved = state5.goalReached && !hasCompound && !state5.isAnimatingCompoundFraction;
     if (isFullySolved && !_lastAnnouncedSolvedEq) {
       _lastAnnouncedSolvedEq = true;
-      const verbal = verbalizeEquation(state.currentEq);
-      announceMathLive(`Obiettivo raggiunto! La grandezza ${verbalizeVar(state.targetVar)} \xE8 isolata: ${verbal}`, true);
+      const verbal = verbalizeEquation(state5.currentEq);
+      announceMathLive(`Obiettivo raggiunto! La grandezza ${verbalizeVar(state5.targetVar)} \xE8 isolata: ${verbal}`, true);
     } else if (!isFullySolved) {
       _lastAnnouncedSolvedEq = false;
     }
-    dom.objectiveStatus.hidden = false;
-    if (state.isAnimatingCompoundFraction) {
-      dom.objectiveStatus.textContent = "\u26A1 Semplificazione...";
-      dom.objectiveStatus.className = "status-badge status-progress";
-      dom.objectiveBox.classList.remove("objective-done");
+    dom5.objectiveStatus.hidden = false;
+    if (state5.isAnimatingCompoundFraction) {
+      dom5.objectiveStatus.textContent = "\u26A1 Semplificazione...";
+      dom5.objectiveStatus.className = "status-badge status-progress";
+      dom5.objectiveBox.classList.remove("objective-done");
     } else {
-      dom.objectiveStatus.textContent = isFullySolved ? "\u2713 Raggiunto" : "\u25CF In corso";
-      dom.objectiveStatus.className = "status-badge " + (isFullySolved ? "status-success" : "status-progress");
-      dom.objectiveBox.classList.toggle("objective-done", isFullySolved);
+      dom5.objectiveStatus.textContent = isFullySolved ? "\u2713 Raggiunto" : "\u25CF In corso";
+      dom5.objectiveStatus.className = "status-badge " + (isFullySolved ? "status-success" : "status-progress");
+      dom5.objectiveBox.classList.toggle("objective-done", isFullySolved);
     }
-    if (dom.btnRetryExercise) dom.btnRetryExercise.hidden = !state.startEq;
-    if (dom.completionBanner) {
-      dom.completionBanner.hidden = !isFullySolved;
+    if (dom5.btnRetryExercise) dom5.btnRetryExercise.hidden = !state5.startEq;
+    if (dom5.completionBanner) {
+      dom5.completionBanner.hidden = !isFullySolved;
       if (isFullySolved) {
-        if (dom.completionTitle) dom.completionTitle.textContent = `\u{1F3C6} Ottimo lavoro! Hai isolato ${t}`;
-        if (dom.completionSubtitle) {
-          dom.completionSubtitle.textContent = `Formula inversa ricavata con successo: ${toPretty(state.currentEq, 0)}.`;
+        if (dom5.completionTitle) dom5.completionTitle.textContent = `\u{1F3C6} Ottimo lavoro! Hai isolato ${t}`;
+        if (dom5.completionSubtitle) {
+          dom5.completionSubtitle.textContent = `Formula inversa ricavata con successo: ${toPretty(state5.currentEq, 0)}.`;
         }
-        if (state.mode === "quiz" && state.quizManager) {
-          state.quizManager.onGoalReached();
+        if (state5.mode === "quiz" && state5.quizManager) {
+          state5.quizManager.onGoalReached();
         }
       }
     }
-    if (dom.objectiveTargetPicker && f && f.isolate) {
-      dom.objectiveTargetPicker.hidden = false;
-      dom.targetChips.innerHTML = "";
+    if (dom5.objectiveTargetPicker && f && f.isolate) {
+      dom5.objectiveTargetPicker.hidden = false;
+      dom5.targetChips.innerHTML = "";
       f.isolate.forEach((v) => {
         const chip = document.createElement("button");
         chip.type = "button";
-        chip.className = "target-chip" + (v === state.targetVar ? " active" : "");
+        chip.className = "target-chip" + (v === state5.targetVar ? " active" : "");
         chip.textContent = prettyVar(v);
         chip.title = `Imposta come obiettivo: isola ${prettyVar(v)}`;
         chip.addEventListener("click", () => setTargetVar(v));
-        dom.targetChips.appendChild(chip);
+        dom5.targetChips.appendChild(chip);
       });
-    } else if (dom.objectiveTargetPicker) {
-      dom.objectiveTargetPicker.hidden = true;
+    } else if (dom5.objectiveTargetPicker) {
+      dom5.objectiveTargetPicker.hidden = true;
     }
     updateNumericalCalculator();
   }
-  function setTargetVar(v) {
-    state.targetVar = v;
-    dismissDidacticBubble();
-    updateObjective();
-    renderEquationView();
-    clearMessage();
-    if (state.goalReached) {
-      if (checkAndAnimateCompoundFraction()) return;
-      playSuccessChime();
-      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(v)} \xE8 gi\xE0 isolata!`, "success");
-    } else {
-      showMessage(`\u{1F3AF} Nuovo obiettivo impostato: isolare ${prettyVar(v)}.`, "info");
+  function renderConditions() {
+    if (state5.conditions.length === 0) {
+      dom5.conditionsBox.hidden = true;
+      return;
     }
+    dom5.conditionsBox.hidden = false;
+    dom5.conditionsList.innerHTML = state5.conditions.map((c) => `<li>${escapeHtml5(c)}</li>`).join("");
   }
   function getSolvedExpression() {
-    if (!state.currentEq || !state.targetVar) return null;
-    const leftRaw = unwrap(state.currentEq.left);
-    const rightRaw = unwrap(state.currentEq.right);
-    if (isVar(leftRaw) && leftRaw.name === state.targetVar) {
+    if (!state5.currentEq || !state5.targetVar) return null;
+    const leftRaw = unwrap(state5.currentEq.left);
+    const rightRaw = unwrap(state5.currentEq.right);
+    if (isVar(leftRaw) && leftRaw.name === state5.targetVar) {
       return rightRaw;
     }
-    if (isVar(rightRaw) && rightRaw.name === state.targetVar) {
+    if (isVar(rightRaw) && rightRaw.name === state5.targetVar) {
       return leftRaw;
     }
     return null;
   }
   function updateNumericalCalculator() {
-    if (!dom.numericalCalcCard) return;
-    if (!state.goalReached) {
-      dom.numericalCalcCard.hidden = true;
+    if (!dom5.numericalCalcCard) return;
+    if (!state5.goalReached) {
+      dom5.numericalCalcCard.hidden = true;
       return;
     }
     const solvedExpr = getSolvedExpression();
     if (!solvedExpr) {
-      dom.numericalCalcCard.hidden = true;
+      dom5.numericalCalcCard.hidden = true;
       return;
     }
-    dom.numericalCalcCard.hidden = false;
-    const targetInfo = getQuantityInfo(state.targetVar, state.baseFormula);
-    if (dom.calcTargetVar) dom.calcTargetVar.textContent = prettyVar(state.targetVar);
-    if (dom.calcFinalUnit) dom.calcFinalUnit.textContent = targetInfo.unit;
+    dom5.numericalCalcCard.hidden = false;
+    const targetInfo = getQuantityInfo(state5.targetVar, state5.baseFormula);
+    if (dom5.calcTargetVar) dom5.calcTargetVar.textContent = prettyVar(state5.targetVar);
+    if (dom5.calcFinalUnit) dom5.calcFinalUnit.textContent = targetInfo.unit;
     const freeVars = Array.from(collectVars(solvedExpr)).filter(
-      (v) => v !== state.targetVar && v !== "pi" && v !== "\u03C0" && v !== "e" && v !== "\xB1"
+      (v) => v !== state5.targetVar && v !== "pi" && v !== "\u03C0" && v !== "e" && v !== "\xB1"
     );
     renderCalculatorInputs(freeVars, solvedExpr);
   }
@@ -13454,58 +14254,58 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     return false;
   }
   function renderCalculatorInputs(freeVars, solvedExpr) {
-    if (!dom.calcInputsGrid) return;
-    dom.calcInputsGrid.innerHTML = "";
+    if (!dom5.calcInputsGrid) return;
+    dom5.calcInputsGrid.innerHTML = "";
     if (freeVars.length === 0) {
       const evalRes = evalWithEnv(solvedExpr, {});
       const formatted = evalRes.ok ? formatResultNumber(evalRes.value) : "\u2014";
       const withPm = hasPmSign(solvedExpr);
       const displayVal = evalRes.ok && withPm ? `\xB1 ${formatted}` : formatted;
-      if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = displayVal;
-      if (dom.calcStepFormula) dom.calcStepFormula.textContent = `${prettyVar(state.targetVar)} = ${displayVal}`;
+      if (dom5.calcFinalNumber) dom5.calcFinalNumber.textContent = displayVal;
+      if (dom5.calcStepFormula) dom5.calcStepFormula.textContent = `${prettyVar(state5.targetVar)} = ${displayVal}`;
       return;
     }
     freeVars.forEach((v) => {
-      const qInfo = getQuantityInfo(v, state.baseFormula);
+      const qInfo = getQuantityInfo(v, state5.baseFormula);
       const item = document.createElement("div");
       item.className = "calc-input-item";
       item.innerHTML = `
       <div class="calc-input-meta">
         <span class="calc-input-symbol">${prettyVar(v)}</span>
-        <span class="calc-input-label" title="${escapeHtml3(qInfo.name)}">${escapeHtml3(qInfo.name)}</span>
+        <span class="calc-input-label" title="${escapeHtml5(qInfo.name)}">${escapeHtml5(qInfo.name)}</span>
       </div>
       <div class="calc-input-row">
-        <input type="number" step="any" class="calc-num-input" data-var="${escapeHtml3(v)}" placeholder="0" />
-        <span class="calc-unit-badge">${escapeHtml3(qInfo.unit)}</span>
+        <input type="number" step="any" class="calc-num-input" data-var="${escapeHtml5(v)}" placeholder="0" />
+        <span class="calc-unit-badge">${escapeHtml5(qInfo.unit)}</span>
       </div>
     `;
       const input = item.querySelector(".calc-num-input");
       input.addEventListener("input", () => runNumericalCalculation(solvedExpr));
-      dom.calcInputsGrid.appendChild(item);
+      dom5.calcInputsGrid.appendChild(item);
     });
     populateCalculatorSamples(freeVars, solvedExpr);
   }
   function populateCalculatorSamples(freeVars, solvedExpr) {
-    if (!dom.calcInputsGrid) return;
-    const inputs = dom.calcInputsGrid.querySelectorAll(".calc-num-input");
+    if (!dom5.calcInputsGrid) return;
+    const inputs = dom5.calcInputsGrid.querySelectorAll(".calc-num-input");
     inputs.forEach((input) => {
       const v = input.dataset.var;
-      const qInfo = getQuantityInfo(v, state.baseFormula);
+      const qInfo = getQuantityInfo(v, state5.baseFormula);
       input.value = qInfo.sample !== void 0 ? qInfo.sample : 1;
     });
     runNumericalCalculation(solvedExpr);
   }
   function resetCalculatorInputs(solvedExpr) {
-    if (!dom.calcInputsGrid) return;
-    const inputs = dom.calcInputsGrid.querySelectorAll(".calc-num-input");
+    if (!dom5.calcInputsGrid) return;
+    const inputs = dom5.calcInputsGrid.querySelectorAll(".calc-num-input");
     inputs.forEach((input) => {
       input.value = "";
     });
     runNumericalCalculation(solvedExpr);
   }
   function runNumericalCalculation(solvedExpr) {
-    if (!dom.calcInputsGrid) return;
-    const inputs = dom.calcInputsGrid.querySelectorAll(".calc-num-input");
+    if (!dom5.calcInputsGrid) return;
+    const inputs = dom5.calcInputsGrid.querySelectorAll(".calc-num-input");
     const env = {};
     let anyEmpty = false;
     inputs.forEach((input) => {
@@ -13517,11 +14317,11 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         env[v] = parseFloat(val);
       }
     });
-    const targetInfo = getQuantityInfo(state.targetVar, state.baseFormula);
+    const targetInfo = getQuantityInfo(state5.targetVar, state5.baseFormula);
     if (anyEmpty) {
-      if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = "\u2014";
-      if (dom.calcStepFormula) dom.calcStepFormula.textContent = "Inserisci tutte le grandezze per visualizzare il calcolo numerico.";
-      if (dom.calcErrorNotice) dom.calcErrorNotice.hidden = true;
+      if (dom5.calcFinalNumber) dom5.calcFinalNumber.textContent = "\u2014";
+      if (dom5.calcStepFormula) dom5.calcStepFormula.textContent = "Inserisci tutte le grandezze per visualizzare il calcolo numerico.";
+      if (dom5.calcErrorNotice) dom5.calcErrorNotice.hidden = true;
       return;
     }
     const evalRes = evalWithEnv(solvedExpr, env);
@@ -13529,14 +14329,14 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       const formatted = formatResultNumber(evalRes.value);
       const withPm = hasPmSign(solvedExpr);
       const displayVal = withPm ? `\xB1 ${formatted}` : formatted;
-      if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = displayVal;
-      if (dom.calcErrorNotice) dom.calcErrorNotice.hidden = true;
+      if (dom5.calcFinalNumber) dom5.calcFinalNumber.textContent = displayVal;
+      if (dom5.calcErrorNotice) dom5.calcErrorNotice.hidden = true;
       try {
         const substitutedAst = substituteVarsInAst(solvedExpr, env);
         const substitutedHtml = renderNode(substitutedAst, "calc-step", { interactive: false });
-        if (dom.calcStepFormula) {
-          dom.calcStepFormula.innerHTML = `
-          <span class="calc-step-var">${prettyVar(state.targetVar)}</span>
+        if (dom5.calcStepFormula) {
+          dom5.calcStepFormula.innerHTML = `
+          <span class="calc-step-var">${prettyVar(state5.targetVar)}</span>
           <span class="calc-step-eq">=</span>
           <span class="calc-step-expr">${substitutedHtml}</span>
           <span class="calc-step-eq">=</span>
@@ -13545,202 +14345,48 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         `;
         }
       } catch {
-        if (dom.calcStepFormula) {
-          dom.calcStepFormula.textContent = `${prettyVar(state.targetVar)} = ${displayVal} ${targetInfo.unit}`;
+        if (dom5.calcStepFormula) {
+          dom5.calcStepFormula.textContent = `${prettyVar(state5.targetVar)} = ${displayVal} ${targetInfo.unit}`;
         }
       }
     } else {
-      if (dom.calcFinalNumber) dom.calcFinalNumber.textContent = "Non calcolabile";
-      if (dom.calcErrorNotice) {
-        dom.calcErrorNotice.textContent = `\u26A0\uFE0F Impossibile completare il calcolo: ${evalRes.error || "Errore nei valori numerici"}`;
-        dom.calcErrorNotice.hidden = false;
+      if (dom5.calcFinalNumber) dom5.calcFinalNumber.textContent = "Non calcolabile";
+      if (dom5.calcErrorNotice) {
+        dom5.calcErrorNotice.textContent = `\u26A0\uFE0F Impossibile completare il calcolo: ${evalRes.error || "Errore nei valori numerici"}`;
+        dom5.calcErrorNotice.hidden = false;
       }
-      if (dom.calcStepFormula) dom.calcStepFormula.textContent = "Verifica i valori inseriti.";
+      if (dom5.calcStepFormula) dom5.calcStepFormula.textContent = "Verifica i valori inseriti.";
     }
   }
   function copyCalculatorResult() {
-    const val = dom.calcFinalNumber ? dom.calcFinalNumber.textContent.trim() : "";
-    const unit = dom.calcFinalUnit ? dom.calcFinalUnit.textContent.trim() : "";
-    const target = prettyVar(state.targetVar);
+    const val = dom5.calcFinalNumber ? dom5.calcFinalNumber.textContent.trim() : "";
+    const unit = dom5.calcFinalUnit ? dom5.calcFinalUnit.textContent.trim() : "";
+    const target = prettyVar(state5.targetVar);
     if (!val || val === "\u2014" || val === "Non calcolabile") {
       showMessage("Nessun valore valido da copiare.", "warning");
       return;
     }
     const text = `${target} = ${val} ${unit}`;
     navigator.clipboard.writeText(text).then(() => {
-      const oldText = dom.btnCopyCalcResult.textContent;
-      dom.btnCopyCalcResult.textContent = "\u2713 Copiato!";
+      const oldText = dom5.btnCopyCalcResult.textContent;
+      dom5.btnCopyCalcResult.textContent = "\u2713 Copiato!";
       setTimeout(() => {
-        if (dom.btnCopyCalcResult) dom.btnCopyCalcResult.textContent = oldText;
+        if (dom5.btnCopyCalcResult) dom5.btnCopyCalcResult.textContent = oldText;
       }, 1800);
       showMessage(`Copiato negli appunti: ${text}`, "success");
     }).catch(() => {
       showMessage(`Risultato: ${text}`, "info");
     });
   }
-  function pushHistory(entry, isInitial = false, isFailed = false) {
-    if (!isInitial && state.historyIndex < state.history.length - 1) {
-      state.history = state.history.slice(0, state.historyIndex + 1);
-    }
-    entry.timestamp = Date.now();
-    entry.failed = !!isFailed;
-    state.history.push(entry);
-    state.historyIndex = state.history.length - 1;
-    renderHistory();
-    updateHistoryButtons();
-    if (!isInitial && state.quizManager) {
-      state.quizManager.onMoveExecuted(!isFailed);
-    }
-  }
-  function renderHistory() {
-    if (state.history.length === 0) {
-      dom.historyList.innerHTML = '<li class="history-empty">Nessun passaggio registrato.</li>';
-      return;
-    }
-    dom.historyList.innerHTML = "";
-    state.history.forEach((h, i) => {
-      const li = document.createElement("li");
-      li.className = "history-item";
-      if (i === state.historyIndex) li.classList.add("current");
-      if (h.failed) li.classList.add("failed");
-      if (i > state.historyIndex) li.classList.add("future");
-      li.innerHTML = `
-      <div class="history-head">
-        <span class="history-step">${h.failed ? "\u2717" : i === 0 ? "0" : i}</span> <span class="history-rule">${escapeHtml3(h.ruleName)}</span>
-      </div>
-      <div class="history-eq">${renderEquation(h.equation, {})}</div>
-      ${h.conditions && h.conditions.length ? `<div class="history-cond">Condizioni: ${h.conditions.map(escapeHtml3).join("; ")}</div>` : ""}
-      ${h.note ? `<div class="history-note">${escapeHtml3(h.note)}</div>` : ""}
-      <div class="history-status">${h.verified ? "\u2713 controllo matematico superato" : "\u2717 mossa rifiutata"}</div>
-    `;
-      li.addEventListener("click", () => goToHistory(i));
-      li.tabIndex = 0;
-      li.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") goToHistory(i);
-      });
-      dom.historyList.appendChild(li);
-    });
-    const cur = dom.historyList.querySelector(".current");
-    if (cur && dom.historyList) {
-      const top = cur.offsetTop - dom.historyList.offsetTop;
-      dom.historyList.scrollTop = Math.max(0, top);
-    }
-  }
-  function goToHistory(i) {
-    cancelCompoundFractionAnimation();
-    if (i < 0 || i >= state.history.length) return;
-    if (state.history[i].failed) {
-      showMessage("Questo \xE8 un tentativo non valido: l'equazione non \xE8 cambiata.", "info");
-      return;
-    }
-    state.historyIndex = i;
-    state.currentEq = clone(state.history[i].equation);
-    state.conditions = collectConditionsUpTo(i);
-    state.selectedId = null;
-    clearPreview();
-    updateObjective();
-    renderEquationView();
-    renderHistory();
-    updateHistoryButtons();
-    if (i > 0) {
-      const h = state.history[i];
-      const rule = h.ruleId ? Object.values(RULES).find((r) => r.id === h.ruleId) : null;
-      showRulePanel(rule || { name: h.ruleName, principle: h.rulePrinciple }, { steps: h.steps, conditions: h.conditions, note: h.note }, state.currentEq);
-    } else {
-      updateRulePanelInitial(state.baseFormula);
-    }
-  }
-  function collectConditionsUpTo(i) {
-    const set = new Set(state.baseFormula && state.baseFormula.conditions ? state.baseFormula.conditions : []);
-    for (let k = 0; k <= i; k++) {
-      if (state.history[k].failed) continue;
-      for (const c of state.history[k].conditions || []) set.add(c);
-    }
-    return Array.from(set);
-  }
-  function bindHistoryEvents() {
-    dom.btnUndo.addEventListener("click", undo);
-    dom.btnRedo.addEventListener("click", redo);
-    dom.btnReset.addEventListener("click", resetExercise);
-    if (dom.btnCopySteps) dom.btnCopySteps.addEventListener("click", copyStepsText);
-    if (dom.btnCopyStepsLatex) dom.btnCopyStepsLatex.addEventListener("click", copyStepsLatex);
-  }
-  function undo() {
-    let i = state.historyIndex - 1;
-    while (i >= 0 && state.history[i].failed) i--;
-    if (i < 0) {
-      showMessage("Non ci sono trasformazioni da annullare.", "info");
-      return;
-    }
-    goToHistory(i);
-  }
-  function redo() {
-    let i = state.historyIndex + 1;
-    while (i < state.history.length && state.history[i].failed) i++;
-    if (i >= state.history.length) {
-      showMessage("Non ci sono trasformazioni da ripristinare.", "info");
-      return;
-    }
-    goToHistory(i);
-  }
-  function resetExercise() {
-    cancelCompoundFractionAnimation();
-    if (!state.startEq) return;
-    playSoundClick();
-    dismissDidacticBubble();
-    clearSelection();
-    clearPreview();
-    if (state.baseFormula && state.targetVar) {
-      loadFormula(state.baseFormula, state.targetVar);
-      showMessage("Esercizio ricominciato dall'inizio.", "info");
-      return;
-    }
-    state.history = [];
-    state.historyIndex = -1;
-    state.currentEq = clone(state.startEq);
-    state.conditions = (state.baseFormula && state.baseFormula.conditions ? state.baseFormula.conditions : state.conditions || []).slice();
-    state.selectedId = null;
-    pushHistory({
-      equation: clone(state.startEq),
-      ruleName: "Formula di partenza",
-      rulePrinciple: state.baseFormula ? state.baseFormula.formula : toPretty(state.startEq, 0),
-      steps: [],
-      conditions: state.conditions.slice(),
-      explanationKey: null,
-      note: state.baseFormula && state.baseFormula.hypotheses || null,
-      verified: true
-    }, true);
-    updateObjective();
-    renderEquationView();
-    if (state.baseFormula) updateRulePanelInitial(state.baseFormula);
-    clearMessage();
-    showMessage("Esercizio ricominciato dall'inizio.", "info");
-  }
-  function updateHistoryButtons() {
-    let prev = state.historyIndex - 1;
-    while (prev >= 0 && state.history[prev].failed) prev--;
-    let next = state.historyIndex + 1;
-    while (next < state.history.length && state.history[next].failed) next++;
-    dom.btnUndo.disabled = prev < 0;
-    dom.btnRedo.disabled = next >= state.history.length;
-  }
   function showMessage(text, kind) {
-    dom.messageBox.hidden = false;
-    dom.messageBox.textContent = text;
-    dom.messageBox.className = "message-box message-" + (kind || "info");
+    dom5.messageBox.hidden = false;
+    dom5.messageBox.textContent = text;
+    dom5.messageBox.className = "message-box message-" + (kind || "info");
   }
   function clearMessage() {
-    dom.messageBox.hidden = true;
-    dom.messageBox.textContent = "";
-    dom.messageBox.className = "message-box";
-  }
-  function clearSelection() {
-    state.selectedId = null;
-    if (state.clickDragToken) exitClickDragMode();
-    if (dom.actionButtons && state.mode === "free") dom.actionButtons.innerHTML = "";
-    if (dom.actionHint && state.mode === "free") {
-      dom.actionHint.textContent = "Seleziona un elemento dell'equazione per vedere le operazioni disponibili.";
-    }
+    dom5.messageBox.hidden = true;
+    dom5.messageBox.textContent = "";
+    dom5.messageBox.className = "message-box";
   }
   function retryCurrentExercise() {
     cancelCompoundFractionAnimation();
@@ -13748,125 +14394,23 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     dismissDidacticBubble();
     clearSelection();
     clearPreview();
-    if (state.baseFormula && state.targetVar) {
-      loadFormula(state.baseFormula, state.targetVar);
-      showMessage(`\u{1F504} Esercizio riavviato! Riprova a ricavare ${prettyVar(state.targetVar)}.`, "info");
-    } else if (state.startEq && state.targetVar) {
+    if (state5.baseFormula && state5.targetVar) {
+      loadFormula(state5.baseFormula, state5.targetVar);
+      showMessage(`\u{1F504} Esercizio riavviato! Riprova a ricavare ${prettyVar(state5.targetVar)}.`, "info");
+    } else if (state5.startEq && state5.targetVar) {
       loadFormula({
         id: "custom-" + Date.now(),
         topic: "formula personalizzata",
         name: "formula personalizzata",
-        formula: toPretty(state.startEq, 0),
-        isolate: [state.targetVar],
-        conditions: state.conditions ? state.conditions.slice() : [],
+        formula: toPretty(state5.startEq, 0),
+        isolate: [state5.targetVar],
+        conditions: state5.conditions ? state5.conditions.slice() : [],
         difficulty: 3
-      }, state.targetVar);
-      showMessage(`\u{1F504} Esercizio riavviato! Riprova a ricavare ${prettyVar(state.targetVar)}.`, "info");
-    } else if (state.startEq) {
+      }, state5.targetVar);
+      showMessage(`\u{1F504} Esercizio riavviato! Riprova a ricavare ${prettyVar(state5.targetVar)}.`, "info");
+    } else if (state5.startEq) {
       resetExercise();
     }
-  }
-  function bindWorkAreaEvents() {
-    const eqCard = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
-    if (eqCard) {
-      eqCard.addEventListener("click", (e) => {
-        if (state.mode !== "auto") return;
-        if (e.target.closest(".cross-layer, .didactic-bubble-anchor, .btn-mini, .close-btn, button")) return;
-        executeNextAutoStep();
-      });
-    }
-    dom.equationDisplay.addEventListener("click", (e) => {
-      if (state.mode === "auto") {
-        executeNextAutoStep();
-        return;
-      }
-      if (e.target === dom.equationDisplay) clearSelection();
-    });
-    dom.btnConfirm.addEventListener("click", confirmMove);
-    dom.btnCancel.addEventListener("click", cancelPreview);
-    if (dom.btnMirror) dom.btnMirror.addEventListener("click", applyMirrorRule);
-    if (dom.btnReciprocal) dom.btnReciprocal.addEventListener("click", applyReciprocalRule);
-    if (dom.btnDistribute) dom.btnDistribute.addEventListener("click", applyDistributeRule);
-    if (dom.btnFactorCommon) dom.btnFactorCommon.addEventListener("click", applyFactorCommonRule);
-    if (dom.btnCommonDenom) dom.btnCommonDenom.addEventListener("click", applyCommonDenominatorRule);
-    if (dom.btnChangeSign) dom.btnChangeSign.addEventListener("click", applyChangeSignRule);
-    if (dom.btnCross) dom.btnCross.addEventListener("click", () => toggleCrossMode());
-    bindCrossDrag();
-    if (dom.btnCopyLatexInline) dom.btnCopyLatexInline.addEventListener("click", copyLatexFormula);
-    if (dom.btnQuickHint) dom.btnQuickHint.addEventListener("click", triggerQuickHint);
-    if (dom.btnRetryExercise) dom.btnRetryExercise.addEventListener("click", retryCurrentExercise);
-    if (dom.btnCompletionRetry) dom.btnCompletionRetry.addEventListener("click", retryCurrentExercise);
-    if (dom.btnCompletionNext) {
-      dom.btnCompletionNext.addEventListener("click", () => {
-        playSoundClick();
-        const { id, target } = randomExercise();
-        loadFormula(getFormulaById(id), target);
-      });
-    }
-    if (dom.btnCloseBubble) dom.btnCloseBubble.addEventListener("click", dismissDidacticBubble);
-    if (dom.btnBubbleOk) {
-      dom.btnBubbleOk.addEventListener("click", () => {
-        playSoundClick();
-        dismissDidacticBubble();
-      });
-    }
-    if (dom.btnCalcSample) {
-      dom.btnCalcSample.addEventListener("click", () => {
-        playSoundClick();
-        const solvedExpr = getSolvedExpression();
-        if (!solvedExpr) return;
-        const freeVars = Array.from(collectVars(solvedExpr)).filter(
-          (v) => v !== state.targetVar && v !== "pi" && v !== "\u03C0" && v !== "e" && v !== "\xB1"
-        );
-        populateCalculatorSamples(freeVars, solvedExpr);
-      });
-    }
-    if (dom.btnCalcReset) {
-      dom.btnCalcReset.addEventListener("click", () => {
-        playSoundClick();
-        const solvedExpr = getSolvedExpression();
-        if (!solvedExpr) return;
-        resetCalculatorInputs(solvedExpr);
-      });
-    }
-    if (dom.btnCopyCalcResult) {
-      dom.btnCopyCalcResult.addEventListener("click", copyCalculatorResult);
-    }
-  }
-  function applyMirrorRule() {
-    if (!state.currentEq) return;
-    const newEq = Eq(clone(state.currentEq.right), clone(state.currentEq.left));
-    animateMirrorSwap(state.currentEq, newEq, () => {
-      state.currentEq = newEq;
-      state.selectedId = null;
-      clearPreview();
-      const rule = {
-        id: "swapSides",
-        name: "Regola dello specchio (scambio membri)",
-        principle: "Propriet\xE0 simmetrica dell'uguaglianza: se A = B allora B = A.",
-        explanation: "scambioMembri"
-      };
-      pushHistory({
-        equation: clone(newEq),
-        ruleName: rule.name,
-        rulePrinciple: rule.principle,
-        ruleId: "swapSides",
-        steps: ["Scambio i due membri dell'equazione (propriet\xE0 simmetrica: A = B \u2194 B = A)."],
-        conditions: state.conditions.slice(),
-        explanationKey: "scambioMembri",
-        note: null,
-        verified: true
-      }, false);
-      updateObjective();
-      renderEquationView();
-      showRulePanel(rule, { steps: ["Scambio i due membri per la propriet\xE0 simmetrica."], conditions: [] }, newEq);
-      showMessage("\u{1FA9E} Regola dello specchio applicata: se A = B allora B = A!", "success");
-      if (state.goalReached) {
-        playSuccessChime();
-        spawnVictoryConfetti();
-        showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata!`, "success");
-      }
-    });
   }
   function bindModeEvents() {
     document.querySelectorAll(".mode-btn").forEach((btn) => {
@@ -13877,22 +14421,22 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         });
         btn.classList.add("active");
         btn.setAttribute("aria-pressed", "true");
-        state.mode = btn.dataset.mode;
-        if (dom.btnModeQuiz) {
-          dom.btnModeQuiz.classList.remove("active");
-          dom.btnModeQuiz.setAttribute("aria-pressed", "false");
+        state5.mode = btn.dataset.mode;
+        if (dom5.btnModeQuiz) {
+          dom5.btnModeQuiz.classList.remove("active");
+          dom5.btnModeQuiz.setAttribute("aria-pressed", "false");
         }
-        if (state.quizManager) {
-          state.quizManager.setQuizModeActive(false);
+        if (state5.quizManager) {
+          state5.quizManager.setQuizModeActive(false);
         }
         const modeDesc = {
           free: "\u{1F513} Modalit\xE0 Libera: interagisci liberamente trascinando variabili e applicando operazioni.",
           auto: "\u26A1 Modalit\xE0 Automatica: a ogni clic del mouse il programma esegue una operazione giustificando la regola."
         };
-        showMessage(modeDesc[state.mode] || "", "info");
-        const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
-        if (card) card.classList.toggle("is-auto-mode", state.mode === "auto");
-        if (state.mode === "auto") {
+        showMessage(modeDesc[state5.mode] || "", "info");
+        const card = dom5.equationDisplay ? dom5.equationDisplay.closest(".equation-display-card") : null;
+        if (card) card.classList.toggle("is-auto-mode", state5.mode === "auto");
+        if (state5.mode === "auto") {
           showAutoMode();
         } else {
           const hintBadge = document.querySelector(".drag-hint-badge");
@@ -13906,20 +14450,20 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         }
       });
     });
-    if (dom.btnModeQuiz) {
-      dom.btnModeQuiz.addEventListener("click", () => {
-        const isCurrentlyQuiz = state.mode === "quiz";
+    if (dom5.btnModeQuiz) {
+      dom5.btnModeQuiz.addEventListener("click", () => {
+        const isCurrentlyQuiz = state5.mode === "quiz";
         if (isCurrentlyQuiz) {
-          state.mode = "free";
-          dom.btnModeQuiz.classList.remove("active");
-          dom.btnModeQuiz.setAttribute("aria-pressed", "false");
+          state5.mode = "free";
+          dom5.btnModeQuiz.classList.remove("active");
+          dom5.btnModeQuiz.setAttribute("aria-pressed", "false");
           document.querySelectorAll(".mode-btn").forEach((b) => {
             const isFree = b.dataset.mode === "free";
             b.classList.toggle("active", isFree);
             b.setAttribute("aria-pressed", isFree ? "true" : "false");
           });
-          if (state.quizManager) state.quizManager.setQuizModeActive(false);
-          const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
+          if (state5.quizManager) state5.quizManager.setQuizModeActive(false);
+          const card = dom5.equationDisplay ? dom5.equationDisplay.closest(".equation-display-card") : null;
           if (card) card.classList.remove("is-auto-mode");
           const hintBadge = document.querySelector(".drag-hint-badge");
           const hintText = document.querySelector(".drag-hint-text");
@@ -13931,15 +14475,15 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
           clearSelection();
           showMessage("Modalit\xE0 Quiz disattivata. Tornato in Modalit\xE0 Libera.", "info");
         } else {
-          state.mode = "quiz";
-          dom.btnModeQuiz.classList.add("active");
-          dom.btnModeQuiz.setAttribute("aria-pressed", "true");
+          state5.mode = "quiz";
+          dom5.btnModeQuiz.classList.add("active");
+          dom5.btnModeQuiz.setAttribute("aria-pressed", "true");
           document.querySelectorAll(".mode-btn").forEach((b) => {
             b.classList.remove("active");
             b.setAttribute("aria-pressed", "false");
           });
-          if (state.quizManager) state.quizManager.setQuizModeActive(true);
-          const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
+          if (state5.quizManager) state5.quizManager.setQuizModeActive(true);
+          const card = dom5.equationDisplay ? dom5.equationDisplay.closest(".equation-display-card") : null;
           if (card) card.classList.remove("is-auto-mode");
           const hintBadge = document.querySelector(".drag-hint-badge");
           const hintText = document.querySelector(".drag-hint-text");
@@ -13961,21 +14505,21 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     setTimeout(() => {
       _isAutoStepping = false;
     }, 250);
-    if (!state.currentEq) {
+    if (!state5.currentEq) {
       showMessage("Seleziona prima una formula dalla libreria per iniziare.", "info");
       return;
     }
-    if (state.goalReached) {
+    if (state5.goalReached) {
       playSuccessChime();
-      showMessage(`\u{1F389} Obiettivo gi\xE0 raggiunto! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata.`, "success");
+      showMessage(`\u{1F389} Obiettivo gi\xE0 raggiunto! La grandezza ${prettyVar(state5.targetVar)} \xE8 isolata.`, "success");
       return;
     }
-    const sug = suggestNextStep(state.currentEq, state.targetVar);
+    const sug = suggestNextStep(state5.currentEq, state5.targetVar);
     if (!sug.found) {
       showMessage(sug.message || "Nessun ulteriore passaggio automatico trovato.", "info");
       return;
     }
-    const res = performAction(state.currentEq, sug.action, { target: state.targetVar });
+    const res = performAction(state5.currentEq, sug.action, { target: state5.targetVar });
     if (!res.ok) {
       showInvalidMove(res.error, res.hint, { label: sug.action.label });
       return;
@@ -13997,8 +14541,8 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
   function applyAutoStepState(sug, res) {
     playSoundForRule(sug.action.ruleKey);
     const nextEq = res.equation;
-    state.conditions = mergeConditions(state.conditions, res.conditions || []);
-    state.selectedId = null;
+    state5.conditions = mergeConditions(state5.conditions, res.conditions || []);
+    state5.selectedId = null;
     clearPreview();
     const rule = res.rule || {
       id: sug.action.ruleKey || sug.action.id,
@@ -14017,25 +14561,25 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       note: res.note || sug.reason || null,
       verified: true
     }, false);
-    const isTargetOnRight = isolatedSide(nextEq.right, state.targetVar);
+    const isTargetOnRight = isolatedSide(nextEq.right, state5.targetVar);
     if (isTargetOnRight) {
-      state.currentEq = nextEq;
+      state5.currentEq = nextEq;
       renderEquationView();
-      showRulePanel(rule, res, state.currentEq);
+      showRulePanel(rule, res, state5.currentEq);
       animateOperationBadge(sug.action.label, sug.action.operandText);
       clearMessage();
       setTimeout(() => {
-        const flipped = ensureTargetOnFirstMember(state.currentEq, state.targetVar);
-        animateMirrorSwap(state.currentEq, flipped, () => {
-          state.currentEq = flipped;
-          state.goalReached = true;
+        const flipped = ensureTargetOnFirstMember(state5.currentEq, state5.targetVar);
+        animateMirrorSwap(state5.currentEq, flipped, () => {
+          state5.currentEq = flipped;
+          state5.goalReached = true;
           pushHistory({
             equation: clone(flipped),
             ruleName: "Regola dello specchio (scambio membri)",
             rulePrinciple: "Propriet\xE0 simmetrica dell'uguaglianza: se A = B allora B = A.",
             ruleId: "swapSides",
             steps: ["Scambio i due membri per la propriet\xE0 simmetrica."],
-            conditions: state.conditions.slice(),
+            conditions: state5.conditions.slice(),
             explanationKey: "scambioMembri",
             note: null,
             verified: true
@@ -14045,26 +14589,26 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
           if (checkAndAnimateCompoundFraction()) return;
           playSuccessChime();
           spawnVictoryConfetti();
-          showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata con successo!`, "success");
+          showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state5.targetVar)} \xE8 isolata con successo!`, "success");
           showAutoMode();
         });
       }, 450);
       return;
     }
     if (sug.action.ruleKey === "swapSides") {
-      animateMirrorSwap(state.currentEq, nextEq, () => {
-        state.currentEq = nextEq;
-        state.goalReached = isGoalReached(state.currentEq, state.targetVar);
+      animateMirrorSwap(state5.currentEq, nextEq, () => {
+        state5.currentEq = nextEq;
+        state5.goalReached = isGoalReached(state5.currentEq, state5.targetVar);
         updateObjective();
         renderEquationView();
-        showRulePanel(rule, res, state.currentEq);
+        showRulePanel(rule, res, state5.currentEq);
         animateOperationBadge(sug.action.label, sug.action.operandText);
         clearMessage();
-        if (state.goalReached) {
+        if (state5.goalReached) {
           if (checkAndAnimateCompoundFraction()) return;
           playSuccessChime();
           spawnVictoryConfetti();
-          showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata con successo! Regola: ${rule.name}`, "success");
+          showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state5.targetVar)} \xE8 isolata con successo! Regola: ${rule.name}`, "success");
         } else {
           showMessage(`\u2713 ${sug.action.label}: ${sug.reason || rule.principle}`, "success");
         }
@@ -14072,26 +14616,26 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       });
       return;
     }
-    state.currentEq = nextEq;
-    state.goalReached = isGoalReached(state.currentEq, state.targetVar);
+    state5.currentEq = nextEq;
+    state5.goalReached = isGoalReached(state5.currentEq, state5.targetVar);
     updateObjective();
     renderEquationView();
-    showRulePanel(rule, res, state.currentEq);
+    showRulePanel(rule, res, state5.currentEq);
     animateOperationBadge(sug.action.label, sug.action.operandText);
     clearMessage();
-    if (state.goalReached) {
+    if (state5.goalReached) {
       if (checkAndAnimateCompoundFraction()) return;
       playSuccessChime();
       spawnVictoryConfetti();
-      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state.targetVar)} \xE8 isolata con successo! Regola: ${rule.name}`, "success");
+      showMessage(`\u{1F389} Ottimo! La grandezza ${prettyVar(state5.targetVar)} \xE8 isolata con successo! Regola: ${rule.name}`, "success");
     } else {
       showMessage(`\u2713 ${sug.action.label}: ${sug.reason || rule.principle}`, "success");
     }
     showAutoMode();
   }
   function showAutoMode() {
-    if (!state.currentEq) return;
-    const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
+    if (!state5.currentEq) return;
+    const card = dom5.equationDisplay ? dom5.equationDisplay.closest(".equation-display-card") : null;
     if (card) card.classList.add("is-auto-mode");
     const hintBadge = document.querySelector(".drag-hint-badge");
     const hintText = document.querySelector(".drag-hint-text");
@@ -14099,41 +14643,41 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       hintBadge.textContent = "\u26A1 Modalit\xE0 Automatica";
       hintText.innerHTML = "<strong>Fai clic ovunque con il mouse</strong> (sull'equazione o sul pulsante in basso) per eseguire il passaggio successivo!";
     }
-    if (state.goalReached) {
-      if (dom.actionHint) dom.actionHint.textContent = "Modalit\xE0 Automatica:";
-      if (dom.actionButtons) {
-        dom.actionButtons.innerHTML = `
+    if (state5.goalReached) {
+      if (dom5.actionHint) dom5.actionHint.textContent = "Modalit\xE0 Automatica:";
+      if (dom5.actionButtons) {
+        dom5.actionButtons.innerHTML = `
         <div class="auto-mode-finished">
           <div class="auto-success-header">\u{1F389} Formula isolata con successo!</div>
-          <p>La grandezza <strong>${prettyVar(state.targetVar)}</strong> \xE8 stata completamente isolata. Puoi cambiare la grandezza da isolare in alto o selezionare un'altra formula dalla libreria.</p>
+          <p>La grandezza <strong>${prettyVar(state5.targetVar)}</strong> \xE8 stata completamente isolata. Puoi cambiare la grandezza da isolare in alto o selezionare un'altra formula dalla libreria.</p>
         </div>
       `;
       }
       return;
     }
-    const sug = suggestNextStep(state.currentEq, state.targetVar);
-    const roadmap = computeRoadmap(state.currentEq, state.targetVar);
-    if (dom.actionHint) {
-      dom.actionHint.textContent = `Modalit\xE0 Automatica \u2014 A ogni clic del mouse il programma esegue un'operazione (${roadmap.length} passaggi stimati):`;
+    const sug = suggestNextStep(state5.currentEq, state5.targetVar);
+    const roadmap = computeRoadmap(state5.currentEq, state5.targetVar);
+    if (dom5.actionHint) {
+      dom5.actionHint.textContent = `Modalit\xE0 Automatica \u2014 A ogni clic del mouse il programma esegue un'operazione (${roadmap.length} passaggi stimati):`;
     }
-    if (!dom.actionButtons) return;
-    dom.actionButtons.innerHTML = "";
+    if (!dom5.actionButtons) return;
+    dom5.actionButtons.innerHTML = "";
     if (!sug.found) {
-      dom.actionButtons.innerHTML = `<p class="placeholder small">${escapeHtml3(sug.message || "Nessuna sequenza automatica diretta trovata per questa formula.")}</p>`;
+      dom5.actionButtons.innerHTML = `<p class="placeholder small">${escapeHtml5(sug.message || "Nessuna sequenza automatica diretta trovata per questa formula.")}</p>`;
       return;
     }
     const nextBtn = document.createElement("button");
     nextBtn.className = "action-btn auto-step-btn";
     nextBtn.type = "button";
     nextBtn.innerHTML = `
-    <span class="action-label">\u{1F5B1}\uFE0F Fai clic per eseguire: ${escapeHtml3(sug.action.label)}</span>
-    <span class="action-desc"><strong>Giustificazione della regola:</strong> ${escapeHtml3(sug.reason || sug.action.description || "")}</span>
+    <span class="action-label">\u{1F5B1}\uFE0F Fai clic per eseguire: ${escapeHtml5(sug.action.label)}</span>
+    <span class="action-desc"><strong>Giustificazione della regola:</strong> ${escapeHtml5(sug.reason || sug.action.description || "")}</span>
   `;
     nextBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       executeNextAutoStep();
     });
-    dom.actionButtons.appendChild(nextBtn);
+    dom5.actionButtons.appendChild(nextBtn);
     if (roadmap.length > 0) {
       const roadmapCard = document.createElement("div");
       roadmapCard.className = "roadmap-card";
@@ -14144,14 +14688,14 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
           <li class="roadmap-item ${idx === 0 ? "roadmap-current" : ""}">
             <span class="roadmap-step-num">${idx + 1}</span>
             <div class="roadmap-step-content">
-              <strong>${escapeHtml3(s.action.label)}</strong>
-              <p>${escapeHtml3(s.reason || s.action.description || "")}</p>
+              <strong>${escapeHtml5(s.action.label)}</strong>
+              <p>${escapeHtml5(s.reason || s.action.description || "")}</p>
             </div>
           </li>
         `).join("")}
       </ol>
     `;
-      dom.actionButtons.appendChild(roadmapCard);
+      dom5.actionButtons.appendChild(roadmapCard);
     }
   }
   function computeRoadmap(startEquation, target) {
@@ -14170,12 +14714,12 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     return steps;
   }
   function triggerQuickHint() {
-    if (!state.currentEq) return;
-    if (state.goalReached) {
-      showMessage("Obiettivo gi\xE0 raggiunto! La grandezza " + prettyVar(state.targetVar) + " \xE8 gi\xE0 isolata.", "success");
+    if (!state5.currentEq) return;
+    if (state5.goalReached) {
+      showMessage("Obiettivo gi\xE0 raggiunto! La grandezza " + prettyVar(state5.targetVar) + " \xE8 gi\xE0 isolata.", "success");
       return;
     }
-    const sug = suggestNextStep(state.currentEq, state.targetVar);
+    const sug = suggestNextStep(state5.currentEq, state5.targetVar);
     if (!sug.found) {
       showMessage(sug.message || "Nessun suggerimento disponibile per questo stato.", "info");
       return;
@@ -14183,101 +14727,245 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     previewAction(sug.action);
     showMessage("\u{1F4A1} Passo consigliato: " + sug.reason, "info");
   }
-  function bindEditorEvents() {
-    dom.btnLoadCustom.addEventListener("click", loadCustomFormula);
-    dom.customFormula.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") loadCustomFormula();
-    });
-  }
-  function loadCustomFormula() {
-    const text = dom.customFormula.value.trim();
-    const target = dom.customTarget.value.trim();
-    dom.customError.hidden = true;
-    if (!text) {
-      showCustomError("Inserisci una formula.");
-      return;
-    }
-    let eq;
+  function _audioCtx() {
     try {
-      eq = parseEquation(text);
-    } catch (e) {
-      showCustomError("Errore di sintassi: " + e.message);
-      return;
-    }
-    const vars = collectVars(eq);
-    let t = target;
-    let multipleSpecified = false;
-    if (t && (t.includes(",") || t.includes(";"))) {
-      const parts = t.split(/[,;\s]+/).filter(Boolean);
-      const validParts = parts.filter((p) => vars.has(p) || [...vars].some((v) => v.toLowerCase() === p.toLowerCase()));
-      if (validParts.length > 0) {
-        t = [...vars].find((v) => v.toLowerCase() === validParts[0].toLowerCase()) || validParts[0];
-        multipleSpecified = true;
-      } else {
-        showCustomError(`Inserisci una sola grandezza da isolare alla volta (es. "${[...vars][0]}"). Grandezze presenti: ${[...vars].join(", ")}.`);
-        return;
-      }
-    }
-    if (!t) {
-      const L = unwrap(eq.left);
-      if (L.type === "Var") t = L.name;
-      else {
-        showCustomError("Specifica la grandezza da isolare (una sola lettera, es. " + [...vars][0] + ").");
-        return;
-      }
-    }
-    if (!vars.has(t)) {
-      const alt = [...vars].find((v) => v.toLowerCase() === t.toLowerCase());
-      if (alt) t = alt;
-      else {
-        showCustomError(`La grandezza "${t}" non compare nella formula. Inserisci una sola grandezza presente: ${[...vars].join(", ")}.`);
-        return;
-      }
-    }
-    loadFormula({
-      id: "custom-" + Date.now(),
-      topic: "formula personalizzata",
-      name: "formula personalizzata",
-      formula: text,
-      isolate: [...vars],
-      conditions: [],
-      difficulty: 3,
-      notes: "Formula inserita manualmente."
-    }, t);
-    if (multipleSpecified) {
-      showMessage(`\xC8 possibile isolare una sola grandezza alla volta: impostato obiettivo su "${prettyVar(t)}". Puoi cambiare grandezza da isolare in qualsiasi momento dall'interfaccia!`, "info");
-    } else {
-      showMessage(`Formula personalizzata caricata. Obiettivo: isolare ${prettyVar(t)}.`, "success");
+      const C = window.AudioContext || window.webkitAudioContext;
+      return C ? new C() : null;
+    } catch {
+      return null;
     }
   }
-  function showCustomError(msg) {
-    dom.customError.hidden = false;
-    dom.customError.textContent = msg;
+  function playSoundTransport() {
+    try {
+      const actx = _audioCtx();
+      if (!actx) return;
+      const osc = actx.createOscillator();
+      const gain = actx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(260, actx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(580, actx.currentTime + 0.12);
+      osc.frequency.exponentialRampToValueAtTime(440, actx.currentTime + 0.28);
+      gain.gain.setValueAtTime(1e-4, actx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.18, actx.currentTime + 0.06);
+      gain.gain.exponentialRampToValueAtTime(1e-4, actx.currentTime + 0.32);
+      osc.connect(gain);
+      gain.connect(actx.destination);
+      osc.start(actx.currentTime);
+      osc.stop(actx.currentTime + 0.35);
+    } catch {
+    }
+  }
+  function playSoundFraction() {
+    try {
+      const actx = _audioCtx();
+      if (!actx) return;
+      [[440, 0, 0.15], [880, 0.02, 0.12]].forEach(([freq, delay, dur]) => {
+        const osc = actx.createOscillator();
+        const gain = actx.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.14, actx.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(1e-4, actx.currentTime + delay + dur);
+        osc.connect(gain);
+        gain.connect(actx.destination);
+        osc.start(actx.currentTime + delay);
+        osc.stop(actx.currentTime + delay + dur);
+      });
+    } catch {
+    }
+  }
+  function playSoundInvalid() {
+    try {
+      const actx = _audioCtx();
+      if (!actx) return;
+      const osc1 = actx.createOscillator();
+      const osc2 = actx.createOscillator();
+      const gain = actx.createGain();
+      osc1.type = "sawtooth";
+      osc1.frequency.setValueAtTime(200, actx.currentTime);
+      osc1.frequency.exponentialRampToValueAtTime(60, actx.currentTime + 0.35);
+      osc2.type = "sawtooth";
+      osc2.frequency.setValueAtTime(213, actx.currentTime);
+      osc2.frequency.exponentialRampToValueAtTime(64, actx.currentTime + 0.35);
+      gain.gain.setValueAtTime(0.18, actx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(1e-4, actx.currentTime + 0.38);
+      [osc1, osc2].forEach((o) => {
+        o.connect(gain);
+        o.start(actx.currentTime);
+        o.stop(actx.currentTime + 0.4);
+      });
+      gain.connect(actx.destination);
+    } catch {
+    }
+  }
+  function playSoundClick() {
+    try {
+      const actx = _audioCtx();
+      if (!actx) return;
+      const osc = actx.createOscillator();
+      const gain = actx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(800, actx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(400, actx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.08, actx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(1e-3, actx.currentTime + 0.08);
+      osc.connect(gain);
+      gain.connect(actx.destination);
+      osc.start(actx.currentTime);
+      osc.stop(actx.currentTime + 0.08);
+    } catch {
+    }
+  }
+  function playSoundExplosion() {
+    try {
+      const actx = _audioCtx();
+      if (!actx) return;
+      const sr = actx.sampleRate;
+      const dur = 0.55;
+      const buf = actx.createBuffer(1, sr * dur, sr);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      const noise = actx.createBufferSource();
+      noise.buffer = buf;
+      const filt = actx.createBiquadFilter();
+      filt.type = "lowpass";
+      filt.frequency.setValueAtTime(1200, actx.currentTime);
+      filt.frequency.exponentialRampToValueAtTime(80, actx.currentTime + 0.45);
+      const noiseGain = actx.createGain();
+      noiseGain.gain.setValueAtTime(0.55, actx.currentTime);
+      noiseGain.gain.exponentialRampToValueAtTime(1e-4, actx.currentTime + 0.5);
+      noise.connect(filt);
+      filt.connect(noiseGain);
+      noiseGain.connect(actx.destination);
+      noise.start(actx.currentTime);
+      noise.stop(actx.currentTime + dur);
+      const sub = actx.createOscillator();
+      const subGain = actx.createGain();
+      sub.type = "sine";
+      sub.frequency.setValueAtTime(140, actx.currentTime);
+      sub.frequency.exponentialRampToValueAtTime(32, actx.currentTime + 0.4);
+      subGain.gain.setValueAtTime(0.5, actx.currentTime);
+      subGain.gain.exponentialRampToValueAtTime(1e-4, actx.currentTime + 0.45);
+      sub.connect(subGain);
+      subGain.connect(actx.destination);
+      sub.start(actx.currentTime);
+      sub.stop(actx.currentTime + 0.48);
+      const click = actx.createOscillator();
+      const clickGain = actx.createGain();
+      click.type = "triangle";
+      click.frequency.setValueAtTime(1800, actx.currentTime);
+      click.frequency.exponentialRampToValueAtTime(300, actx.currentTime + 0.035);
+      clickGain.gain.setValueAtTime(0.4, actx.currentTime);
+      clickGain.gain.exponentialRampToValueAtTime(1e-4, actx.currentTime + 0.04);
+      click.connect(clickGain);
+      clickGain.connect(actx.destination);
+      click.start(actx.currentTime);
+      click.stop(actx.currentTime + 0.05);
+    } catch {
+    }
+  }
+  var _FIRST_PRINCIPLE = /* @__PURE__ */ new Set(["moveTerm", "addBoth", "subBoth", "swapSides"]);
+  function playSoundForRule(ruleKey) {
+    if (_FIRST_PRINCIPLE.has(ruleKey)) playSoundTransport();
+    else playSoundFraction();
+  }
+  function playSuccessChime() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const actx = new AudioCtx();
+      const notes = [523.25, 659.25, 783.99, 1046.5];
+      notes.forEach((freq, idx) => {
+        const osc = actx.createOscillator();
+        const gain = actx.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.12, actx.currentTime + idx * 0.1);
+        gain.gain.exponentialRampToValueAtTime(1e-4, actx.currentTime + idx * 0.1 + 0.35);
+        osc.connect(gain);
+        gain.connect(actx.destination);
+        osc.start(actx.currentTime + idx * 0.1);
+        osc.stop(actx.currentTime + idx * 0.1 + 0.35);
+      });
+    } catch {
+    }
+  }
+  function bindWorkAreaEvents() {
+    const eqCard = dom5.equationDisplay ? dom5.equationDisplay.closest(".equation-display-card") : null;
+    if (eqCard) {
+      eqCard.addEventListener("click", (e) => {
+        if (state5.mode !== "auto") return;
+        if (e.target.closest(".cross-layer, .didactic-bubble-anchor, .btn-mini, .close-btn, button")) return;
+        executeNextAutoStep();
+      });
+    }
+    dom5.equationDisplay.addEventListener("click", (e) => {
+      if (state5.mode === "auto") {
+        executeNextAutoStep();
+        return;
+      }
+      if (e.target === dom5.equationDisplay) clearSelection();
+    });
+    dom5.btnConfirm.addEventListener("click", confirmMove);
+    dom5.btnCancel.addEventListener("click", cancelPreview);
+    if (dom5.btnCopyLatexInline) dom5.btnCopyLatexInline.addEventListener("click", copyLatexFormula);
+    if (dom5.btnQuickHint) dom5.btnQuickHint.addEventListener("click", triggerQuickHint);
+    if (dom5.btnRetryExercise) dom5.btnRetryExercise.addEventListener("click", retryCurrentExercise);
+    if (dom5.completionRetry) dom5.btnCompletionRetry.addEventListener("click", retryCurrentExercise);
+    if (dom5.btnCompletionNext) {
+      dom5.btnCompletionNext.addEventListener("click", () => {
+        playSoundClick();
+        const { id, target } = randomExercise();
+        loadFormula(getFormulaById(id), target);
+      });
+    }
+    if (dom5.btnCalcSample) {
+      dom5.btnCalcSample.addEventListener("click", () => {
+        playSoundClick();
+        const solvedExpr = getSolvedExpression();
+        if (!solvedExpr) return;
+        const freeVars = Array.from(collectVars(solvedExpr)).filter(
+          (v) => v !== state5.targetVar && v !== "pi" && v !== "\u03C0" && v !== "e" && v !== "\xB1"
+        );
+        populateCalculatorSamples(freeVars, solvedExpr);
+      });
+    }
+    if (dom5.btnCalcReset) {
+      dom5.btnCalcReset.addEventListener("click", () => {
+        playSoundClick();
+        const solvedExpr = getSolvedExpression();
+        if (!solvedExpr) return;
+        resetCalculatorInputs(solvedExpr);
+      });
+    }
+    if (dom5.btnCopyCalcResult) {
+      dom5.btnCopyCalcResult.addEventListener("click", copyCalculatorResult);
+    }
   }
   function bindGlobalEvents() {
-    dom.btnHelp.addEventListener("click", showHelp);
-    dom.btnContrast.addEventListener("click", toggleContrast);
-    if (dom.btnTheme) dom.btnTheme.addEventListener("click", toggleTheme);
-    if (dom.btnLimMode) {
-      dom.btnLimMode.addEventListener("click", () => {
+    dom5.btnHelp.addEventListener("click", showHelp);
+    dom5.btnContrast.addEventListener("click", toggleContrast);
+    if (dom5.btnTheme) dom5.btnTheme.addEventListener("click", toggleTheme);
+    if (dom5.btnLimMode) {
+      dom5.btnLimMode.addEventListener("click", () => {
         const isLim = document.body.classList.toggle("lim-mode");
-        if (dom.equationDisplay) dom.equationDisplay.classList.toggle("lim-mode", isLim);
-        dom.btnLimMode.setAttribute("aria-pressed", isLim ? "true" : "false");
-        dom.btnLimMode.classList.toggle("active", isLim);
+        if (dom5.equationDisplay) dom5.equationDisplay.classList.toggle("lim-mode", isLim);
+        dom5.btnLimMode.setAttribute("aria-pressed", isLim ? "true" : "false");
+        dom5.btnLimMode.classList.toggle("active", isLim);
         announceMathLive(isLim ? "Modalit\xE0 Lavagna Interattiva LIM attivata: calibrazione stilo e zone di tocco estese abilitate" : "Modalit\xE0 LIM disattivata");
       });
     }
-    if (dom.btnSpeakEquation) {
-      dom.btnSpeakEquation.addEventListener("click", () => {
-        if (!state.currentEq) {
+    if (dom5.btnSpeakEquation) {
+      dom5.btnSpeakEquation.addEventListener("click", () => {
+        if (!state5.currentEq) {
           announceMathLive("Nessuna equazione caricata da leggere");
           return;
         }
-        const text = verbalizeEquation(state.currentEq);
+        const text = verbalizeEquation(state5.currentEq);
         announceMathLive(`Lettura formula: ${text}`);
-        dom.btnSpeakEquation.setAttribute("aria-pressed", "true");
+        dom5.btnSpeakEquation.setAttribute("aria-pressed", "true");
         speakMath(text, () => {
-          if (dom.btnSpeakEquation) dom.btnSpeakEquation.setAttribute("aria-pressed", "false");
+          if (dom5.btnSpeakEquation) dom5.btnSpeakEquation.setAttribute("aria-pressed", "false");
         });
       });
     }
@@ -14288,24 +14976,24 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
-        if (dom.quizCompletionModalBackdrop && !dom.quizCompletionModalBackdrop.hidden) {
-          dom.quizCompletionModalBackdrop.hidden = true;
+        if (dom5.quizCompletionModalBackdrop && !dom5.quizCompletionModalBackdrop.hidden) {
+          dom5.quizCompletionModalBackdrop.hidden = true;
           return;
         }
-        if (dom.quizDashboardBackdrop && !dom.quizDashboardBackdrop.hidden) {
-          dom.quizDashboardBackdrop.hidden = true;
+        if (dom5.quizDashboardBackdrop && !dom5.quizDashboardBackdrop.hidden) {
+          dom5.quizDashboardBackdrop.hidden = true;
           return;
         }
-        if (dom.worksheetModalBackdrop && !dom.worksheetModalBackdrop.hidden) {
-          dom.worksheetModalBackdrop.hidden = true;
+        if (dom5.worksheetModalBackdrop && !dom5.worksheetModalBackdrop.hidden) {
+          dom5.worksheetModalBackdrop.hidden = true;
           return;
         }
-        if (!dom.modalBackdrop.hidden) {
-          dom.modalBackdrop.hidden = true;
+        if (!dom5.modalBackdrop.hidden) {
+          dom5.modalBackdrop.hidden = true;
           return;
         }
-        if (state.pendingMove) cancelPreview();
-        else if (state.clickDragToken) exitClickDragMode();
+        if (state5.pendingMove) cancelPreview();
+        else if (state5.clickDragToken) exitClickDragMode();
         else clearSelection();
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
@@ -14320,7 +15008,7 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
   }
   function toggleContrast() {
     const on = document.body.classList.toggle("high-contrast");
-    dom.btnContrast.setAttribute("aria-pressed", on ? "true" : "false");
+    dom5.btnContrast.setAttribute("aria-pressed", on ? "true" : "false");
     if (on) {
       document.documentElement.setAttribute("data-contrast", "high");
       announceMathLive("Modalit\xE0 Alto Contrasto WCAG AAA attivata");
@@ -14335,8 +15023,8 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       localStorage.setItem("formuleInverse.theme", isDark ? "dark" : "light");
     } catch (e) {
     }
-    if (dom.btnTheme) {
-      dom.btnTheme.textContent = isDark ? "\u2600\uFE0F Modalit\xE0 chiara" : "\u{1F319} Modalit\xE0 scura";
+    if (dom5.btnTheme) {
+      dom5.btnTheme.textContent = isDark ? "\u2600\uFE0F Modalit\xE0 chiara" : "\u{1F319} Modalit\xE0 scura";
     }
   }
   function initTheme() {
@@ -14344,508 +15032,12 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       const saved = localStorage.getItem("formuleInverse.theme");
       if (saved === "dark" || !saved && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
         document.body.classList.add("dark-theme");
-        if (dom.btnTheme) dom.btnTheme.textContent = "\u2600\uFE0F Modalit\xE0 chiara";
+        if (dom5.btnTheme) dom5.btnTheme.textContent = "\u2600\uFE0F Modalit\xE0 chiara";
       }
     } catch (e) {
     }
   }
-  function playSuccessChime() {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const notes = [523.25, 659.25, 783.99, 1046.5];
-      notes.forEach((freq, idx) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "triangle";
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.12, ctx.currentTime + idx * 0.1);
-        gain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + idx * 0.1 + 0.35);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + idx * 0.1);
-        osc.stop(ctx.currentTime + idx * 0.1 + 0.35);
-      });
-    } catch (e) {
-    }
-  }
-  function _audioCtx() {
-    try {
-      const C = window.AudioContext || window.webkitAudioContext;
-      return C ? new C() : null;
-    } catch {
-      return null;
-    }
-  }
-  function playSoundTransport() {
-    try {
-      const ctx = _audioCtx();
-      if (!ctx) return;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(260, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(580, ctx.currentTime + 0.12);
-      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.28);
-      gain.gain.setValueAtTime(1e-4, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.06);
-      gain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + 0.32);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.35);
-    } catch {
-    }
-  }
-  function playSoundFraction() {
-    try {
-      const ctx = _audioCtx();
-      if (!ctx) return;
-      [[440, 0, 0.15], [880, 0.02, 0.12]].forEach(([freq, delay, dur]) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "triangle";
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.14, ctx.currentTime + delay);
-        gain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + delay + dur);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + delay);
-        osc.stop(ctx.currentTime + delay + dur);
-      });
-    } catch {
-    }
-  }
-  function playSoundInvalid() {
-    try {
-      const ctx = _audioCtx();
-      if (!ctx) return;
-      const osc1 = ctx.createOscillator();
-      const osc2 = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc1.type = "sawtooth";
-      osc1.frequency.setValueAtTime(200, ctx.currentTime);
-      osc1.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.35);
-      osc2.type = "sawtooth";
-      osc2.frequency.setValueAtTime(213, ctx.currentTime);
-      osc2.frequency.exponentialRampToValueAtTime(64, ctx.currentTime + 0.35);
-      gain.gain.setValueAtTime(0.18, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + 0.38);
-      [osc1, osc2].forEach((o) => {
-        o.connect(gain);
-        o.start(ctx.currentTime);
-        o.stop(ctx.currentTime + 0.4);
-      });
-      gain.connect(ctx.destination);
-    } catch {
-    }
-  }
-  function playSoundClick() {
-    try {
-      const ctx = _audioCtx();
-      if (!ctx) return;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(800, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.08);
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(1e-3, ctx.currentTime + 0.08);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.08);
-    } catch {
-    }
-  }
-  function playSoundExplosion() {
-    try {
-      const ctx = _audioCtx();
-      if (!ctx) return;
-      const sr = ctx.sampleRate;
-      const dur = 0.55;
-      const buf = ctx.createBuffer(1, sr * dur, sr);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-      const noise = ctx.createBufferSource();
-      noise.buffer = buf;
-      const filt = ctx.createBiquadFilter();
-      filt.type = "lowpass";
-      filt.frequency.setValueAtTime(1200, ctx.currentTime);
-      filt.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.45);
-      const noiseGain = ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.55, ctx.currentTime);
-      noiseGain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + 0.5);
-      noise.connect(filt);
-      filt.connect(noiseGain);
-      noiseGain.connect(ctx.destination);
-      noise.start(ctx.currentTime);
-      const boom = ctx.createOscillator();
-      const boomGain = ctx.createGain();
-      boom.type = "sine";
-      boom.frequency.setValueAtTime(140, ctx.currentTime);
-      boom.frequency.exponentialRampToValueAtTime(28, ctx.currentTime + 0.4);
-      boomGain.gain.setValueAtTime(0.55, ctx.currentTime);
-      boomGain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + 0.42);
-      boom.connect(boomGain);
-      boomGain.connect(ctx.destination);
-      boom.start(ctx.currentTime);
-      boom.stop(ctx.currentTime + 0.45);
-      const click = ctx.createOscillator();
-      const clickGain = ctx.createGain();
-      click.type = "square";
-      click.frequency.value = 80;
-      clickGain.gain.setValueAtTime(0.4, ctx.currentTime);
-      clickGain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + 0.04);
-      click.connect(clickGain);
-      clickGain.connect(ctx.destination);
-      click.start(ctx.currentTime);
-      click.stop(ctx.currentTime + 0.05);
-    } catch {
-    }
-  }
-  var _FIRST_PRINCIPLE = /* @__PURE__ */ new Set(["moveTerm", "addBoth", "subBoth", "swapSides"]);
-  function playSoundForRule(ruleKey) {
-    if (_FIRST_PRINCIPLE.has(ruleKey)) playSoundTransport();
-    else playSoundFraction();
-  }
-  function copyStepsText() {
-    if (state.history.length === 0) return;
-    const lines = state.history.filter((h) => !h.failed).map((h, i) => `${i === 0 ? "Partenza" : "Passo " + i}: ${toPretty(h.equation, 0)} (${h.ruleName})`);
-    const text = lines.join("\n");
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => {
-        showMessage(`${lines.length} passaggi copiati negli appunti!`, "success");
-      }).catch(() => {
-        prompt("Copia i passaggi:", text);
-      });
-    } else {
-      prompt("Copia i passaggi:", text);
-    }
-  }
-  function copyLatexFormula() {
-    if (!state.currentEq) return;
-    const latexStr = toLatex(state.currentEq);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(latexStr).then(() => {
-        showMessage(`Formula LaTeX copiata negli appunti: "${latexStr}"`, "success");
-      }).catch(() => {
-        prompt("Copia il codice LaTeX:", latexStr);
-      });
-    } else {
-      prompt("Copia il codice LaTeX:", latexStr);
-    }
-  }
-  function copyStepsLatex() {
-    if (state.history.length === 0) return;
-    const validSteps = state.history.filter((h) => !h.failed);
-    const lines = validSteps.map((h, i) => {
-      const ltx = toLatex(h.equation);
-      const aligned = ltx.includes("=") ? ltx.replace("=", "&=") : ltx + " &=";
-      const label = escapeLatexComment(h.ruleName || (i === 0 ? "Formula di partenza" : "Passo " + i));
-      return `  ${aligned} && \\text{(${label})}`;
-    });
-    const block = `\\begin{align*}
-${lines.join(" \\\\\n")}
-\\end{align*}`;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(block).then(() => {
-        showMessage(`Svolgimento LaTeX (align*) copiato negli appunti!`, "success");
-      }).catch(() => {
-        prompt("Copia lo svolgimento LaTeX:", block);
-      });
-    } else {
-      prompt("Copia lo svolgimento LaTeX:", block);
-    }
-  }
-  function escapeLatexComment(s) {
-    return (s || "").replace(/([&%$#_{}~^\\])/g, "\\$1");
-  }
-  function showHelp() {
-    dom.modalTitle.textContent = "Guida rapida";
-    dom.modalBody.innerHTML = `
-    <h4>Come si usa l'app</h4>
-    <ol>
-      <li><strong>A. Libreria</strong>: scegli una formula, oppure scrivine una nell'editor.</li>
-      <li><strong>E. Obiettivo</strong>: in alto compare la grandezza da isolare.</li>
-      <li><strong>B. Area di lavoro</strong>: <em>clicca</em> una lettera, un termine, un fattore o un denominatore. Appaiono le operazioni lecite.</li>
-      <li>Scegli un'operazione: vedrai un'<strong>anteprima</strong>. Conferma o annulla.</li>
-      <li><strong>C. Regola</strong>: leggi la spiegazione intuitiva e il principio di equivalenza.</li>
-      <li><strong>D. Cronologia</strong>: ripercorri i passaggi; usa <em>Annulla</em>/<em>Ripristina</em>. Puoi cliccare un passaggio per tornarci.</li>
-    </ol>
-    <h4>Concetti chiave</h4>
-    <ul>
-      <li><strong>Trasporto di un termine</strong>: non \xE8 uno "spostamento", ma sommare l'opposto a entrambi i membri (primo principio). Vale solo per i termini additivi.</li>
-      <li><strong>Trasporto di un fattore</strong>: si divide entrambi i membri per il fattore, che deve essere \u2260 0 (secondo principio). Vale solo per fattori che moltiplicano tutto il membro.</li>
-      <li><strong>Segno \xB1</strong>: risolvendo x\xB2 = a si ottiene x = \xB1\u221Aa: il segno non va eliminato.</li>
-      <li><strong>Condizioni di validit\xE0</strong>: i denominatori devono essere \u2260 0 e i radicandi \u2265 0; l'app le registra e le mostra.</li>
-    </ul>
-    <h4>Scorciatoie</h4>
-    <p>Ctrl/Cmd+Z annulla, Ctrl/Cmd+Y ripristina, Esc annulla l'anteprima o la selezione.</p>
-  `;
-    dom.modalActions.innerHTML = '<button class="btn btn-secondary" type="button" data-close-help>Chiudi</button>';
-    dom.modalActions.querySelector("[data-close-help]").addEventListener("click", () => {
-      dom.modalBackdrop.hidden = true;
-    });
-    dom.modalBackdrop.hidden = false;
-  }
-  function bindLatexEvents() {
-    dom.btnLatexPreview.addEventListener("click", previewLatex);
-    dom.btnLatexSave.addEventListener("click", saveLatex);
-    dom.latexInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        previewLatex();
-      }
-    });
-  }
-  function clearLatexError() {
-    if (dom.latexError) {
-      dom.latexError.hidden = true;
-      dom.latexError.textContent = "";
-    }
-  }
-  function showLatexError(msg) {
-    if (dom.latexError) {
-      dom.latexError.hidden = false;
-      dom.latexError.textContent = msg;
-    }
-  }
-  function previewLatex() {
-    clearLatexError();
-    const raw = (dom.latexInput.value || "").trim();
-    if (argsEmpty(raw)) {
-      showLatexError("Incolla un'equazione LaTeX.");
-      return null;
-    }
-    let syntax;
-    try {
-      syntax = latexToSyntax(raw);
-      parseEquation(syntax);
-    } catch (e) {
-      const msg = e instanceof LatexError || e instanceof ParseError ? e.message : "Conversione non riuscita: " + e.message;
-      showLatexError(msg);
-      if (dom.latexPreview) dom.latexPreview.hidden = true;
-      return null;
-    }
-    if (dom.latexPreview) {
-      dom.latexPreview.hidden = false;
-      let mathHtml = "";
-      try {
-        mathHtml = renderEquation(parseEquation(syntax), {});
-      } catch (e) {
-        mathHtml = escapeHtml3(syntax);
-      }
-      dom.latexPreview.innerHTML = `<span class="conv-label">Sintassi per l'editor</span><div class="conv-code">` + escapeHtml3(syntax) + '</div><span class="conv-label" style="margin-top:.5rem">Anteprima</span><div class="latex-math-preview">' + mathHtml + "</div>";
-    }
-    return syntax;
-  }
-  function argsEmpty(t) {
-    return !t;
-  }
-  function resolveVar(token, vars) {
-    if (vars.has(token)) return token;
-    const clean = token.replace(/^\\/, "");
-    if (vars.has(clean)) return clean;
-    const lower = clean.toLowerCase();
-    const greek = GREEK_MAP && GREEK_MAP[lower];
-    if (greek && vars.has(greek)) return greek;
-    const alt = [...vars].find((v) => v.toLowerCase() === lower);
-    if (alt) return alt;
-    return null;
-  }
-  function saveLatex() {
-    const syntax = previewLatex();
-    if (!syntax) return;
-    const name = (dom.latexName.value || "").trim() || "formula da LaTeX";
-    const targetRaw = (dom.latexTarget.value || "").trim();
-    let eq;
-    try {
-      eq = parseEquation(syntax);
-    } catch (e) {
-      showLatexError("Errore di sintassi: " + e.message);
-      return;
-    }
-    const vars = collectVars(eq);
-    let isolateList = [...vars];
-    if (targetRaw) {
-      const parts = targetRaw.split(/[,;\s]+/).filter(Boolean);
-      const resolved = [];
-      for (const p of parts) {
-        const match = resolveVar(p, vars);
-        if (match) {
-          if (!resolved.includes(match)) resolved.push(match);
-        } else {
-          showLatexError(`La grandezza "${p}" non compare nella formula. Presenti: ${[...vars].join(", ")}.`);
-          return;
-        }
-      }
-      if (resolved.length > 0) {
-        isolateList = resolved;
-      }
-    }
-    try {
-      saveUserFormula({
-        name,
-        formula: syntax,
-        latex: (dom.latexInput.value || "").trim(),
-        topic: "Le mie formule",
-        isolate: isolateList,
-        conditions: [],
-        difficulty: 3,
-        notes: "Importata da LaTeX."
-      });
-    } catch (e) {
-      showLatexError(e.message);
-      return;
-    }
-    renderMyFormulas();
-    clearLatexError();
-    dom.latexInput.value = "";
-    dom.latexName.value = "";
-    dom.latexTarget.value = "";
-    if (dom.latexPreview) dom.latexPreview.hidden = true;
-    showMessage(`Formula "${name}" salvata nell'archivio.`, "success");
-  }
-  function bindStorageEvents() {
-    dom.btnExportFormulas.addEventListener("click", exportFormulas);
-    dom.btnImportFormulas.addEventListener("click", importFormulas);
-    dom.btnClearFormulas.addEventListener("click", clearFormulas);
-  }
-  function clearStorageError() {
-    if (dom.storageError) {
-      dom.storageError.hidden = true;
-      dom.storageError.textContent = "";
-    }
-  }
-  function showStorageError(msg) {
-    if (dom.storageError) {
-      dom.storageError.hidden = false;
-      dom.storageError.textContent = msg;
-    }
-  }
-  function renderMyFormulas() {
-    const list = getUserFormulas();
-    if (dom.myFormulasCount) {
-      dom.myFormulasCount.textContent = list.length === 0 ? "Nessuna formula salvata. Importa da LaTeX o salva una formula personalizzata." : `${list.length} formula/e nell'archivio (persistente su questo dispositivo).`;
-    }
-    if (!dom.myFormulasList) return;
-    dom.myFormulasList.innerHTML = "";
-    if (list.length === 0) {
-      dom.myFormulasList.innerHTML = '<p class="placeholder">Archivio vuoto.</p>';
-      return;
-    }
-    for (const f of list) {
-      const card = document.createElement("div");
-      card.className = "formula-card";
-      card.setAttribute("role", "option");
-      card.tabIndex = 0;
-      let mathHtml = "";
-      try {
-        mathHtml = renderEquation(parseEquation(f.formula), {});
-      } catch (e) {
-        mathHtml = escapeHtml3(f.formula);
-      }
-      card.innerHTML = `
-      <div class="formula-card-head">
-        <span class="formula-topic">${escapeHtml3(f.topic || "Le mie formule")}</span>
-        <button class="icon-btn" type="button" title="Elimina" aria-label="Elimina formula">\u2715</button>
-      </div>
-      <div class="formula-name">${escapeHtml3(f.name)}</div>
-      <div class="formula-math">${mathHtml}</div>
-      ${f.isolate && f.isolate.length ? `<div class="formula-isolate">Isola: ${f.isolate.map((v) => prettyVar(v)).join(", ")}</div>` : ""}
-    `;
-      const load = () => {
-        const cands = (f.isolate || []).filter((v) => !triviallyIsolated(f.formula, v));
-        const tgt = (cands.length ? cands : f.isolate || [])[0];
-        const vars = [...collectVars(parseEquation(f.formula))];
-        const target = tgt || vars[0];
-        loadFormula({
-          id: f.id,
-          topic: f.topic,
-          name: f.name,
-          formula: f.formula,
-          isolate: f.isolate && f.isolate.length ? f.isolate : vars,
-          conditions: f.conditions || [],
-          difficulty: f.difficulty || 3,
-          notes: f.notes || ""
-        }, target);
-      };
-      card.addEventListener("click", (e) => {
-        if (e.target.closest(".icon-btn")) return;
-        load();
-      });
-      card.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          load();
-        }
-      });
-      card.querySelector(".icon-btn").addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (window.confirm(`Eliminare la formula "${f.name}"?`)) {
-          deleteUserFormula(f.id);
-          renderMyFormulas();
-          showMessage("Formula eliminata dall'archivio.", "info");
-        }
-      });
-      dom.myFormulasList.appendChild(card);
-    }
-  }
-  function exportFormulas() {
-    clearStorageError();
-    const json = exportUserFormulasJSON();
-    if (dom.jsonArea) {
-      dom.jsonArea.hidden = false;
-      dom.jsonArea.value = json;
-      dom.jsonArea.focus();
-      dom.jsonArea.select();
-    }
-    try {
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "formule-inverse.json";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1e3);
-    } catch (e) {
-    }
-    showMessage("Archivio esportato (JSON nell'area e file scaricato).", "success");
-  }
-  function importFormulas() {
-    clearStorageError();
-    if (!dom.jsonArea) return;
-    if (dom.jsonArea.hidden) {
-      dom.jsonArea.hidden = false;
-      dom.jsonArea.focus();
-      showMessage(`Incolla il JSON nell'area e premi di nuovo "Importa JSON".`, "info");
-      return;
-    }
-    const json = dom.jsonArea.value.trim();
-    if (!json) {
-      showStorageError("Incolla prima un JSON da importare.");
-      return;
-    }
-    try {
-      const added = importUserFormulasJSON(json);
-      renderMyFormulas();
-      showMessage(`${added} formula/e importate nell'archivio.`, "success");
-    } catch (e) {
-      showStorageError(e.message);
-    }
-  }
-  function clearFormulas() {
-    clearStorageError();
-    if (!window.confirm("Svuotare l'archivio delle formule salvate? Operazione non annullabile.")) return;
-    clearUserFormulas();
-    renderMyFormulas();
-    showMessage("Archivio svuotato.", "info");
-  }
-  function escapeHtml3(s) {
+  function escapeHtml5(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   }
   if (document.readyState === "loading") {

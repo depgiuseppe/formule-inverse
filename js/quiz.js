@@ -9,6 +9,8 @@
 import { FORMULAS, TOPICS } from './formulas.js';
 import { solveFormulaSteps } from './worksheet-export.js';
 import { prettyVar } from './render.js';
+import { parseEquation } from './parser.js';
+import { isGoalReached } from './algebra.js';
 
 // ---------------------------------------------------------------------------
 // 1. Costanti e Livelli di Difficoltà
@@ -107,9 +109,16 @@ export function getQuizFormulas(level = 'all', topic = null) {
     if (topic && f.topic !== topic) continue;
     if (!f.isolate || f.isolate.length === 0) continue;
 
+    let eq;
+    try {
+      eq = parseEquation(f.formula);
+    } catch {
+      continue;
+    }
+
     for (const t of f.isolate) {
-      // Salta se la formula inizia già con "target =" (già isolata senza lavoro)
-      if (f.formula.startsWith(t + ' =') || f.formula.startsWith(t + '=')) {
+      // Salta se la grandezza è già isolata nella formula di partenza (a sinistra o a destra)
+      if (isGoalReached(eq, t)) {
         continue;
       }
 
@@ -779,6 +788,7 @@ export function initQuizManager(dom, state, handlers = {}) {
 
   function onGoalReached() {
     if (state.mode !== 'quiz' || !activeQuizExercise) return;
+    if (performedMoves === 0) return;
     stopTimer();
 
     const elapsed = quizStartTime ? Math.floor((Date.now() - quizStartTime) / 1000) : 0;
