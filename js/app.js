@@ -29,6 +29,10 @@ import {
   saveUserFormula, getUserFormulas, deleteUserFormula,
   clearUserFormulas, exportUserFormulasJSON, importUserFormulasJSON,
 } from './formula-db.js';
+import {
+  verbalizeEquation, verbalizeAst, verbalizeVar,
+  announceMathLive, speakMath, stopSpeaking,
+} from './a11y.js';
 
 // ---------------------------------------------------------------------------
 // Stato
@@ -129,6 +133,10 @@ const dom = {
   btnHelp: $('#btn-help'),
   btnContrast: $('#btn-contrast'),
   btnTheme: $('#btn-theme'),
+  btnLimMode: $('#btn-lim-mode'),
+  btnSpeakEquation: $('#btn-speak-equation'),
+  mathLiveVerbalizer: $('#math-live-verbalizer'),
+  mathLiveAlert: $('#math-live-alert'),
   // --- Import LaTeX ---
   latexInput: $('#latex-input'),
   latexName: $('#latex-name'),
@@ -550,6 +558,9 @@ function renderEquationView() {
       hintBadge.textContent = '⚡ Modalità Automatica';
       hintText.innerHTML = '<strong>Fai clic ovunque con il mouse</strong> (sull\'equazione o sul pulsante) per eseguire il passaggio con la giustificazione della regola!';
     }
+  }
+  if (state.currentEq) {
+    announceMathLive(`Equazione attiva: ${verbalizeEquation(state.currentEq)}`);
   }
   scheduleNeutralCleanup();
 }
@@ -1041,9 +1052,14 @@ function attachEquationHandlers() {
 
       selectElement(el.dataset.id);
     });
+    const rawVal = el.dataset.varName || (el.textContent || '').trim();
+    const verbal = verbalizeVar(rawVal) || rawVal;
     el.tabIndex = 0;
     el.setAttribute('role', 'button');
-    el.setAttribute('aria-label', 'Elemento: ' + (el.textContent || '').trim());
+    el.setAttribute('aria-label', 'Elemento: ' + verbal);
+    if (el.classList.contains('draggable-token')) {
+      el.setAttribute('aria-roledescription', 'termine matematico trascinabile');
+    }
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
@@ -2439,6 +2455,7 @@ function startCompoundFractionAnimation(steps, onComplete) {
 // ---------------------------------------------------------------------------
 // E. Obiettivo & Laboratorio di Calcolo Numerico
 // ---------------------------------------------------------------------------
+let _lastAnnouncedSolvedEq = false;
 function updateObjective() {
   const f = state.baseFormula;
   const t = prettyVar(state.targetVar);
@@ -2466,6 +2483,14 @@ function updateObjective() {
     : null;
   const hasCompound = hasCompoundFraction(resSide);
   const isFullySolved = state.goalReached && !hasCompound && !state.isAnimatingCompoundFraction;
+
+  if (isFullySolved && !_lastAnnouncedSolvedEq) {
+    _lastAnnouncedSolvedEq = true;
+    const verbal = verbalizeEquation(state.currentEq);
+    announceMathLive(`Obiettivo raggiunto! La grandezza ${verbalizeVar(state.targetVar)} è isolata: ${verbal}`, true);
+  } else if (!isFullySolved) {
+    _lastAnnouncedSolvedEq = false;
+  }
 
   dom.objectiveStatus.hidden = false;
   if (state.isAnimatingCompoundFraction) {
@@ -3386,6 +3411,31 @@ function bindGlobalEvents() {
   dom.btnContrast.addEventListener('click', toggleContrast);
   if (dom.btnTheme) dom.btnTheme.addEventListener('click', toggleTheme);
 
+  if (dom.btnLimMode) {
+    dom.btnLimMode.addEventListener('click', () => {
+      const isLim = document.body.classList.toggle('lim-mode');
+      if (dom.equationDisplay) dom.equationDisplay.classList.toggle('lim-mode', isLim);
+      dom.btnLimMode.setAttribute('aria-pressed', isLim ? 'true' : 'false');
+      dom.btnLimMode.classList.toggle('active', isLim);
+      announceMathLive(isLim ? 'Modalità Lavagna Interattiva LIM attivata: calibrazione stilo e zone di tocco estese abilitate' : 'Modalità LIM disattivata');
+    });
+  }
+
+  if (dom.btnSpeakEquation) {
+    dom.btnSpeakEquation.addEventListener('click', () => {
+      if (!state.currentEq) {
+        announceMathLive('Nessuna equazione caricata da leggere');
+        return;
+      }
+      const text = verbalizeEquation(state.currentEq);
+      announceMathLive(`Lettura formula: ${text}`);
+      dom.btnSpeakEquation.setAttribute('aria-pressed', 'true');
+      speakMath(text, () => {
+        if (dom.btnSpeakEquation) dom.btnSpeakEquation.setAttribute('aria-pressed', 'false');
+      });
+    });
+  }
+
   document.querySelectorAll('[data-close]').forEach((btn) => {
     btn.addEventListener('click', () => { document.getElementById(btn.dataset.close).hidden = true; });
   });
@@ -3405,6 +3455,13 @@ function bindGlobalEvents() {
 function toggleContrast() {
   const on = document.body.classList.toggle('high-contrast');
   dom.btnContrast.setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (on) {
+    document.documentElement.setAttribute('data-contrast', 'high');
+    announceMathLive('Modalità Alto Contrasto WCAG AAA attivata');
+  } else {
+    document.documentElement.removeAttribute('data-contrast');
+    announceMathLive('Modalità Alto Contrasto disattivata');
+  }
 }
 
 function toggleTheme() {

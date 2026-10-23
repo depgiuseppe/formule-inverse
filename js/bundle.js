@@ -6122,6 +6122,234 @@
     return EXPLANATIONS[key] || null;
   }
 
+  // js/a11y.js
+  var GREEK_NAMES_IT = {
+    theta: "theta",
+    omega: "omega",
+    alpha: "alfa",
+    beta: "beta",
+    gamma: "gamma",
+    delta: "delta",
+    Delta: "delta",
+    lambda: "lambda",
+    mu: "mu",
+    rho: "ro",
+    pi: "pi greco",
+    phi: "fi",
+    psi: "psi",
+    sigma: "sigma",
+    tau: "tau",
+    eps: "epsilon",
+    epsilon: "epsilon"
+  };
+  var SUBSCRIPTS_IT = {
+    "0": "zero",
+    "1": "uno",
+    "2": "due",
+    "3": "tre",
+    "4": "quattro",
+    "eq": "equivalente",
+    "c": "cinetica",
+    "p": "potenziale",
+    "tot": "totale",
+    "in": "iniziale",
+    "fin": "finale",
+    "s": "sorgente",
+    "o": "osservatore"
+  };
+  function verbalizeVar(name) {
+    if (!name) return "";
+    if (name === "\xB1") return "pi\xF9 o meno";
+    if (name === "Ec" || name === "E_c" || name === "Ek") return "energia cinetica";
+    if (name === "Ep" || name === "E_p") return "energia potenziale";
+    if (name === "Req" || name === "R_eq") return "R equivalente";
+    if (name === "Ceq" || name === "C_eq") return "C equivalente";
+    if (name.startsWith("d") && name.length > 1 && !["d", "div"].includes(name)) {
+      const sub = name.slice(1);
+      const subVerbal = verbalizeVar(sub);
+      return `delta ${subVerbal}`;
+    }
+    if (name.startsWith("Delta_") || name.startsWith("Delta")) {
+      const sub = name.replace(/^Delta_?/, "");
+      return `delta ${verbalizeVar(sub)}`;
+    }
+    for (const [k, v] of Object.entries(GREEK_NAMES_IT)) {
+      if (name.startsWith(k)) {
+        const rest = name.slice(k.length).replace(/^_/, "");
+        if (!rest) return v;
+        const subName = SUBSCRIPTS_IT[rest] || rest;
+        return `${v} ${subName}`;
+      }
+    }
+    const m = name.match(/^([a-zA-Z]+)[_]?([a-zA-Z0-9]+)$/);
+    if (m && m[2]) {
+      const base = GREEK_NAMES_IT[m[1]] || m[1];
+      const sub = SUBSCRIPTS_IT[m[2]] || m[2];
+      return `${base} ${sub}`;
+    }
+    return GREEK_NAMES_IT[name] || name;
+  }
+  function verbalizeAst(node, context = {}) {
+    if (!node) return "";
+    const u = unwrap(node);
+    switch (u.type) {
+      case "Num": {
+        const val = u.value;
+        if (val === -1 && context.inMul) return "meno";
+        return String(val).replace(".", " virgola ");
+      }
+      case "Var":
+        return verbalizeVar(u.name);
+      case "Neg": {
+        const inner = verbalizeAst(u.arg, { ...context, inNeg: true });
+        return `meno ${inner}`;
+      }
+      case "Add":
+      case "Sub": {
+        const isSub = u.type === "Sub";
+        const parts = u.args.map((arg, idx) => {
+          const text = verbalizeAst(arg, { ...context, inSum: true });
+          if (idx === 0) return text;
+          const op = isSub ? "meno" : "pi\xF9";
+          return `${op} ${text}`;
+        });
+        return parts.join(" ");
+      }
+      case "Mul": {
+        const parts = [];
+        for (let i = 0; i < u.args.length; i++) {
+          const arg = u.args[i];
+          const un = unwrap(arg);
+          if (un.type === "Div") {
+            const numU = unwrap(un.num);
+            const denU = unwrap(un.den);
+            if (numU.type === "Num" && denU.type === "Num") {
+              if (numU.value === 1 && denU.value === 2) {
+                parts.push("un mezzo");
+                continue;
+              }
+              if (numU.value === 1 && denU.value === 3) {
+                parts.push("un terzo");
+                continue;
+              }
+              if (numU.value === 1 && denU.value === 4) {
+                parts.push("un quarto");
+                continue;
+              }
+              if (numU.value === 2 && denU.value === 3) {
+                parts.push("due terzi");
+                continue;
+              }
+              if (numU.value === 3 && denU.value === 4) {
+                parts.push("tre quarti");
+                continue;
+              }
+            }
+          }
+          parts.push(verbalizeAst(arg, { ...context, inMul: true }));
+        }
+        return parts.filter(Boolean).join(" per ");
+      }
+      case "Div": {
+        const numU = unwrap(u.num);
+        const denU = unwrap(u.den);
+        if (numU.type === "Num" && denU.type === "Num") {
+          if (numU.value === 1 && denU.value === 2) return "un mezzo";
+          if (numU.value === 1 && denU.value === 3) return "un terzo";
+          if (numU.value === 1 && denU.value === 4) return "un quarto";
+          if (numU.value === 2 && denU.value === 3) return "due terzi";
+          if (numU.value === 3 && denU.value === 4) return "tre quarti";
+        }
+        const numText = verbalizeAst(u.num, { ...context, inFracNum: true });
+        const denText = verbalizeAst(u.den, { ...context, inFracDen: true });
+        const isNumCompound = numU.type === "Add" || numU.type === "Sub";
+        const isDenCompound = denU.type === "Add" || denU.type === "Sub";
+        if (isNumCompound || isDenCompound) {
+          return `frazione con numeratore ${numText}, fratto denominatore ${denText}`;
+        }
+        return `${numText} fratto ${denText}`;
+      }
+      case "Pow": {
+        const baseText = verbalizeAst(u.base, context);
+        const expU = unwrap(u.exp);
+        if (expU.type === "Num") {
+          if (expU.value === 2) return `${baseText} al quadrato`;
+          if (expU.value === 3) return `${baseText} al cubo`;
+          if (expU.value === -1) return `${baseText} alla meno uno`;
+          return `${baseText} elevato a ${expU.value}`;
+        }
+        const expText = verbalizeAst(u.exp, context);
+        return `${baseText} elevato alla ${expText}`;
+      }
+      case "Sqrt":
+        return `radice quadrata di ${verbalizeAst(u.arg, context)}`;
+      case "Sin":
+        return `seno di ${verbalizeAst(u.arg, context)}`;
+      case "Cos":
+        return `coseno di ${verbalizeAst(u.arg, context)}`;
+      case "Tan":
+        return `tangente di ${verbalizeAst(u.arg, context)}`;
+      case "Ln":
+        return `logaritmo naturale di ${verbalizeAst(u.arg, context)}`;
+      case "Asin":
+        return `arcoseno di ${verbalizeAst(u.arg, context)}`;
+      case "Acos":
+        return `arcocoseno di ${verbalizeAst(u.arg, context)}`;
+      case "Atan":
+        return `arcotangente di ${verbalizeAst(u.arg, context)}`;
+      case "Exp":
+        return `esponenziale di ${verbalizeAst(u.arg, context)}`;
+      case "Group":
+        return `quantit\xE0 ${verbalizeAst(u.arg, context)}`;
+      case "Eq":
+        return `${verbalizeAst(u.left, context)} uguale a ${verbalizeAst(u.right, context)}`;
+      default:
+        return "";
+    }
+  }
+  function verbalizeEquation(eq) {
+    if (!eq) return "Nessuna equazione attiva";
+    return `${verbalizeAst(eq.left)} uguale a ${verbalizeAst(eq.right)}`;
+  }
+  function announceMathLive(message, alert = false) {
+    if (typeof document === "undefined") return;
+    const targetId = alert ? "math-live-alert" : "math-live-verbalizer";
+    const el = document.getElementById(targetId);
+    if (el) {
+      el.textContent = "";
+      requestAnimationFrame(() => {
+        el.textContent = message;
+      });
+    }
+  }
+  var currentUtterance = null;
+  function speakMath(text, onEnd = null) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      return false;
+    }
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "it-IT";
+      u.rate = 0.92;
+      u.pitch = 1;
+      currentUtterance = u;
+      if (onEnd) {
+        u.onend = () => {
+          currentUtterance = null;
+          onEnd();
+        };
+        u.onerror = () => {
+          currentUtterance = null;
+        };
+      }
+      window.speechSynthesis.speak(u);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // js/render.js
   function renderEquation(eq, opts = {}) {
     const {
@@ -6139,7 +6367,8 @@
     }
     const leftMember = renderMember(eq.left, "left", memberOpts);
     const rightMember = renderMember(eq.right, "right", memberOpts);
-    return `<div class="math-eq interactive-math-eq ${showImplicitDen ? "show-implicit-denominators" : ""}">  <div class="math-member-wrap math-member-left">${leftMember}</div>  <div class="eq-sign-wrap"><span class="eq-sign" aria-label="uguale">=</span></div>  <div class="math-member-wrap math-member-right">${rightMember}</div></div>`;
+    const speechLabel = verbalizeEquation(eq);
+    return `<div class="math-eq interactive-math-eq ${showImplicitDen ? "show-implicit-denominators" : ""}" role="region" aria-label="Equazione: ${escapeHtml(speechLabel)}" aria-roledescription="equazione matematica interattiva">  <div class="math-member-wrap math-member-left">${leftMember}</div>  <div class="eq-sign-wrap"><span class="eq-sign" aria-label="uguale">=</span></div>  <div class="math-member-wrap math-member-right">${rightMember}</div></div>`;
   }
   function insertionSlot(side, slot) {
     const where = slot === "num" ? "accanto al numeratore" : "accanto al denominatore";
@@ -7253,7 +7482,7 @@
     }
     const targetContainer = container || (typeof document !== "undefined" ? document.getElementById("equation-display") : null);
     if (targetContainer) {
-      targetContainer.classList.remove("is-dragging-equation");
+      targetContainer.classList.remove("is-dragging-equation", "lim-stylus-mode", "lim-stylus-active");
       clearDropzonesHighlight(targetContainer);
     }
     hideDragArrow();
@@ -7409,11 +7638,49 @@
       adj.classList.remove("adjacent-active");
     });
   }
+  function findCalibratedDropzone(container, clientX, clientY, pointerType = "touch", activeDragData2 = null) {
+    if (!container || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+    if (typeof document !== "undefined") {
+      const elemBelow = document.elementFromPoint(clientX, clientY);
+      const directDz = elemBelow ? elemBelow.closest(".dropzone") : null;
+      if (directDz) {
+        if (activeDragData2 && directDz.dataset.side === activeDragData2.fromSide && directDz.dataset.slot === activeDragData2.fromSlot) {
+          return null;
+        }
+        return directDz;
+      }
+    }
+    const isPen = pointerType === "pen";
+    const isLimMode = container.classList.contains("lim-mode") || typeof document !== "undefined" && (document.body.classList.contains("lim-mode") || document.body.classList.contains("lim-stylus-mode"));
+    const maxDistance = isPen ? isLimMode ? 68 : 52 : isLimMode ? 46 : 32;
+    const candidates = Array.from(container.querySelectorAll(".dropzone"));
+    let bestDz = null;
+    let bestDist = Infinity;
+    for (const dz of candidates) {
+      if (activeDragData2 && dz.dataset.side === activeDragData2.fromSide && dz.dataset.slot === activeDragData2.fromSlot) {
+        continue;
+      }
+      const rect = dz.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      const dx = Math.max(rect.left - clientX, 0, clientX - rect.right);
+      const dy = Math.max(rect.top - clientY, 0, clientY - rect.bottom);
+      const dist = Math.hypot(dx, dy);
+      if (dist <= maxDistance && dist < bestDist) {
+        bestDist = dist;
+        bestDz = dz;
+      }
+    }
+    return bestDz;
+  }
   function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) {
     container.querySelectorAll(".draggable-token").forEach((token) => {
       token.addEventListener("pointerdown", (e) => {
-        lastPointerType = e.pointerType || "mouse";
+        lastPointerType = e.pointerType || "touch";
         if (e.pointerType === "mouse") return;
+        if (e.pointerType === "pen") {
+          container.classList.add("lim-stylus-mode");
+          if (typeof document !== "undefined") document.body.classList.add("stylus-detected");
+        }
         e.stopPropagation();
         if (e.isPrimary === false) {
           cleanupTouchDrag(container);
@@ -7444,8 +7711,7 @@
         if (touchStartPos && Math.hypot(e.clientX - touchStartPos.x, e.clientY - touchStartPos.y) > 6) {
           touchHasMoved = true;
         }
-        const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
-        const dropzone = elemBelow ? elemBelow.closest(".dropzone") : null;
+        const dropzone = findCalibratedDropzone(container, e.clientX, e.clientY, e.pointerType, activeDragData);
         container.querySelectorAll(".dropzone").forEach((dz) => {
           dz.classList.remove("dropzone-hover");
           const slot = dz.querySelector(".drop-slot");
@@ -7468,8 +7734,7 @@
         const isCurrentToken = touchDraggedElem === token;
         const dragData = activeDragData ? { ...activeDragData } : null;
         const hadMoved = touchHasMoved;
-        const elemBelow = typeof document !== "undefined" && Number.isFinite(e.clientX) && Number.isFinite(e.clientY) ? document.elementFromPoint(e.clientX, e.clientY) : null;
-        const dropzone = elemBelow ? elemBelow.closest(".dropzone") : null;
+        const dropzone = findCalibratedDropzone(container, e.clientX, e.clientY, e.pointerType, dragData);
         cleanupTouchDrag(container);
         if (!isCurrentToken || !dragData) return;
         if (hadMoved) {
@@ -8270,6 +8535,10 @@
     btnHelp: $("#btn-help"),
     btnContrast: $("#btn-contrast"),
     btnTheme: $("#btn-theme"),
+    btnLimMode: $("#btn-lim-mode"),
+    btnSpeakEquation: $("#btn-speak-equation"),
+    mathLiveVerbalizer: $("#math-live-verbalizer"),
+    mathLiveAlert: $("#math-live-alert"),
     // --- Import LaTeX ---
     latexInput: $("#latex-input"),
     latexName: $("#latex-name"),
@@ -8648,6 +8917,9 @@
         hintBadge.textContent = "\u26A1 Modalit\xE0 Automatica";
         hintText.innerHTML = "<strong>Fai clic ovunque con il mouse</strong> (sull'equazione o sul pulsante) per eseguire il passaggio con la giustificazione della regola!";
       }
+    }
+    if (state.currentEq) {
+      announceMathLive(`Equazione attiva: ${verbalizeEquation(state.currentEq)}`);
     }
     scheduleNeutralCleanup();
   }
@@ -9081,9 +9353,14 @@
         }
         selectElement(el.dataset.id);
       });
+      const rawVal = el.dataset.varName || (el.textContent || "").trim();
+      const verbal = verbalizeVar(rawVal) || rawVal;
       el.tabIndex = 0;
       el.setAttribute("role", "button");
-      el.setAttribute("aria-label", "Elemento: " + (el.textContent || "").trim());
+      el.setAttribute("aria-label", "Elemento: " + verbal);
+      if (el.classList.contains("draggable-token")) {
+        el.setAttribute("aria-roledescription", "termine matematico trascinabile");
+      }
       el.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -10229,6 +10506,7 @@
     }, 2200);
     state.compoundAnimTimers.push(t1);
   }
+  var _lastAnnouncedSolvedEq = false;
   function updateObjective() {
     const f = state.baseFormula;
     const t = prettyVar(state.targetVar);
@@ -10252,6 +10530,13 @@
     const resSide = state.currentEq && state.currentEq.type === "Eq" ? isolatedSide(state.currentEq.left, state.targetVar) ? state.currentEq.right : isolatedSide(state.currentEq.right, state.targetVar) ? state.currentEq.left : null : null;
     const hasCompound = hasCompoundFraction(resSide);
     const isFullySolved = state.goalReached && !hasCompound && !state.isAnimatingCompoundFraction;
+    if (isFullySolved && !_lastAnnouncedSolvedEq) {
+      _lastAnnouncedSolvedEq = true;
+      const verbal = verbalizeEquation(state.currentEq);
+      announceMathLive(`Obiettivo raggiunto! La grandezza ${verbalizeVar(state.targetVar)} \xE8 isolata: ${verbal}`, true);
+    } else if (!isFullySolved) {
+      _lastAnnouncedSolvedEq = false;
+    }
     dom.objectiveStatus.hidden = false;
     if (state.isAnimatingCompoundFraction) {
       dom.objectiveStatus.textContent = "\u26A1 Semplificazione...";
@@ -11092,6 +11377,29 @@
     dom.btnHelp.addEventListener("click", showHelp);
     dom.btnContrast.addEventListener("click", toggleContrast);
     if (dom.btnTheme) dom.btnTheme.addEventListener("click", toggleTheme);
+    if (dom.btnLimMode) {
+      dom.btnLimMode.addEventListener("click", () => {
+        const isLim = document.body.classList.toggle("lim-mode");
+        if (dom.equationDisplay) dom.equationDisplay.classList.toggle("lim-mode", isLim);
+        dom.btnLimMode.setAttribute("aria-pressed", isLim ? "true" : "false");
+        dom.btnLimMode.classList.toggle("active", isLim);
+        announceMathLive(isLim ? "Modalit\xE0 Lavagna Interattiva LIM attivata: calibrazione stilo e zone di tocco estese abilitate" : "Modalit\xE0 LIM disattivata");
+      });
+    }
+    if (dom.btnSpeakEquation) {
+      dom.btnSpeakEquation.addEventListener("click", () => {
+        if (!state.currentEq) {
+          announceMathLive("Nessuna equazione caricata da leggere");
+          return;
+        }
+        const text = verbalizeEquation(state.currentEq);
+        announceMathLive(`Lettura formula: ${text}`);
+        dom.btnSpeakEquation.setAttribute("aria-pressed", "true");
+        speakMath(text, () => {
+          if (dom.btnSpeakEquation) dom.btnSpeakEquation.setAttribute("aria-pressed", "false");
+        });
+      });
+    }
     document.querySelectorAll("[data-close]").forEach((btn) => {
       btn.addEventListener("click", () => {
         document.getElementById(btn.dataset.close).hidden = true;
@@ -11120,6 +11428,13 @@
   function toggleContrast() {
     const on = document.body.classList.toggle("high-contrast");
     dom.btnContrast.setAttribute("aria-pressed", on ? "true" : "false");
+    if (on) {
+      document.documentElement.setAttribute("data-contrast", "high");
+      announceMathLive("Modalit\xE0 Alto Contrasto WCAG AAA attivata");
+    } else {
+      document.documentElement.removeAttribute("data-contrast");
+      announceMathLive("Modalit\xE0 Alto Contrasto disattivata");
+    }
   }
   function toggleTheme() {
     const isDark = document.body.classList.toggle("dark-theme");

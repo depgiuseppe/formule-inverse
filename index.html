@@ -33,6 +33,7 @@
     <button id="btn-install-pwa" class="btn btn-primary" type="button" style="display:none;" title="Installa l'applicazione sul tuo dispositivo Android">📲 Installa App</button>
     <button id="btn-theme" class="btn btn-secondary" type="button" aria-label="Cambia tema chiaro/scuro">🌙 Modalità scura</button>
     <button id="btn-contrast" class="btn btn-secondary" type="button" aria-pressed="false">Alto contrasto</button>
+    <button id="btn-lim-mode" class="btn btn-secondary" type="button" aria-pressed="false" title="Modalità Lavagna Interattiva (LIM): calibrazione stilo e tocco ad alta precisione">🖊️ Modalità LIM</button>
     <button id="btn-help" class="btn btn-secondary" type="button">Guida rapida</button>
   </div>
 </header>
@@ -168,6 +169,7 @@
     </div>
 
     <div class="work-header-tools" role="toolbar" aria-label="Regole e strumenti algebrici">
+      <button id="btn-speak-equation" class="btn-mini btn-speak-math" type="button" aria-pressed="false" aria-label="Ascolta formula con sintesi vocale per DSA e non vedenti" title="Ascolta lettura vocale della formula (per studenti DSA e non vedenti)">🔊 Ascolta formula</button>
       <button id="btn-mirror" class="btn-mini" type="button" title="Regola dello specchio: scambia i due membri dell'equazione (A = B ↔ B = A)">🪞 Regola dello specchio</button>
       <button id="btn-reciprocal" class="btn-mini" type="button" title="Regola dei reciproci: scambia numeratore e denominatore di entrambi i membri (A/B = C/D ↔ B/A = D/C)">🔁 Regola dei reciproci</button>
       <button id="btn-distribute" class="btn-mini" type="button" title="Proprietà distributiva: sviluppa i prodotti con parentesi, es. a(b − c) = ab − ac">📦 Sviluppa parentesi</button>
@@ -182,6 +184,10 @@
         <span class="drag-hint-badge">✨ Drag &amp; Drop attivo</span>
         <span class="drag-hint-text">Trascina una variabile dall'altra parte dell'uguale: rilasciala <strong>sotto la linea di frazione</strong> per dividere, o al numeratore per moltiplicare!</span>
       </div>
+      <!-- Regioni ARIA Live per la vocalizzazione matematica per DSA e screen reader -->
+      <div id="math-live-verbalizer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div id="math-live-alert" class="sr-only" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
       <!-- Banner didattico animato per semplificazione frazione di frazione -->
       <div class="compound-fraction-banner" id="compound-fraction-banner" hidden role="status" aria-live="polite">
         <div class="compound-fraction-icon" aria-hidden="true">⚡</div>
@@ -194,7 +200,7 @@
         </div>
       </div>
 
-      <div class="equation-display" id="equation-display" aria-live="polite">
+      <div class="equation-display" id="equation-display" role="region" aria-label="Area equazione matematica" aria-live="polite">
         <p class="placeholder">Nessuna equazione caricata.</p>
       </div>
       <div class="cross-layer" id="cross-layer" hidden>
