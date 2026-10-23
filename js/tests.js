@@ -15,12 +15,12 @@ import { RULES, applyRule, findCommonFactor, hasTrigConflict, canDistribute } fr
 import { isGoalReached, performAction, suggestNextStep, enumerateElements, ensureTargetOnFirstMember } from './algebra.js';
 import { reciprocalEquation } from './reciprocals.js';
 import { crossCancel } from './cross.js';
-import { applyKeypadOperation } from './operations.js';
+import { applyKeypadOperation, KEYPAD_OPERATIONS } from './operations.js';
 import { filterFormulas, FORMULAS } from './formulas.js';
 import { getQuantityInfo, formatResultNumber } from './physics-units.js';
 import { hasCompoundFraction, transformToReciprocalMul, getCompoundFractionSteps } from './compound-fraction.js';
 import { reduceToSingleFraction, canReduceToSingleFraction, reduceEquationToCommonDenominator } from './common-denom.js';
-import { Div, Sub, Mul, Neg, Eq, Add, Sqrt } from './ast.js';
+import { Div, Sub, Mul, Neg, Eq, Add, Sqrt, Pow } from './ast.js';
 import {
   solveFormulaSteps, buildWorksheetExercises, generateLatexDocument,
   generateHtmlWorksheet, escapeLatexText
@@ -675,6 +675,69 @@ export function runAllTests() {
     const res = applyKeypadOperation(eq('v = s/t'), 'asin', null, null, 's');
     if (res.ok) return 'accettata arcsin su equazione senza seno';
     return res.error.includes('Nessuna funzione') ? true : 'messaggio inatteso: ' + res.error;
+  }));
+
+  results.push(test('Tastierino: cbrt presente nelle operazioni con etichetta ³√ e needsOperand false', () => {
+    const op = KEYPAD_OPERATIONS.find((o) => o.id === 'cbrt');
+    if (!op) return 'operazione cbrt mancante in KEYPAD_OPERATIONS';
+    if (op.label !== '³√') return `etichetta inattesa: ${op.label}`;
+    if (op.needsOperand !== false) return 'needsOperand deve essere false per cbrt';
+    if (!op.title || !op.title.includes('radice cubica')) return 'title non descrive la radice cubica';
+    return true;
+  }));
+
+  results.push(test('Tastierino: cbrt su x^3 = 27 estrae la radice cubica e isola x = 27^(1/3) senza ±', () => {
+    const res = applyKeypadOperation(eq('x^3 = 27'), 'cbrt', null, null, 'x');
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    if (res.equation.left.type !== 'Var' || res.equation.left.name !== 'x') {
+      return 'la potenza x^3 non è stata semplificata in x: ' + toPretty(res.equation, 0);
+    }
+    const txt = toPretty(res.equation, 0);
+    if (txt.includes('±')) return 'non deve comparire il segno ±: ' + txt;
+    if (res.conditions && res.conditions.length > 0) return 'la radice cubica non deve avere condizioni di segno';
+    return true;
+  }));
+
+  results.push(test('Tastierino: cbrt su membro destro 27 = x^3 isola x al secondo membro', () => {
+    const res = applyKeypadOperation(eq('27 = x^3'), 'cbrt', null, null, 'x');
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    if (res.equation.right.type !== 'Var' || res.equation.right.name !== 'x') {
+      return 'la potenza x^3 non è stata semplificata in x: ' + toPretty(res.equation, 0);
+    }
+    return true;
+  }));
+
+  results.push(test('Tastierino: cbrt su radicando negativo x^3 = -8 estrae la radice senza errori', () => {
+    const res = applyKeypadOperation(eq('x^3 = -8'), 'cbrt', null, null, 'x');
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    if (res.equation.left.type !== 'Var' || res.equation.left.name !== 'x') {
+      return 'attesa variabile x isolata, ottenuto: ' + toPretty(res.equation, 0);
+    }
+    return !toPretty(res.equation, 0).includes('±') ? true : 'non deve comparire ±';
+  }));
+
+  results.push(test('Tastierino: cbrt su x^3 = y^3 semplifica entrambi i membri in x = y', () => {
+    const res = applyKeypadOperation(eq('x^3 = y^3'), 'cbrt', null, null, 'x');
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    return equivalentEq(res.equation, eq('x = y')) ? true
+      : 'atteso x = y, ottenuto ' + toPretty(res.equation, 0);
+  }));
+
+  results.push(test('Tastierino: cbrt su equazione generica a = b eleva entrambi i membri a 1/3', () => {
+    const res = applyKeypadOperation(eq('a = b'), 'cbrt', null, null, null);
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    if (res.equation.left.type !== 'Pow' || res.equation.right.type !== 'Pow') {
+      return 'attese potenze con esponente 1/3 su ambo i membri: ' + toPretty(res.equation, 0);
+    }
+    return true;
+  }));
+
+  results.push(test('Semplificazione: (x^3)^(1/3) e cbrt(x^3) si riducono a x', () => {
+    const p1 = canonical(Pow(parseExpression('x^3'), Num(1 / 3)));
+    if (p1.type !== 'Var' || p1.name !== 'x') return '(x^3)^(1/3) non ridotto a x: ' + toPretty(p1, 0);
+    const p2 = canonical(parseExpression('cbrt(x^3)'));
+    if (p2.type !== 'Var' || p2.name !== 'x') return 'cbrt(x^3) non ridotto a x: ' + toPretty(p2, 0);
+    return true;
   }));
 
   results.push(test('Croce additiva: a - b - c = a preserva segni negativi -b - c = 0', () => {

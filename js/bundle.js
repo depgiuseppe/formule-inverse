@@ -905,6 +905,13 @@
         const exp = canon(node.exp);
         if (isNum(exp) && exp.value === 1) return base;
         if (base.type === "Sqrt" && isNum(exp) && exp.value === 2) return canon(base.arg);
+        const isOneThird = isNum(exp) && Math.abs(exp.value - 1 / 3) < 1e-9 || exp.type === "Div" && isNum(exp.num) && exp.num.value === 1 && isNum(exp.den) && exp.den.value === 3;
+        if (base.type === "Pow" && isNum(base.exp) && base.exp.value === 3 && isOneThird) {
+          return canon(base.base);
+        }
+        if (base.type === "Neg" && base.arg.type === "Pow" && isNum(base.arg.exp) && base.arg.exp.value === 3 && isOneThird) {
+          return canon(Neg(base.arg.base));
+        }
         if (isNum(base) && isNum(exp)) {
           return Num(Math.pow(base.value, exp.value));
         }
@@ -1093,6 +1100,16 @@
         i++;
         continue;
       }
+      if (c === "\u221B") {
+        tokens.push({ t: "ident", v: "cbrt" });
+        i++;
+        continue;
+      }
+      if (c === "\xB3" && input[i + 1] === "\u221A") {
+        tokens.push({ t: "ident", v: "cbrt" });
+        i += 2;
+        continue;
+      }
       if (c === "\u2212") {
         tokens.push({ t: "-", v: "-" });
         i++;
@@ -1229,6 +1246,12 @@
           const inner = this.parseExpr();
           this.expect(")");
           return Sqrt(inner);
+        }
+        if (lower === "cbrt") {
+          this.expect("(");
+          const inner = this.parseExpr();
+          this.expect(")");
+          return Pow(inner, Num(1 / 3));
         }
         if (FUNCTIONS[lower]) {
           this.expect("(");
@@ -2123,13 +2146,14 @@
         );
       }
       const n = found.exp;
-      const rootOther = Pow(other, Num(1 / n));
+      const foundOther = extractOddPower(other);
+      const rootOther = foundOther && foundOther.exp === n ? foundOther.base : Pow(other, Num(1 / n));
       const newEq = side === "left" ? Eq(found.base, rootOther) : Eq(rootOther, found.base);
       return {
         equation: newEq,
         conditions: [],
         steps: [
-          `Estraggo la radice ${n}-esima (indice dispari) di entrambi i membri. Per una radice di indice dispari il radicando pu\xF2 essere positivo, negativo o nullo: non serve alcuna condizione di segno e non compare il \xB1.`
+          `Estraggo la radice ${n === 3 ? "cubica" : `${n}-esima`} (indice dispari) di entrambi i membri. Per una radice di indice dispari il radicando pu\xF2 essere positivo, negativo o nullo: non serve alcuna condizione di segno e non compare il \xB1.`
         ],
         note: "Radice di indice dispari: la radice \xE8 unica e NON si introduce il segno \xB1. Il radicando pu\xF2 essere di qualunque segno."
       };
@@ -2639,6 +2663,8 @@
     invertProportion: ruleInvertProportion,
     sqrtBoth: ruleSqrtBothSides,
     rootOddBoth: ruleRootOddBothSides,
+    oddRootBoth: ruleRootOddBothSides,
+    cbrtBoth: ruleRootOddBothSides,
     powBoth: rulePowBothSides,
     distribute: ruleDistribute,
     factorCommon: ruleFactorCommon,
@@ -3501,6 +3527,7 @@
     { id: "div", label: "\xF7", title: "Dividi entrambi i membri per la stessa grandezza o numero (\u2260 0)", needsOperand: true },
     { id: "pow", label: "^", title: "Eleva entrambi i membri alla stessa potenza", needsOperand: true },
     { id: "sqrt", label: "\u221A", title: "Estrai la radice quadrata di entrambi i membri", needsOperand: false },
+    { id: "cbrt", label: "\xB3\u221A", title: "Estrazione della radice cubica di entrambi i membri", needsOperand: false },
     { id: "asin", label: "arcsin", title: "Applica l'arcoseno (sin\u207B\xB9) a entrambi i membri per liberare l'argomento del seno", needsOperand: false },
     { id: "acos", label: "arccos", title: "Applica l'arcocoseno (cos\u207B\xB9) a entrambi i membri per liberare l'argomento del coseno", needsOperand: false },
     { id: "atan", label: "arctan", title: "Applica l'arcotangente (tan\u207B\xB9) a entrambi i membri per liberare l'argomento della tangente", needsOperand: false }
@@ -3605,6 +3632,63 @@
       note: "La radice di un quadrato \xE8 un valore assoluto: \u221A(x\xB2) = |x|. Perch\xE9 la radice di entrambi i membri abbia senso, entrambi devono essere \u2265 0."
     };
   }
+  function cubePowerOf(node) {
+    if (!node) return null;
+    const u = unwrap(node);
+    if (u.type === "Pow") {
+      const expU = unwrap(u.exp);
+      if (isNum(expU) && expU.value === 3) {
+        return unwrapNeutrals(u.base);
+      }
+    }
+    if (u.type === "Neg") {
+      const inner = cubePowerOf(u.arg);
+      if (inner) return unwrapNeutrals(Neg(inner));
+    }
+    if (u.type === "Group") return cubePowerOf(u.arg);
+    return null;
+  }
+  function applyCbrtBothSides(eq, targetVar) {
+    const leftCube = cubePowerOf(eq.left);
+    const rightCube = cubePowerOf(eq.right);
+    if (leftCube && rightCube) {
+      return {
+        ok: true,
+        equation: Eq(leftCube, rightCube),
+        conditions: [],
+        steps: ["Estraggo la radice cubica di entrambi i membri."],
+        note: "Radice cubica: la radice \xE8 unica e definita per qualunque segno del radicando; non si introduce il segno \xB1."
+      };
+    }
+    const targetSide = targetVar ? whichSideHas(eq, targetVar) : null;
+    const side = targetSide && cubePowerOf(targetSide === "left" ? eq.left : eq.right) ? targetSide : leftCube ? "left" : rightCube ? "right" : null;
+    if (side === "left" || side === "right") {
+      const res = applyRule(RULES.rootOddBoth, eq, { side, insideVar: targetVar || void 0 });
+      if (res.ok) {
+        let equation = res.equation;
+        const otherCube = cubePowerOf(side === "left" ? eq.right : eq.left);
+        if (otherCube) {
+          equation = side === "left" ? Eq(equation.left, otherCube) : Eq(otherCube, equation.right);
+        }
+        return {
+          ok: true,
+          equation,
+          conditions: res.conditions || [],
+          steps: res.steps && res.steps.length ? res.steps : ["Estraggo la radice cubica di entrambi i membri."],
+          note: res.note || "Radice cubica: la radice \xE8 unica e definita per qualunque segno del radicando; non si introduce il segno \xB1."
+        };
+      }
+    }
+    const newLeft = leftCube || Pow(eq.left, Num(1 / 3));
+    const newRight = rightCube || Pow(eq.right, Num(1 / 3));
+    return {
+      ok: true,
+      equation: Eq(newLeft, newRight),
+      conditions: [],
+      steps: ["Estraggo la radice cubica di entrambi i membri."],
+      note: "Radice cubica: la radice \xE8 unica e definita per qualunque segno del radicando; non si introduce il segno \xB1."
+    };
+  }
   function nodeContainsType(node, type) {
     if (!node) return false;
     const u = unwrap(node);
@@ -3700,6 +3784,7 @@
       return { ok: false, error: "Nessuna equazione su cui operare." };
     }
     if (opId === "sqrt") return applySqrtBothSides(eq, targetVar);
+    if (opId === "cbrt") return applyCbrtBothSides(eq, targetVar);
     if (opId === "asin" || opId === "acos" || opId === "atan") {
       return applyInverseTrigBothSides(eq, opId, targetVar);
     }

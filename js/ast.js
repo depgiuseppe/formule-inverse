@@ -924,6 +924,15 @@ function canon(node) {
       if (isNum(exp) && exp.value === 1) return base;
       // (sqrt(x))^2 -> x
       if (base.type === 'Sqrt' && isNum(exp) && exp.value === 2) return canon(base.arg);
+      // (x^3)^(1/3) -> x (semplificazione della potenza cubica con radice cubica)
+      const isOneThird = (isNum(exp) && Math.abs(exp.value - 1 / 3) < 1e-9) ||
+        (exp.type === 'Div' && isNum(exp.num) && exp.num.value === 1 && isNum(exp.den) && exp.den.value === 3);
+      if (base.type === 'Pow' && isNum(base.exp) && base.exp.value === 3 && isOneThird) {
+        return canon(base.base);
+      }
+      if (base.type === 'Neg' && base.arg.type === 'Pow' && isNum(base.arg.exp) && base.arg.exp.value === 3 && isOneThird) {
+        return canon(Neg(base.arg.base));
+      }
       // radice come potenza (utile per confronti): sqrt(a) == a^(1/2)
       if (isNum(base) && isNum(exp)) {
         return Num(Math.pow(base.value, exp.value));

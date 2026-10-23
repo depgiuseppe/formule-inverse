@@ -80,6 +80,8 @@ function tokenize(input) {
     }
 
     if (c === '√') { tokens.push({ t: 'ident', v: 'sqrt' }); i++; continue; }
+    if (c === '∛') { tokens.push({ t: 'ident', v: 'cbrt' }); i++; continue; }
+    if (c === '³' && input[i + 1] === '√') { tokens.push({ t: 'ident', v: 'cbrt' }); i += 2; continue; }
     // accetta anche il segno meno unicode
     if (c === '−') { tokens.push({ t: '-', v: '-' }); i++; continue; }
     if (c === '·' || c === '×') { tokens.push({ t: '*', v: '*' }); i++; continue; }
@@ -211,6 +213,12 @@ class Parser {
         const inner = this.parseExpr();
         this.expect(')');
         return Sqrt(inner);
+      }
+      if (lower === 'cbrt') {
+        this.expect('(');
+        const inner = this.parseExpr();
+        this.expect(')');
+        return Pow(inner, Num(1 / 3));
       }
       // Funzioni supportate: sin, cos, tan, ln, asin, acos, atan, exp.
       if (FUNCTIONS[lower]) {
