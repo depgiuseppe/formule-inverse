@@ -1045,6 +1045,7 @@ export const RULES = {
   crossMultiply: ruleCrossMultiply,
   swapSides: ruleSwapSides,
   reciprocalBoth: ruleReciprocalBothSides,
+  reciprocal: ruleReciprocalBothSides,
   changeSign: ruleChangeSign,
   invertProportion: ruleInvertProportion,
   sqrtBoth: ruleSqrtBothSides,

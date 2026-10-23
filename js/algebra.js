@@ -782,7 +782,7 @@ export function suggestNextStep(eq, target) {
           id: 'reciprocal',
           label: 'Inverti entrambi i membri (regola del reciproco)',
           description: `Da 1/${target} = A/B si ottiene ${target} = B/A invertendo numeratore e denominatore su entrambi i membri.`,
-          ruleKey: 'reciprocal',
+          ruleKey: 'reciprocalBoth',
           build: () => ({}),
         },
         reason: `L'incognita ${target} si trova al denominatore della frazione 1/${target} e l'altro membro è una frazione: applica la regola del reciproco per portarla subito al numeratore.`,
