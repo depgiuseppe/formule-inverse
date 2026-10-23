@@ -45,6 +45,8 @@ export const KNOWN_UNSUPPORTED = [
   { formula: 'theta-legge-oraria', target: 't', reason: 'equazione di secondo grado in t (t e t²): serve la formula risolutiva' },
   { formula: 'mas-velocita', target: 'omega', reason: 'la grandezza compare sia fuori sia dentro la funzione sin: non è ricavabile in forma chiusa' },
   { formula: 'invariante-energia-impulso', target: 'c', reason: 'la grandezza compare al quadrato dentro due prodotti: servirebbe un raccoglimento sotto potenza' },
+  { formula: 'gas-van-der-waals', target: 'n', reason: 'equazione di terzo grado in n: non risolvibile con passaggi lineari elementari' },
+  { formula: 'gas-van-der-waals', target: 'V', reason: 'equazione di terzo grado in V: non risolvibile con passaggi lineari elementari' },
 ];
 
 function isKnownUnsupported(failure) {
