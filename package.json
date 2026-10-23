@@ -4,7 +4,7 @@
   "description": "Applicazione didattica per imparare a ricavare le formule inverse con i principi di equivalenza",
   "type": "module",
   "scripts": {
-    "test": "node scripts/run-tests.mjs && node tests/formulas.test.mjs",
+    "test": "node scripts/run-tests.mjs && node tests/formulas.test.mjs && node tests/quiz.test.mjs",
     "build": "node scripts/bundle.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "start": "npx -y serve -p 3000 .",

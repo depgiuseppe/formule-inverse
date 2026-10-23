@@ -729,7 +729,50 @@ async function run() {
   await page.locator('#btn-contrast').click();
   await page.waitForTimeout(150);
 
-  // 23. Nessun errore in console durante le interazioni
+  // 23. Modalità Eserciziario / Quiz interattivo & Dashboard Badge
+  await page.locator('#btn-mode-quiz').click();
+  await page.waitForTimeout(200);
+  const isQuizHudVisible = await page.evaluate(() => {
+    const h = document.getElementById('quiz-hud');
+    return h && !h.hidden;
+  });
+  check('Il pulsante Quiz attiva la Modalità Quiz e mostra il Quiz HUD', isQuizHudVisible);
+
+  // Selezione livello intermedio
+  await page.locator('#quiz-level-medium').click();
+  await page.waitForTimeout(200);
+  const isMediumActive = await page.locator('#quiz-level-medium').evaluate((el) => el.classList.contains('active'));
+  check('La selezione del livello Intermedio nel Quiz funziona', isMediumActive);
+
+  // Apertura Dashboard Badge
+  await page.locator('#btn-quiz-dashboard').click();
+  await page.waitForTimeout(200);
+  const isDashboardOpen = await page.evaluate(() => {
+    const d = document.getElementById('quiz-dashboard-backdrop');
+    return d && !d.hidden;
+  });
+  const badgesCount = await page.locator('#quiz-badges-grid .quiz-badge-card').count();
+  check('Il pulsante Dashboard apre la finestra con i 12 Badge di Maestria', isDashboardOpen && badgesCount === 12, `Badge trovati: ${badgesCount}`);
+
+  // Chiusura Dashboard
+  await page.locator('#quiz-btn-close-dashboard').click();
+  await page.waitForTimeout(150);
+  const isDashboardClosed = await page.evaluate(() => {
+    const d = document.getElementById('quiz-dashboard-backdrop');
+    return d && d.hidden;
+  });
+  check('La chiusura della Dashboard Quiz nasconde correttamente la modale', isDashboardClosed);
+
+  // Disattivazione Quiz Mode
+  await page.locator('#btn-mode-quiz').click();
+  await page.waitForTimeout(150);
+  const isQuizHudClosed = await page.evaluate(() => {
+    const h = document.getElementById('quiz-hud');
+    return h && h.hidden;
+  });
+  check('Il pulsante Quiz disattiva correttamente la Modalità Quiz tornando a Libera', isQuizHudClosed);
+
+  // 24. Nessun errore in console durante le interazioni
   check('Nessun errore JavaScript durante le interazioni',
     consoleErrors.length === 0, consoleErrors.join(' | '));
 

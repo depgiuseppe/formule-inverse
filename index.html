@@ -30,6 +30,7 @@
     <p class="subtitle">Impara a ricavare le formule inverse applicando i principi di equivalenza in modo rigoroso e interattivo</p>
   </div>
   <div class="header-actions">
+    <button id="btn-quiz-dashboard" class="btn btn-secondary" type="button" title="Apri Dashboard Quiz e Badge di Maestria">🏆 Quiz &amp; Badge</button>
     <button id="btn-install-pwa" class="btn btn-primary" type="button" style="display:none;" title="Installa l'applicazione sul tuo dispositivo Android">📲 Installa App</button>
     <button id="btn-theme" class="btn btn-secondary" type="button" aria-label="Cambia tema chiaro/scuro">🌙 Modalità scura</button>
     <button id="btn-contrast" class="btn btn-secondary" type="button" aria-pressed="false">Alto contrasto</button>
@@ -178,6 +179,55 @@
       <button id="btn-change-sign" class="btn-mini" type="button" title="Regola del cambio di segno: moltiplica entrambi i membri per −1 cambiando tutti i segni (+ ↔ −)">± Cambio segno</button>
       <button id="btn-cross" class="btn-mini" type="button" aria-pressed="false" title="Croce di semplificazione: trascinala su due fattori uguali, uno al numeratore e uno al denominatore, per eliminarli">✗ Croce di semplificazione</button>
       <button id="btn-export-worksheet" class="btn-mini btn-worksheet" type="button" title="Esporta scheda didattica o verifica per docenti in LaTeX o PDF">📄 Scheda / Verifica docenti</button>
+      <button id="btn-mode-quiz" class="btn-mini btn-quiz-toggle" type="button" aria-pressed="false" title="Attiva o disattiva la Modalità Eserciziario / Quiz con livelli di difficoltà, efficienza mosse e badge">🎯 Eserciziario / Quiz</button>
+    </div>
+
+    <!-- Quiz HUD & Controls (visibile in Modalità Quiz) -->
+    <div class="quiz-hud-card" id="quiz-hud" hidden>
+      <div class="quiz-hud-header">
+        <div class="quiz-hud-title-group">
+          <span class="quiz-hud-badge">🎯 Eserciziario Quiz</span>
+          <span class="quiz-level-indicator" id="quiz-current-level">Livello: Base</span>
+          <span class="quiz-timer-badge" id="quiz-timer">⏱️ 00:00</span>
+        </div>
+        <div class="quiz-hud-actions">
+          <button id="quiz-btn-new" class="btn-mini btn-quiz-accent" type="button" title="Genera un nuovo esercizio casuale per il livello selezionato">🎲 Nuovo Esercizio</button>
+          <button id="quiz-btn-dashboard" class="btn-mini" type="button" title="Visualizza statistiche, progressi e badge di maestria">🏆 Badge &amp; Statistiche</button>
+        </div>
+      </div>
+
+      <div class="quiz-controls-bar">
+        <div class="quiz-filter-group">
+          <span class="quiz-filter-label">Difficoltà:</span>
+          <div class="quiz-level-buttons" role="group" aria-label="Selezione livello difficoltà">
+            <button type="button" class="quiz-level-btn active" id="quiz-level-easy" data-level="easy">🟢 Base</button>
+            <button type="button" class="quiz-level-btn" id="quiz-level-medium" data-level="medium">🟡 Intermedio</button>
+            <button type="button" class="quiz-level-btn" id="quiz-level-hard" data-level="hard">🔴 Avanzato</button>
+            <button type="button" class="quiz-level-btn" id="quiz-level-all" data-level="all">🎲 Casuale</button>
+          </div>
+        </div>
+        <div class="quiz-topic-group">
+          <label for="quiz-topic-select" class="quiz-filter-label">Argomento:</label>
+          <select id="quiz-topic-select" class="quiz-select">
+            <option value="">Tutti gli argomenti</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="quiz-efficiency-bar">
+        <div class="quiz-stat-item">
+          <span class="quiz-stat-label">Mosse eseguite:</span>
+          <span class="quiz-stat-value" id="quiz-moves-count">0</span>
+        </div>
+        <div class="quiz-stat-item">
+          <span class="quiz-stat-label">Mosse ottimali:</span>
+          <span class="quiz-stat-value" id="quiz-optimal-count">--</span>
+        </div>
+        <div class="quiz-stat-item">
+          <span class="quiz-stat-label">Efficienza passaggi:</span>
+          <span class="quiz-stat-badge" id="quiz-efficiency-badge">100% ⭐⭐⭐</span>
+        </div>
+      </div>
     </div>
 
     <div class="equation-display-card">
@@ -531,6 +581,104 @@
       <button class="btn btn-secondary" id="btn-copy-latex" type="button" title="Copia il codice LaTeX negli appunti">📋 Copia LaTeX</button>
       <button class="btn btn-secondary" id="btn-download-html" type="button" title="Scarica la scheda in formato HTML autonomo offline">🌐 Scarica HTML</button>
       <button class="btn btn-secondary" id="btn-close-worksheet" type="button">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Completamento Esercizio Quiz -->
+<div class="modal-backdrop" id="quiz-completion-modal-backdrop" hidden>
+  <div class="modal quiz-completion-modal" id="quiz-completion-modal" role="dialog" aria-modal="true" aria-labelledby="quiz-completion-title">
+    <div class="quiz-celebration-icon" id="quiz-completion-icon">🏆</div>
+    <div class="quiz-stars-display" id="quiz-completion-stars">⭐⭐⭐</div>
+    <h3 id="quiz-completion-title">Ottimo Lavoro!</h3>
+    <p id="quiz-completion-msg" class="modal-subtitle">Hai isolato la grandezza con successo.</p>
+
+    <div class="quiz-completion-stats-box" id="quiz-completion-stats"></div>
+    <div class="quiz-new-badges-box" id="quiz-completion-badges" hidden></div>
+
+    <div class="modal-actions quiz-completion-actions">
+      <button class="btn btn-secondary" id="quiz-btn-retry-exercise" type="button">↺ Riprova Esercizio</button>
+      <button class="btn btn-secondary" id="quiz-btn-view-stats" type="button">🏆 Badge &amp; Progressi</button>
+      <button class="btn btn-primary" id="quiz-btn-next-exercise" type="button">Prossimo Esercizio ➔</button>
+      <button class="btn-close-modal" id="quiz-btn-close-completion" type="button" aria-label="Chiudi finestra">✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Dashboard Quiz & Badge di Maestria -->
+<div class="modal-backdrop" id="quiz-dashboard-backdrop" hidden>
+  <div class="modal modal-wide quiz-dashboard-modal" id="quiz-dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="quiz-dashboard-title">
+    <div class="worksheet-modal-header">
+      <div class="worksheet-modal-title-group">
+        <h3 id="quiz-dashboard-title">🏆 Dashboard Eserciziario &amp; Badge di Maestria</h3>
+        <p class="modal-subtitle">Traccia i tuoi progressi, monitora l'efficienza dei passaggi e sblocca tutti i trofei</p>
+      </div>
+      <button class="btn-close-modal" id="quiz-btn-close-dashboard" type="button" aria-label="Chiudi finestra">✕</button>
+    </div>
+
+    <div class="quiz-dashboard-body">
+      <!-- Livello e XP -->
+      <div class="quiz-rank-card">
+        <div class="quiz-rank-header">
+          <div class="quiz-rank-avatar" id="quiz-rank-avatar">🥉</div>
+          <div class="quiz-rank-info">
+            <h4 class="quiz-rank-name" id="quiz-rank-title">Apprendista dei Principi</h4>
+            <span class="quiz-rank-sub" id="quiz-rank-level">Livello 1</span>
+          </div>
+          <div class="quiz-xp-number" id="quiz-xp-text">0 XP</div>
+        </div>
+        <div class="quiz-xp-progress-bar">
+          <div class="quiz-xp-progress-fill" id="quiz-xp-bar" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Statistiche generali -->
+      <div class="quiz-stats-grid">
+        <div class="quiz-stat-card">
+          <span class="stat-card-val" id="quiz-stat-total">0</span>
+          <span class="stat-card-lbl">Esercizi Risolti</span>
+        </div>
+        <div class="quiz-stat-card">
+          <span class="stat-card-val text-success" id="quiz-stat-easy">0</span>
+          <span class="stat-card-lbl">🟢 Livello Base</span>
+        </div>
+        <div class="quiz-stat-card">
+          <span class="stat-card-val text-warning" id="quiz-stat-medium">0</span>
+          <span class="stat-card-lbl">🟡 Intermedio</span>
+        </div>
+        <div class="quiz-stat-card">
+          <span class="stat-card-val text-danger" id="quiz-stat-hard">0</span>
+          <span class="stat-card-lbl">🔴 Avanzato</span>
+        </div>
+        <div class="quiz-stat-card">
+          <span class="stat-card-val" id="quiz-stat-efficiency">100%</span>
+          <span class="stat-card-lbl">Efficienza Media</span>
+        </div>
+        <div class="quiz-stat-card">
+          <span class="stat-card-val" id="quiz-stat-streak">0 🔥</span>
+          <span class="stat-card-lbl">Serie Migliore</span>
+        </div>
+      </div>
+
+      <!-- Badge di Maestria -->
+      <div class="quiz-section-header">
+        <h4>🎖️ Distintivi di Maestria</h4>
+        <span class="quiz-section-badge" id="quiz-badges-count-badge">0 / 12 Sbloccati</span>
+      </div>
+      <div class="quiz-badges-grid" id="quiz-badges-grid"></div>
+
+      <!-- Storico Recente -->
+      <div class="quiz-section-header">
+        <h4>📜 Ultimi Esercizi Completati</h4>
+      </div>
+      <ul class="quiz-history-list" id="quiz-history-list">
+        <li class="history-empty">Nessun esercizio completato finora.</li>
+      </ul>
+    </div>
+
+    <div class="modal-actions worksheet-modal-actions">
+      <button class="btn btn-secondary text-danger" id="quiz-btn-reset-progress" type="button">🗑️ Azzera progressi</button>
+      <button class="btn btn-primary" id="quiz-btn-close-dashboard-bottom" type="button">Continua ad allenarti</button>
     </div>
   </div>
 </div>
