@@ -5,3 +5,8 @@ node_modules
 test-results/
 playwright-report/
 tests/screenshots/
+hive/
+worktrees/
+roster.json
+roster-backups/
+
