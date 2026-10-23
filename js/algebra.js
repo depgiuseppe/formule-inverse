@@ -13,7 +13,7 @@ import {
   unwrap, unwrapNeutrals, canonical, isNum, equivalentExpr, equivalentEq, collectVars, toPretty,
   isIdenticallyZero, clone, FUNC_INFO,
 } from './ast.js';
-import { RULES, applyRule, additiveTerms, cancelFractionFactor, findCommonFactorInFraction, hasTrigConflict, canDistribute, findCommonFactor } from './rules.js';
+import { RULES, applyRule, additiveTerms, cancelFractionFactor, findCommonFactorInFraction, hasTrigConflict, canDistribute, findCommonFactor, factorOut } from './rules.js';
 import { canReduceToSingleFraction } from './common-denom.js';
 
 // ---------------------------------------------------------------------------
@@ -153,6 +153,47 @@ export function findElement(eq, id) {
     return { id, side: id, node, role: 'membro', pretty: toPretty(node, 0) };
   }
   return enumerateElements(eq).find((e) => e.id === id) || null;
+}
+
+// Trova un fattore comune (incluso potenze o grandezze composte) contenente target
+export function findTargetCommonFactor(member, target) {
+  if (!member || !target) return null;
+  const terms = additiveTerms(member);
+  if (terms.length < 2) return null;
+
+  const candidates = [];
+  function extract(node) {
+    node = unwrap(node);
+    if (!node) return;
+    if (node.type === 'Neg') return extract(node.arg);
+    if (node.type === 'Div') return extract(node.num);
+    if (node.type === 'Mul') {
+      for (const a of node.args) extract(a);
+      return;
+    }
+    if (node.type === 'Pow') {
+      const b = unwrap(node.base);
+      if (b.type === 'Var' && b.name === target) {
+        candidates.push(node);
+        candidates.push(b);
+      }
+      return;
+    }
+    if (node.type === 'Var' && node.name === target) {
+      candidates.push(node);
+      return;
+    }
+  }
+
+  const targetTerms = terms.filter((t) => collectVars(t.node).has(target));
+  for (const t of targetTerms) {
+    extract(t.node);
+  }
+
+  for (const cand of candidates) {
+    if (factorOut(member, cand)) return cand;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -321,7 +362,7 @@ export function availableActions(eq, element, target) {
   }
 
   // --- Se il membro corrente ha un fattore comune da raccogliere ---
-  const memberCommon = findCommonFactor(member, target) || findCommonFactor(member, null);
+  const memberCommon = findCommonFactor(member, target) || findTargetCommonFactor(member, target) || findCommonFactor(member, null);
   if (memberCommon) {
     const cText = toPretty(memberCommon, 0);
     actions.push({
@@ -391,8 +432,8 @@ export function globalActions(eq, target) {
   }
 
   // Raccoglimento a fattor comune
-  const commonFactorLeft = findCommonFactor(eq.left, target) || findCommonFactor(eq.left, null);
-  const commonFactorRight = findCommonFactor(eq.right, target) || findCommonFactor(eq.right, null);
+  const commonFactorLeft = findCommonFactor(eq.left, target) || findTargetCommonFactor(eq.left, target) || findCommonFactor(eq.left, null);
+  const commonFactorRight = findCommonFactor(eq.right, target) || findTargetCommonFactor(eq.right, target) || findCommonFactor(eq.right, null);
   const factorSide = commonFactorLeft ? 'left' : (commonFactorRight ? 'right' : null);
   const commonNode = commonFactorLeft || commonFactorRight;
   if (factorSide && commonNode) {
@@ -782,7 +823,7 @@ export function suggestNextStep(eq, target) {
           id: 'reciprocal',
           label: 'Inverti entrambi i membri (regola del reciproco)',
           description: `Da 1/${target} = A/B si ottiene ${target} = B/A invertendo numeratore e denominatore su entrambi i membri.`,
-          ruleKey: 'reciprocal',
+          ruleKey: 'reciprocalBoth',
           build: () => ({}),
         },
         reason: `L'incognita ${target} si trova al denominatore della frazione 1/${target} e l'altro membro è una frazione: applica la regola del reciproco per portarla subito al numeratore.`,
@@ -813,28 +854,19 @@ export function suggestNextStep(eq, target) {
   const terms = additiveTerms(member);
   if (terms.length > 1) {
     // Se la grandezza compare come fattore in TUTTI i termini, si raccoglie a
-    // fattor comune: W = ½·m·v² − ½·m·v0²  →  W = m·(½·v² − ½·v0²).
-    const hasBareTarget = (node) => {
-      const u = unwrap(node);
-      if (u.type === 'Var') return u.name === target;
-      if (u.type === 'Neg') return hasBareTarget(u.arg);
-      if (u.type === 'Mul') {
-        return u.args.some((a) => hasBareTarget(a));
-      }
-      if (u.type === 'Div') return hasBareTarget(u.num);
-      return false;
-    };
-    const allHaveBareTarget = terms.every((t) => hasBareTarget(t.node));
-    if (allHaveBareTarget) {
-      const targetNode = Var(target);
+    // fattor comune: W = ½·m·v² − ½·m·v0²  →  W = m·(½·v² − ½·v0²),
+    // oppure potenze composte come c² in c² − (1/γ)²·c² = v².
+    const commonTarget = findTargetCommonFactor(member, target);
+    if (commonTarget) {
+      const cText = toPretty(commonTarget, 0);
       return {
         found: true,
         action: {
           id: 'factor-common',
-          label: `Raccogli ${target} a fattor comune`,
-          description: `Metti in evidenza ${target}, presente in tutti i termini del membro.`,
+          label: `Raccogli ${cText} a fattor comune`,
+          description: `Metti in evidenza ${cText}, presente in tutti i termini del membro.`,
           ruleKey: 'factorCommon',
-          build: () => ({ common: targetNode, side, commonText: target }),
+          build: () => ({ common: commonTarget, side, commonText: cText }),
         },
         reason: `La grandezza ${target} compare in tutti i termini del membro: raccogliendola a fattor comune resterà un unico fattore da eliminare.`,
       };
