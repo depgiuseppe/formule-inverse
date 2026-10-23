@@ -477,7 +477,10 @@ export const ruleRootOddBothSides = {
       );
     }
     const n = found.exp;
-    const rootOther = Pow(other, Num(1 / n));
+    const foundOther = extractOddPower(other);
+    const rootOther = (foundOther && foundOther.exp === n)
+      ? foundOther.base
+      : Pow(other, Num(1 / n));
     const newEq = side === 'left'
       ? Eq(found.base, rootOther)
       : Eq(rootOther, found.base);
@@ -485,7 +488,7 @@ export const ruleRootOddBothSides = {
       equation: newEq,
       conditions: [],
       steps: [
-        `Estraggo la radice ${n}-esima (indice dispari) di entrambi i membri. ` +
+        `Estraggo la radice ${n === 3 ? 'cubica' : `${n}-esima`} (indice dispari) di entrambi i membri. ` +
         'Per una radice di indice dispari il radicando può essere positivo, negativo o nullo: non serve alcuna condizione di segno e non compare il ±.',
       ],
       note: 'Radice di indice dispari: la radice è unica e NON si introduce il segno ±. ' +
@@ -493,6 +496,8 @@ export const ruleRootOddBothSides = {
     };
   },
 };
+
+export const ruleOddRootBoth = ruleRootOddBothSides;
 
 // 13) ELEVAZIONE DI ENTRAMBI I MEMBRI A UN ESPONENTE
 export const rulePowBothSides = {
@@ -1133,6 +1138,8 @@ export const RULES = {
   invertProportion: ruleInvertProportion,
   sqrtBoth: ruleSqrtBothSides,
   rootOddBoth: ruleRootOddBothSides,
+  oddRootBoth: ruleRootOddBothSides,
+  cbrtBoth: ruleRootOddBothSides,
   powBoth: rulePowBothSides,
   distribute: ruleDistribute,
   factorCommon: ruleFactorCommon,
