@@ -19,7 +19,7 @@ import { reduceEquationToCommonDenominator, canReduceToSingleFraction } from './
 import {
   filterFormulas, getFormulaById, randomExercise, TOPICS,
 } from './formulas.js';
-import { getExplanation } from './explanations.js';
+import { getExplanation, diagnoseStudentMisconception, getMisconception } from './explanations.js';
 import { renderEquation, renderNode, prettyVar } from './render.js';
 import { RULES, applyRule, negateExpr, findCommonFactor, hasTrigConflict, canDistribute } from './rules.js';
 import { setupEquationDragAndDrop, highlightDropzones, clearDropzonesHighlight, applyDragMove, initDragArrow, updateDragArrow, hideDragArrow, cleanupTouchDrag, wasRecentTouchDrag } from './dragdrop.js';
@@ -1622,7 +1622,7 @@ function applyReciprocalRule() {
     id: 'reciprocal',
     name: 'Regola dei reciproci (inversione dei membri)',
     principle: 'Proprietà dell\'inversione: se A = B allora 1/A = 1/B; in una proporzione A/B = C/D si ottiene B/A = D/C.',
-    explanation: null,
+    explanation: 'reciprocal-both',
   };
   pushHistory({
     equation: clone(newEq),
@@ -1631,7 +1631,7 @@ function applyReciprocalRule() {
     ruleId: 'reciprocal',
     steps: [`Calcolo il reciproco di entrambi i membri: ${toPretty(eq, 0)} → ${toPretty(newEq, 0)}.`],
     conditions: state.conditions.slice(),
-    explanationKey: null,
+    explanationKey: 'reciprocal-both',
     note: null,
     verified: true,
   }, false);
@@ -1856,7 +1856,7 @@ function applyCommonDenominatorRule() {
     ruleId: 'common-denom',
     steps: res.steps,
     conditions: state.conditions.slice(),
-    explanationKey: null,
+    explanationKey: 'common-denom',
     note: null,
     verified: true,
   }, false);
@@ -2215,27 +2215,18 @@ function showDidacticBubble({ error, hint, action }) {
     bubbleTimeout = null;
   }
 
-  const errLow = (error || '').toLowerCase();
-  let badgeText = 'Principio di Equivalenza';
-  let ruleReminder = 'Ricorda di applicare correttamente i principi di equivalenza delle equazioni.';
-
-  if (errLow.includes('fa parte di una somma') || errLow.includes('non è un fattore') || errLow.includes('dividere') || errLow.includes('moltiplicare')) {
-    badgeText = '2° Principio (Fattori e Prodotti)';
-    ruleReminder = 'Secondo principio: puoi dividere entrambi i membri solo per un fattore che moltiplica l\'intero membro!';
-  } else if (errLow.includes('additivo') || errLow.includes('trasporto') || errLow.includes('segno') || errLow.includes('trascina la variabile')) {
-    badgeText = '1° Principio (Regola del Trasporto)';
-    ruleReminder = 'Primo principio: spostando un addendo all\'altro membro, esso cambia di segno (+ diventa −, − diventa +).';
-  } else if (errLow.includes('zero') || errLow.includes('≠ 0')) {
-    badgeText = 'Condizione di Esistenza (≠ 0)';
-    ruleReminder = 'Attenzione: la divisione per zero non è definita nei numeri reali.';
-  }
+  const diag = diagnoseStudentMisconception(error, hint, action);
+  const badgeText = diag.badge || 'Principio di Equivalenza';
+  const ruleReminder = diag.ruleReminder || 'Ricorda di applicare correttamente i principi di equivalenza delle equazioni.';
+  const explanationText = diag.explanation || error || 'Operazione non consentita.';
+  const adviceText = diag.advice || hint || '';
 
   if (dom.bubbleBadge) dom.bubbleBadge.textContent = badgeText;
-  if (dom.bubbleMessage) dom.bubbleMessage.textContent = error || 'Operazione non consentita.';
+  if (dom.bubbleMessage) dom.bubbleMessage.textContent = explanationText;
 
   if (dom.bubbleHintBox && dom.bubbleHintText) {
-    if (hint) {
-      dom.bubbleHintText.textContent = hint;
+    if (adviceText) {
+      dom.bubbleHintText.textContent = adviceText;
       dom.bubbleHintBox.hidden = false;
     } else {
       dom.bubbleHintBox.hidden = true;
@@ -2249,7 +2240,7 @@ function showDidacticBubble({ error, hint, action }) {
 
   bubbleTimeout = setTimeout(() => {
     dismissDidacticBubble();
-  }, 8000);
+  }, 9000);
 }
 
 function dismissDidacticBubble() {
@@ -2271,16 +2262,17 @@ function dismissDidacticBubble() {
 
 function showInvalidMove(error, hint, action) {
   playSoundInvalid();
+  const diag = diagnoseStudentMisconception(error, hint, action);
   const parts = [];
   parts.push('Mossa non valida: ' + error);
-  if (hint) parts.push('Suggerimento: ' + hint);
+  if (diag.advice || hint) parts.push('Suggerimento: ' + (diag.advice || hint));
   if (action) parts.push('Regola tentata: ' + action.label);
   showMessage(parts.join(' '), 'error');
-  showDidacticBubble({ error, hint, action });
+  showDidacticBubble({ error, hint: diag.advice || hint, action });
   pushHistory({
     equation: clone(state.currentEq),
-    ruleName: 'Tentativo non valido',
-    rulePrinciple: '',
+    ruleName: 'Tentativo non valido: ' + (diag.badge || 'Errore'),
+    rulePrinciple: diag.ruleReminder || '',
     steps: [action ? action.label : ''],
     conditions: [],
     explanationKey: null,

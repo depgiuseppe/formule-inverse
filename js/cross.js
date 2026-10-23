@@ -262,7 +262,17 @@ function crossCancelAdditive(eq, idA, idB) {
 
   if (a.side === b.side) {
     // Stesso membro: i termini devono essere opposti (effA + effB = 0 ↔ effA = −effB)
-    if (!equivalentExpr(effA, canonical(Neg(effB)))) return null;
+    if (!equivalentExpr(effA, canonical(Neg(effB)))) {
+      if (equivalentExpr(effA, effB)) {
+        const termName = toPretty(effA, 0);
+        return {
+          ok: false,
+          error: `Due termini con lo stesso segno nella stessa somma non si annullano, ma si sommano: ${termName} + ${termName} = 2·${termName}! Si annullano solo termini opposti (con segno contrario, come +${termName} e −${termName}).`,
+          hint: `Puoi cancellare due termini nella stessa somma solo se uno ha segno + e l'altro ha segno −.`,
+        };
+      }
+      return null;
+    }
 
     // Usa la lista piatta canonicizzata per evitare problemi di shift degli indici
     const flatTerms = additiveTerms(canonical(memberA));
@@ -319,6 +329,33 @@ export function crossCancel(eq, idA, idB) {
   if (!a || !b) {
     const addResult = crossCancelAdditive(eq, idA, idB);
     if (addResult) return addResult;
+
+    // Diagnosi didattica specifica per cancellazione illecita su somme in frazioni
+    const partsA = String(idA || '').split('/');
+    const partsB = String(idB || '').split('/');
+    if (partsA[0] === partsB[0] && (partsA[0] === 'left' || partsA[0] === 'right')) {
+      const sideKey = partsA[0];
+      const member = eq[sideKey];
+      const hasSumA = partsA.some((s) => /^(Add|Sub)\d+$/.test(s));
+      const hasSumB = partsB.some((s) => /^(Add|Sub)\d+$/.test(s));
+      const hasNumA = partsA.includes('num');
+      const hasNumB = partsB.includes('num');
+      const hasDenA = partsA.includes('den');
+      const hasDenB = partsB.includes('den');
+
+      if ((hasSumA || hasSumB) && ((hasNumA && hasDenB) || (hasDenA && hasNumB))) {
+        const nodeA = nodeAtSegments(member, partsA.slice(1));
+        const nodeB = nodeAtSegments(member, partsB.slice(1));
+        const txtA = nodeA ? toPretty(nodeA, 0) : 'questo termine';
+        const txtB = nodeB ? toPretty(nodeB, 0) : 'il denominatore';
+        return {
+          ok: false,
+          error: `Cancellazione illecita su una somma: non puoi semplificare un addendo con il denominatore! In una frazione puoi semplificare solo fattori che moltiplicano l'INTERO numeratore e denominatore, MAI singoli termini di una somma. Semplificare "${txtA}" con "${txtB}" violerebbe la proprietà distributiva della divisione.`,
+          hint: `Per semplificare una frazione, raccogli prima un fattore comune a tutti i termini se possibile (es. a·(1 + b/a)), oppure separa la frazione nella somma di due frazioni distinte.`,
+        };
+      }
+    }
+
     return {
       ok: false,
       error: 'Seleziona: ①  un fattore al numeratore e uno uguale al denominatore della stessa frazione, oppure ② due termini opposti (es. a e −a) della stessa somma, oppure ③ la stessa grandezza su entrambi i membri.',
@@ -382,6 +419,14 @@ export function crossCancel(eq, idA, idB) {
     if (viaFraction) simplifiedNode = viaFraction;
   }
   if (!simplifiedNode) {
+    if ((afterNum && !afterNum.ok && afterNum.error && afterNum.error.includes('solo i fattori')) ||
+        (afterDen && !afterDen.ok && afterDen.error && afterDen.error.includes('solo i fattori'))) {
+      return {
+        ok: false,
+        error: 'Cancellazione illecita su una somma: non si può semplificare un addendo con il denominatore! In algebra la semplificazione riguarda solo i fattori di prodotti e frazioni.',
+        hint: 'Raccogli prima a fattor comune se possibile, oppure riscrivi come somma di frazioni distinte.',
+      };
+    }
     return { ok: false, error: 'Impossibile completare la semplificazione di questi elementi.' };
   }
 
