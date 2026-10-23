@@ -25,6 +25,10 @@ import {
   solveFormulaSteps, buildWorksheetExercises, generateLatexDocument,
   generateHtmlWorksheet, escapeLatexText
 } from './worksheet-export.js';
+import {
+  EXPLANATIONS, INVALID_EXPLANATIONS, STUDENT_MISCONCEPTIONS,
+  diagnoseStudentMisconception, buildRulePanel
+} from './explanations.js';
 
 let counter = 0;
 function test(name, fn) {
@@ -1458,6 +1462,102 @@ export function runAllTests() {
     if (!html.includes('workspace-grid')) return 'Manca classe quadretti';
     if (!html.includes('solutions-page')) return 'Manca pagina soluzioni';
     if (!html.includes('math-eq')) return 'Manca rendering semantico formule';
+    return true;
+  }));
+
+  // ---- Diagnosi didattica ed errori degli studenti (Misconceptions) ----
+  results.push(test('Pedagogia: diagnoseStudentMisconception riconosce cancellazione illecita su somme', () => {
+    const diag = diagnoseStudentMisconception('Non puoi semplificare un fattore con un termine di una somma.');
+    if (diag.category !== 'illegal-sum-cancellation') return `categoria errata: ${diag.category}`;
+    if (!diag.badge.includes('Semplificazione Illecita')) return `badge non appropriato: ${diag.badge}`;
+    if (!diag.counterexample.includes('2 + 6')) return `manca controesempio numerico: ${diag.counterexample}`;
+    return true;
+  }));
+
+  results.push(test('Pedagogia: diagnoseStudentMisconception riconosce mancato denominatore comune prima del reciproco', () => {
+    const diag = diagnoseStudentMisconception('il reciproco di una somma di frazioni NON è la somma dei reciproci: 1/(A/B + C/D) ≠ B/A + D/C.');
+    if (diag.category !== 'missing-common-denom-reciprocal') return `categoria errata: ${diag.category}`;
+    if (!diag.badge.includes('Frazioni e Reciproci')) return `badge errato: ${diag.badge}`;
+    if (!diag.counterexample.includes('1/2 + 1/2')) return `manca controesempio numerico: ${diag.counterexample}`;
+    return true;
+  }));
+
+  results.push(test('Pedagogia: diagnoseStudentMisconception riconosce trasporto di fattore come addendo', () => {
+    const diag = diagnoseStudentMisconception('"m" è un fattore che moltiplica l\'intero membro, non un termine additivo!');
+    if (diag.category !== 'invalid-transposition-factor-as-term') return `categoria errata: ${diag.category}`;
+    if (!diag.badge.includes('1° vs 2° Principio')) return `badge errato: ${diag.badge}`;
+    if (!diag.ruleReminder.includes('· ↔ /')) return `manca promemoria principio: ${diag.ruleReminder}`;
+    return true;
+  }));
+
+  results.push(test('Pedagogia: diagnoseStudentMisconception riconosce addendo diviso come fattore', () => {
+    const diag = diagnoseStudentMisconception('Non puoi dividere per "v0" finché fa parte di una somma con altri termini!');
+    if (diag.category !== 'invalid-transposition-term-as-factor') return `categoria errata: ${diag.category}`;
+    if (!diag.badge.includes('1° vs 2° Principio')) return `badge errato: ${diag.badge}`;
+    return true;
+  }));
+
+  results.push(test('Pedagogia: diagnoseStudentMisconception riconosce addendo bloccato in parentesi moltiplicata', () => {
+    const diag = diagnoseStudentMisconception('Non puoi spostare "v0" perché si trova all\'interno della parentesi (v - v0) moltiplicata per k!');
+    if (diag.category !== 'invalid-transposition-parenthesis-blocked') return `categoria errata: ${diag.category}`;
+    if (!diag.badge.includes('Precedenza Operazioni')) return `badge errato: ${diag.badge}`;
+    return true;
+  }));
+
+  results.push(test('Pedagogia: diagnoseStudentMisconception riconosce addendo bloccato in frazione', () => {
+    const diag = diagnoseStudentMisconception('Non puoi trasportare "s0" con cambio di segno finché si trova al numeratore della frazione con denominatore t!');
+    if (diag.category !== 'invalid-transposition-fraction-blocked') return `categoria errata: ${diag.category}`;
+    if (!diag.badge.includes('Precedenza Operazioni')) return `badge errato: ${diag.badge}`;
+    return true;
+  }));
+
+  results.push(test('Croce: (x + a)/a = b rifiuta cancellazione di addendo con spiegazione pedagogica ed esempio numerico', () => {
+    const e = eq('(x + a)/a = b');
+    const r = crossCancel(e, 'left/num/Add1', 'left/den');
+    if (r.ok) return 'accettata semplificazione illecita di un addendo!';
+    if (!r.error.includes('Cancellazione illecita su una somma')) return `manca spiegazione specifica: ${r.error}`;
+    if (!r.hint.includes('raccogli prima')) return `manca suggerimento didattico: ${r.hint}`;
+    return true;
+  }));
+
+  results.push(test('Croce: a + a = b spiega che i termini uguali nella stessa somma si sommano anziché cancellarsi', () => {
+    const e = eq('a + a = b');
+    const r = crossCancel(e, 'left/Add0', 'left/Add1');
+    if (r.ok) return 'accettata cancellazione di termini con stesso segno!';
+    if (!r.error.includes('si sommano')) return `manca spiegazione specifica: ${r.error}`;
+    return true;
+  }));
+
+  results.push(test('Regola dei reciproci: 1/Req = 1/R1 + 1/R2 produce spiegazione pedagogica con controesempio', () => {
+    const e = eq('1/Req = 1/R1 + 1/R2');
+    const r = reciprocalEquation(e);
+    if (r.ok) return 'accettata regola reciproci su somma di frazioni!';
+    if (!r.error.includes('1/2 + 1/2 = 1')) return `manca controesempio numerico nell'errore: ${r.error}`;
+    if (!r.hint.includes('Denominatore comune')) return `manca indicazione m.c.m. nel suggerimento: ${r.hint}`;
+    return true;
+  }));
+
+  results.push(test('Regola: ruleReciprocalBothSides rifiuta 1/Req = 1/R1 + 1/R2 con precondizione pedagogica', () => {
+    const e = eq('1/Req = 1/R1 + 1/R2');
+    const res = applyRule(RULES.reciprocalBoth, e);
+    if (res.ok) return 'accettata regola su somma di frazioni!';
+    if (!res.error || !res.error.includes('NON è la somma dei reciproci')) return `messaggio poco chiaro: ${res.error}`;
+    if (!res.hint || !res.hint.includes('Denominatore comune')) return `manca hint didattico: ${res.hint}`;
+    return true;
+  }));
+
+  results.push(test('Pannello regole: common-denom produce spiegazione didattica strutturata completa', () => {
+    const panel = buildRulePanel('common-denom', {
+      beforeText: '1/Req = 1/R1 + 1/R2',
+      afterText: '1/Req = (R1 + R2)/(R1·R2)',
+      steps: ['Calcolo il m.c.m. dei denominatori R1 e R2'],
+    });
+    if (!panel.title.includes('Minimo comune multiplo')) return `titolo errato: ${panel.title}`;
+    if (!panel.html.includes('Spiegazione')) return 'manca sezione spiegazione';
+    if (!panel.html.includes('Principio di equivalenza')) return 'manca sezione principio';
+    if (!panel.html.includes('Perché è corretto')) return 'manca sezione perché è corretto';
+    if (!panel.html.includes('Condizioni di validità')) return 'manca sezione condizioni';
+    if (!panel.html.includes('regola dei reciproci')) return 'manca avvertenza didattica sul reciproco';
     return true;
   }));
 

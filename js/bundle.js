@@ -1354,8 +1354,8 @@
     if (memberIsFractionSum(eq.left) || memberIsFractionSum(eq.right)) {
       return {
         ok: false,
-        error: "il reciproco di una somma di frazioni NON \xE8 la somma dei reciproci: 1/(A/B + C/D) \u2260 B/A + D/C.",
-        hint: `Usa il tasto "\u{1F9EE} Denominatore comune (m.c.m.)" per sommare le frazioni in un'unica frazione: solo allora potrai invertire i due membri.`
+        error: "Il reciproco di una somma di frazioni NON \xE8 la somma dei reciproci: 1/(A/B + C/D) \u2260 B/A + D/C. Esempio numerico: 1/2 + 1/2 = 1 il cui reciproco \xE8 1, mentre capovolgendo i singoli addendi verrebbe 2 + 2 = 4!",
+        hint: `Usa il tasto "\u{1F9EE} Denominatore comune (m.c.m.)" per sommare le frazioni in un'unica frazione: solo allora potrai invertire entrambi i membri.`
       };
     }
     return {
@@ -1916,6 +1916,12 @@
       if (isIdenticallyZero(eq.left) || isIdenticallyZero(eq.right)) {
         throw new RuleError("Non si pu\xF2 calcolare il reciproco di un membro identicamente nullo.");
       }
+      if (memberIsFractionSum(eq.left) || memberIsFractionSum(eq.right)) {
+        throw new RuleError(
+          "Il reciproco di una somma di frazioni NON \xE8 la somma dei reciproci: 1/(A/B + C/D) \u2260 B/A + D/C.",
+          `Usa il tasto "\u{1F9EE} Denominatore comune (m.c.m.)" per sommare le frazioni in un'unica frazione prima di invertire i membri.`
+        );
+      }
       return { ok: true };
     },
     apply(eq) {
@@ -2223,7 +2229,7 @@
     id: "common-denom",
     name: "Minimo comune multiplo (m.c.m.) e denominatore comune",
     principle: "Somma di frazioni mediante il minimo comune multiplo (m.c.m.) dei denominatori: A/B + C/D = (A\xB7D + B\xB7C)/(B\xB7D), e semplificazione delle frazioni composte in un'unica frazione.",
-    explanation: null,
+    explanation: "common-denom",
     apply(eq, ctx = {}) {
       const side = ctx.side || null;
       const res = reduceEquationToCommonDenominator(eq, side);
@@ -3762,7 +3768,17 @@
     const effA = a.sign > 0 ? canonical(nodeA) : canonical(Neg(nodeA));
     const effB = b.sign > 0 ? canonical(nodeB) : canonical(Neg(nodeB));
     if (a.side === b.side) {
-      if (!equivalentExpr(effA, canonical(Neg(effB)))) return null;
+      if (!equivalentExpr(effA, canonical(Neg(effB)))) {
+        if (equivalentExpr(effA, effB)) {
+          const termName = toPretty(effA, 0);
+          return {
+            ok: false,
+            error: `Due termini con lo stesso segno nella stessa somma non si annullano, ma si sommano: ${termName} + ${termName} = 2\xB7${termName}! Si annullano solo termini opposti (con segno contrario, come +${termName} e \u2212${termName}).`,
+            hint: `Puoi cancellare due termini nella stessa somma solo se uno ha segno + e l'altro ha segno \u2212.`
+          };
+        }
+        return null;
+      }
       const flatTerms = additiveTerms(canonical(memberA));
       const after1 = removeByEff(flatTerms, effA);
       if (!after1) return null;
@@ -3810,6 +3826,29 @@
     if (!a || !b) {
       const addResult = crossCancelAdditive(eq, idA, idB);
       if (addResult) return addResult;
+      const partsA = String(idA || "").split("/");
+      const partsB = String(idB || "").split("/");
+      if (partsA[0] === partsB[0] && (partsA[0] === "left" || partsA[0] === "right")) {
+        const sideKey = partsA[0];
+        const member2 = eq[sideKey];
+        const hasSumA = partsA.some((s) => /^(Add|Sub)\d+$/.test(s));
+        const hasSumB = partsB.some((s) => /^(Add|Sub)\d+$/.test(s));
+        const hasNumA = partsA.includes("num");
+        const hasNumB = partsB.includes("num");
+        const hasDenA = partsA.includes("den");
+        const hasDenB = partsB.includes("den");
+        if ((hasSumA || hasSumB) && (hasNumA && hasDenB || hasDenA && hasNumB)) {
+          const nodeA2 = nodeAtSegments(member2, partsA.slice(1));
+          const nodeB2 = nodeAtSegments(member2, partsB.slice(1));
+          const txtA = nodeA2 ? toPretty(nodeA2, 0) : "questo termine";
+          const txtB = nodeB2 ? toPretty(nodeB2, 0) : "il denominatore";
+          return {
+            ok: false,
+            error: `Cancellazione illecita su una somma: non puoi semplificare un addendo con il denominatore! In una frazione puoi semplificare solo fattori che moltiplicano l'INTERO numeratore e denominatore, MAI singoli termini di una somma. Semplificare "${txtA}" con "${txtB}" violerebbe la propriet\xE0 distributiva della divisione.`,
+            hint: `Per semplificare una frazione, raccogli prima un fattore comune a tutti i termini se possibile (es. a\xB7(1 + b/a)), oppure separa la frazione nella somma di due frazioni distinte.`
+          };
+        }
+      }
       return {
         ok: false,
         error: "Seleziona: \u2460  un fattore al numeratore e uno uguale al denominatore della stessa frazione, oppure \u2461 due termini opposti (es. a e \u2212a) della stessa somma, oppure \u2462 la stessa grandezza su entrambi i membri.",
@@ -3856,9 +3895,9 @@
       if (afterBoth.ok) simplifiedNode = afterBoth.node;
     }
     if (!simplifiedNode) {
-      const afterDen = removeAt(member, denEntry.segments);
-      if (afterDen.ok) {
-        const afterBoth2 = removeAt(afterDen.node, numEntry.segments);
+      const afterDen2 = removeAt(member, denEntry.segments);
+      if (afterDen2.ok) {
+        const afterBoth2 = removeAt(afterDen2.node, numEntry.segments);
         if (afterBoth2.ok) simplifiedNode = afterBoth2.node;
       }
     }
@@ -3867,6 +3906,13 @@
       if (viaFraction) simplifiedNode = viaFraction;
     }
     if (!simplifiedNode) {
+      if (afterNum && !afterNum.ok && afterNum.error && afterNum.error.includes("solo i fattori") || afterDen && !afterDen.ok && afterDen.error && afterDen.error.includes("solo i fattori")) {
+        return {
+          ok: false,
+          error: "Cancellazione illecita su una somma: non si pu\xF2 semplificare un addendo con il denominatore! In algebra la semplificazione riguarda solo i fattori di prodotti e frazioni.",
+          hint: "Raccogli prima a fattor comune se possibile, oppure riscrivi come somma di frazioni distinte."
+        };
+      }
       return { ok: false, error: "Impossibile completare la semplificazione di questi elementi." };
     }
     const simplified = canonical(simplifiedNode);
@@ -6454,7 +6500,8 @@
       principio: "Primo principio di equivalenza (somma dell'opposto a entrambi i membri).",
       perche: "Portare un termine dall'altra parte NON \xE8 uno spostamento fisico: equivale a sommare l'opposto del termine a entrambi i membri.",
       attenzione: [
-        "Vale SOLO per termini additivi (ognuno preceduto da + o \u2212), non per i fattori che moltiplicano l'intero membro."
+        "Vale SOLO per termini additivi liberi (ognuno preceduto da + o \u2212 al livello del membro), mai per fattori moltiplicativi.",
+        "Non puoi trasportare direttamente un addendo racchiuso dentro una parentesi moltiplicata o bloccato al numeratore di una frazione: devi prima liberare la parentesi o eliminare il denominatore."
       ]
     },
     "move-factor": {
@@ -6463,8 +6510,9 @@
       principio: "Secondo principio di equivalenza (divisione di entrambi i membri per il fattore).",
       perche: "Dividiamo entrambi i membri per lo stesso fattore. Serve che il fattore sia diverso da zero.",
       attenzione: [
-        "Puoi trasportare solo fattori che moltiplicano l'INTERO membro: non i termini di una somma.",
-        "La condizione di validit\xE0 richiede che il fattore sia \u2260 0."
+        "Puoi trasportare solo fattori che moltiplicano l'INTERO membro: MAI i singoli termini di una somma.",
+        "La condizione di validit\xE0 richiede che il fattore sia \u2260 0 (la divisione per zero non \xE8 definita).",
+        "Confusione comune: non cambiare il segno di un fattore quando lo porti al denominatore! Il cambio di segno vale solo per il 1\xB0 principio (addendi)."
       ]
     },
     "cross-multiply": {
@@ -6491,7 +6539,11 @@
       intuitiva: 'Se due quantit\xE0 non nulle sono uguali, anche i loro reciproci sono uguali (riempi "1 diviso" su entrambi i lati).',
       principio: "Si applica la funzione reciproco x \u21A6 1/x (definita per x \u2260 0) a entrambi i membri.",
       perche: "La funzione reciproco \xE8 iniettiva sul dominio dei numeri non nulli: applicata a entrambi i membri conserva l'uguaglianza.",
-      attenzione: ["Richiede che entrambi i membri siano \u2260 0."]
+      attenzione: [
+        "Richiede che entrambi i membri siano \u2260 0.",
+        "Attenzione all'errore classico: il reciproco di una somma NON \xE8 la somma dei reciproci! 1/(A + B) \u2260 1/A + 1/B.",
+        "Se un membro contiene una somma di frazioni (come 1/R\u2081 + 1/R\u2082), calcola PRIMA il minimo comune multiplo (m.c.m.) per ridurla a un'unica frazione, e SOLO DOPO applica il reciproco."
+      ]
     },
     "invert-proportion": {
       nome: "Inversione di una proporzione",
@@ -6557,7 +6609,17 @@
       perche: "Il fattore B compare sia al denominatore della frazione sia come fattore esterno; il loro rapporto \xE8 B/B = 1 (con B \u2260 0). \xC8 la stessa idea della moltiplicazione incrociata in una proporzione.",
       attenzione: [
         "La semplificazione \xE8 lecita SOLO se il fattore cancellato \xE8 \u2260 0.",
-        "Attenzione: si pu\xF2 cancellare un fattore con un fattore (un prodotto), MAI un fattore con un termine di una somma."
+        "Attenzione fondamentale: si pu\xF2 cancellare un fattore con un fattore (un prodotto), MAI un addendo di una somma con il denominatore! In (x + y)/x la x non \xE8 un fattore comune."
+      ]
+    },
+    "common-denom": {
+      nome: "Minimo comune multiplo (m.c.m.) e denominatore comune",
+      intuitiva: "Per sommare o sottrarre frazioni con denominatori diversi, bisogna prima portarle allo stesso denominatore comune (m.c.m.). Una volta che le frazioni hanno lo stesso denominatore, puoi sommare i numeratori ottenendo un'unica frazione su cui \xE8 possibile applicare il reciproco o la moltiplicazione incrociata.",
+      principio: "Propriet\xE0 invariantiva delle frazioni (moltiplicando numeratore e denominatore per una stessa quantit\xE0 non nulla il valore non cambia): A/B + C/D = (A\xB7D)/(B\xB7D) + (B\xB7C)/(B\xB7D) = (A\xB7D + B\xB7C)/(B\xB7D).",
+      perche: "Non si possono sommare direttamente parti frazionarie eterogenee: il denominatore comune esprime ciascun termine nella stessa partizione, rendendo i numeratori direttamente sommabili in un unico rapporto.",
+      attenzione: [
+        "Passo fondamentale prima della regola dei reciproci: se hai 1/R = 1/R\u2081 + 1/R\u2082, NON puoi invertire i singoli addendi (R \u2260 R\u2081 + R\u2082)! Devi prima calcolare il denominatore comune.",
+        "Tutti i denominatori devono essere non nulli (condizioni di esistenza)."
       ]
     },
     "invert-function": {
@@ -6572,8 +6634,208 @@
       ]
     }
   };
+  var STUDENT_MISCONCEPTIONS = {
+    "illegal-sum-cancellation": {
+      id: "illegal-sum-cancellation",
+      titolo: "Cancellazione illecita su una somma (Somma vs Prodotto)",
+      badge: "Semplificazione Illecita (Somma vs Prodotto)",
+      principio: "Propriet\xE0 distributiva della divisione: (A + B)/C = A/C + B/C \u2260 A + B/C.",
+      spiegazione: "Non puoi semplificare un termine che fa parte di una somma con il denominatore. In algebra si possono semplificare solo fattori che moltiplicano l'INTERO numeratore e l'INTERO denominatore, MAI singoli addendi!",
+      controesempio: 'Considera numeri semplici: (2 + 6)/2 = 8/2 = 4. Se cancellassi il "2" tra numeratore e denominatore otterresti 6 (oppure 1 + 6 = 7), entrambi palesemente errati! La frazione significa (2/2) + (6/2) = 1 + 3 = 4.',
+      come_risolvere: "Per semplificare, raccogli prima il fattore comune a TUTTI i termini del numeratore (es. (2\xB7a + 2\xB7b)/2 = 2\xB7(a + b)/2 = a + b), oppure separa la frazione nella somma di due frazioni distinte.",
+      regola_guida: "Si semplificano solo fattori di prodotti (a\xB7b/a = b), MAI addendi di somme ((a + b)/a \u2260 b)!"
+    },
+    "missing-common-denom-reciprocal": {
+      id: "missing-common-denom-reciprocal",
+      titolo: "Mancato denominatore comune prima del reciproco",
+      badge: "Frazioni e Reciproci (m.c.m. necessario)",
+      principio: "Non linearit\xE0 del reciproco: 1/(A + B) \u2260 1/A + 1/B.",
+      spiegazione: "Il reciproco di una somma NON \xE8 la somma dei reciproci! Applicare la regola dei reciproci termine a termine (pensando che 1/R\u2081 + 1/R\u2082 diventi R\u2081 + R\u2082) \xE8 un errore concettuale grave.",
+      controesempio: "Esempio numerico: 1/2 + 1/2 = 1 (il cui reciproco \xE8 1). Se capovolgessi i singoli addendi otterresti 2 + 2 = 4, che \xE8 quattro volte il risultato corretto! Nella formula dei resistori in parallelo: 1/Req = 1/R1 + 1/R2 non d\xE0 affatto Req = R1 + R2.",
+      come_risolvere: "Calcola prima il minimo comune multiplo (m.c.m.) per sommare le frazioni in un unico rapporto: 1/R\u2081 + 1/R\u2082 = (R\u2082 + R\u2081)/(R\u2081\xB7R\u2082). Solo quando entrambi i membri sono frazioni singole puoi capovolgerli con la regola dei reciproci: Req = (R\u2081\xB7R\u2082)/(R\u2081 + R\u2082).",
+      regola_guida: 'Usa il tasto "\u{1F9EE} Denominatore comune (m.c.m.)" per unire le frazioni prima di applicare il reciproco!'
+    },
+    "invalid-transposition-factor-as-term": {
+      id: "invalid-transposition-factor-as-term",
+      titolo: "Trasporto errato di un fattore con cambio di segno (confusione 1\xB0 e 2\xB0 principio)",
+      badge: "1\xB0 vs 2\xB0 Principio (Fattori vs Addendi)",
+      principio: "Secondo principio di equivalenza (divisione per grandezze moltiplicate).",
+      spiegazione: "Hai provato a spostare una grandezza moltiplicativa cambiando segno (+ \u2194 \u2212). Il cambio di segno vale solo per gli addendi sommati o sottratti (1\xB0 principio), non per grandezze legate da moltiplicazione!",
+      controesempio: 'In F = m\xB7a, se sottraessi "a" otterresti F \u2212 a = m\xB7a \u2212 a, non m isolata. In 3\xB7x = 12, sottraendo 3 otterresti 3x \u2212 3 = 9, non x = 9. La soluzione corretta \xE8 x = 12/3 = 4.',
+      come_risolvere: "Per annullare una moltiplicazione devi applicare l'operazione inversa: dividi entrambi i membri per quel fattore (2\xB0 principio). Trascinalo sotto la linea di frazione del membro opposto.",
+      regola_guida: "I termini sommati si trasportano cambiando segno (+ \u2194 \u2212), i fattori moltiplicati si trasportano dividendo (\xB7 \u2194 /)!"
+    },
+    "invalid-transposition-term-as-factor": {
+      id: "invalid-transposition-term-as-factor",
+      titolo: "Tentativo di dividere per un addendo di una somma",
+      badge: "1\xB0 vs 2\xB0 Principio (Addendi vs Fattori)",
+      principio: "Primo principio di equivalenza (trasporto con cambiamento di segno).",
+      spiegazione: "Non puoi dividere per una grandezza che fa parte di una somma con altri termini. La divisione agisce sull'INTERO membro: dividere solo un pezzo violerebbe l'uguaglianza.",
+      controesempio: "In v = v\u2080 + a\xB7t, se dividessi per v\u2080 otterresti v/v\u2080 = 1 + (a\xB7t)/v\u2080, non a\xB7t isolata! In x + 5 = 10, dividendo per 5 avresti x/5 + 1 = 2, non x = 2.",
+      come_risolvere: "Trascina l'addendo nello slot \xB1 accanto al membro opposto per trasportarlo con cambio di segno (+v\u2080 diventa \u2212v\u2080): v \u2212 v\u2080 = a\xB7t. Solo quando la variabile moltiplicata \xE8 isolata potrai dividere per i suoi fattori.",
+      regola_guida: "Se una grandezza \xE8 sommata, spostala all'altro membro cambiando segno con il 1\xB0 principio!"
+    },
+    "invalid-transposition-parenthesis-blocked": {
+      id: "invalid-transposition-parenthesis-blocked",
+      titolo: "Addendo bloccato dentro parentesi moltiplicate",
+      badge: "Precedenza Operazioni (Parentesi moltiplicate)",
+      principio: "Gerarchia delle operazioni e propriet\xE0 distributiva k\xB7(A + B) = k\xB7A + k\xB7B.",
+      spiegazione: `Non puoi trasportare direttamente un termine racchiuso tra parentesi moltiplicate per un fattore esterno (es. "v\u2080" in F = k\xB7(v \u2212 v\u2080)). La moltiplicazione esterna vincola tutti i termini all'interno.`,
+      controesempio: "In 2\xB7(x + 3) = 10, se spostassi il 3 come 10 \u2212 3 = 7 otterresti 2x = 7 (x = 3.5), mentre l'equazione originale \xE8 verificata per x = 2 (infatti 2\xB7(2 + 3) = 10)!",
+      come_risolvere: "Hai due opzioni lecite: \u2460 dividere prima entrambi i membri per il fattore moltiplicativo esterno (liberando la parentesi), oppure \u2461 applicare la propriet\xE0 distributiva per sciogliere la parentesi e poi trasportare il termine.",
+      regola_guida: "Prima libera la parentesi dividendo per il fattore esterno o distribuendo, poi trasporta i singoli addendi!"
+    },
+    "invalid-transposition-fraction-blocked": {
+      id: "invalid-transposition-fraction-blocked",
+      titolo: "Addendo bloccato al numeratore di una frazione",
+      badge: "Precedenza Operazioni (Linea di frazione)",
+      principio: "La linea di frazione funge da parentesi: (A + B)/C.",
+      spiegazione: `Non puoi trasportare con cambio di segno un termine che si trova al numeratore di una frazione (es. "s\u2080" in v = (s \u2212 s\u2080)/t). L'intero numeratore \xE8 vincolato dalla divisione per il denominatore.`,
+      controesempio: "In (x + 6)/2 = 5, se trasportassi il 6 otterresti x/2 = 5 \u2212 6 = \u22121 (x = \u22122), mentre moltiplicando prima per 2 si ha x + 6 = 10 \u2192 x = 4!",
+      come_risolvere: "Elimina prima il denominatore moltiplicando entrambi i membri per esso (2\xB0 principio): v\xB7t = s \u2212 s\u2080. Successivamente potrai trasportare il termine con il 1\xB0 principio.",
+      regola_guida: "Trascina prima il denominatore all'altro membro per moltiplicare, poi trasporta l'addendo con cambio di segno!"
+    },
+    "invalid-transposition-same-side": {
+      id: "invalid-transposition-same-side",
+      titolo: "Spostamento all'interno dello stesso membro",
+      badge: "Principi di Equivalenza (Ambo i membri)",
+      principio: "Definizione di equazione: uguaglianza tra due membri.",
+      spiegazione: "La regola del trasporto e i principi di equivalenza servono a trasferire quantit\xE0 da un piatto all'altro della bilancia (oltre l'uguale). Muovere un elemento all'interno dello stesso piatto non applica i principi di equivalenza.",
+      controesempio: "Spostare una grandezza al denominatore dello stesso membro trasformerebbe A in 1/A senza modificare l'altro membro: l'uguaglianza non sarebbe pi\xF9 vera.",
+      come_risolvere: "Trascina la grandezza oltre il segno di uguale (=), rilasciandola sul membro opposto (sotto la frazione per dividere o nello slot \xB1 per trasportare il termine).",
+      regola_guida: "Trascina sempre la grandezza oltre l'uguale (=) per operare sul membro opposto!"
+    },
+    "invalid-transposition-sign-error": {
+      id: "invalid-transposition-sign-error",
+      titolo: "Mancato cambiamento di segno nel trasporto",
+      badge: "1\xB0 Principio (Regola dei Segni)",
+      principio: "Primo principio di equivalenza (somma dell'opposto).",
+      spiegazione: "Quando sposti un termine additivo all'altro membro, devi cambiare il suo segno (+ diventa \u2212, \u2212 diventa +). Trasportare non \xE8 un semplice spostamento: equivale a togliere o aggiungere la stessa quantit\xE0 su entrambi i piatti.",
+      controesempio: "Se x + 3 = 7, togliendo 3 da ambo i piatti abbiamo x + 3 \u2212 3 = 7 \u2212 3, quindi x = 7 \u2212 3 = 4. Scrivere x = 7 + 3 = 10 violerebbe l'equilibrio di partenza!",
+      come_risolvere: "Ricorda: ci\xF2 che \xE8 addizionato (+) a un membro passa all'altro membro sottratto (\u2212), e ci\xF2 che \xE8 sottratto (\u2212) passa addizionato (+).",
+      regola_guida: "Regola del trasporto (1\xB0 principio): oltrepassando l'uguale, il termine inverte sempre il segno!"
+    }
+  };
   function getExplanation(key) {
     return EXPLANATIONS[key] || null;
+  }
+  function diagnoseStudentMisconception(errorText = "", hintText = "", action = null) {
+    const errLow = String(errorText || "").toLowerCase();
+    const hintLow = String(hintText || "").toLowerCase();
+    const actLabel = action && action.label ? String(action.label).toLowerCase() : "";
+    if (errLow.includes("cancellazione illecita") || errLow.includes("semplificare un fattore con un termine di una somma") || errLow.includes("non puoi semplificare un addendo") || errLow.includes("non \xE8 un fattore comune") || errLow.includes("semplificazione riguarda solo i fattori") || errLow.includes("due fattori nella stessa posizione") || errLow.includes("semplific") && errLow.includes("somma")) {
+      const m = STUDENT_MISCONCEPTIONS["illegal-sum-cancellation"];
+      return {
+        category: "illegal-sum-cancellation",
+        badge: m.badge,
+        title: m.titolo,
+        explanation: errorText.length > 50 ? errorText : m.spiegazione,
+        counterexample: m.controesempio,
+        advice: hintText || m.come_risolvere,
+        ruleReminder: m.regola_guida,
+        principio: m.principio
+      };
+    }
+    if (errLow.includes("reciproco di una somma") || errLow.includes("non \xE8 la somma dei reciproci") || errLow.includes("1/(a/b + c/d)") || actLabel.includes("reciproc") || errLow.includes("reciproco") && (errLow.includes("somma") || errLow.includes("m.c.m."))) {
+      const m = STUDENT_MISCONCEPTIONS["missing-common-denom-reciprocal"];
+      return {
+        category: "missing-common-denom-reciprocal",
+        badge: m.badge,
+        title: m.titolo,
+        explanation: errorText || m.spiegazione,
+        counterexample: m.controesempio,
+        advice: hintText || m.come_risolvere,
+        ruleReminder: m.regola_guida,
+        principio: m.principio
+      };
+    }
+    if (errLow.includes("all'interno della parentesi") || errLow.includes("parentesi (") || errLow.includes("moltiplicata per")) {
+      const m = STUDENT_MISCONCEPTIONS["invalid-transposition-parenthesis-blocked"];
+      return {
+        category: "invalid-transposition-parenthesis-blocked",
+        badge: m.badge,
+        title: m.titolo,
+        explanation: errorText || m.spiegazione,
+        counterexample: m.controesempio,
+        advice: hintText || m.come_risolvere,
+        ruleReminder: m.regola_guida,
+        principio: m.principio
+      };
+    }
+    if (errLow.includes("al numeratore della frazione") || errLow.includes("finch\xE9 si trova al numeratore") || errLow.includes("eliminare la frazione")) {
+      const m = STUDENT_MISCONCEPTIONS["invalid-transposition-fraction-blocked"];
+      return {
+        category: "invalid-transposition-fraction-blocked",
+        badge: m.badge,
+        title: m.titolo,
+        explanation: errorText || m.spiegazione,
+        counterexample: m.controesempio,
+        advice: hintText || m.come_risolvere,
+        ruleReminder: m.regola_guida,
+        principio: m.principio
+      };
+    }
+    if (errLow.includes("\xE8 un fattore che moltiplica") || errLow.includes("non \xE8 un termine additivo") || errLow.includes("non \xE8 un additivo di quel membro")) {
+      const m = STUDENT_MISCONCEPTIONS["invalid-transposition-factor-as-term"];
+      return {
+        category: "invalid-transposition-factor-as-term",
+        badge: m.badge,
+        title: m.titolo,
+        explanation: errorText || m.spiegazione,
+        counterexample: m.controesempio,
+        advice: hintText || m.come_risolvere,
+        ruleReminder: m.regola_guida,
+        principio: m.principio
+      };
+    }
+    if (errLow.includes("finch\xE9 fa parte di una somma") || errLow.includes("non puoi dividere per") || errLow.includes("non \xE8 un fattore moltiplicativo") || errLow.includes("puoi dividere solo per fattori che moltiplicano")) {
+      const m = STUDENT_MISCONCEPTIONS["invalid-transposition-term-as-factor"];
+      return {
+        category: "invalid-transposition-term-as-factor",
+        badge: m.badge,
+        title: m.titolo,
+        explanation: errorText || m.spiegazione,
+        counterexample: m.controesempio,
+        advice: hintText || m.come_risolvere,
+        ruleReminder: m.regola_guida,
+        principio: m.principio
+      };
+    }
+    if (errLow.includes("stesso membro") || errLow.includes("dall'altra parte dell'uguale")) {
+      const m = STUDENT_MISCONCEPTIONS["invalid-transposition-same-side"];
+      return {
+        category: "invalid-transposition-same-side",
+        badge: m.badge,
+        title: m.titolo,
+        explanation: errorText || m.spiegazione,
+        counterexample: m.controesempio,
+        advice: hintText || m.come_risolvere,
+        ruleReminder: m.regola_guida,
+        principio: m.principio
+      };
+    }
+    if (errLow.includes("zero") || errLow.includes("\u2260 0") || errLow.includes("nullo")) {
+      return {
+        category: "zero-division",
+        badge: "Condizione di Esistenza (\u2260 0)",
+        title: "Divisione per zero o termine nullo",
+        explanation: errorText || "La divisione per zero non \xE8 un'operazione definita nei numeri reali.",
+        counterexample: "Non esiste alcun numero x tale che x \xB7 0 = 1.",
+        advice: hintText || "Assicurati che la quantit\xE0 per cui dividi sia diversa da zero.",
+        ruleReminder: "Attenzione: non \xE8 consentito dividere per zero o per quantit\xE0 nulle!",
+        principio: "Definizione di divisione in algebra reale."
+      };
+    }
+    return {
+      category: "general",
+      badge: "Principio di Equivalenza",
+      title: "Operazione non valida",
+      explanation: errorText || "Questa operazione non conserva l'uguaglianza tra i due membri.",
+      counterexample: "",
+      advice: hintText || "Verifica di aver applicato correttamente il primo o secondo principio di equivalenza.",
+      ruleReminder: "Ricorda di eseguire trasformazioni che conservano sempre l'uguaglianza tra i due membri dell'equazione.",
+      principio: "Principi di equivalenza delle equazioni."
+    };
   }
 
   // js/a11y.js
@@ -7765,7 +8027,8 @@
       if (rawFrom.type === "Add" || rawFrom.type === "Sub") {
         return {
           ok: false,
-          error: `Non puoi dividere per "${prettyName}" finch\xE9 fa parte di una somma con altri termini! Trascinalo accanto al membro opposto per trasportarlo con cambio di segno.`
+          error: `Non puoi dividere per "${prettyName}" finch\xE9 fa parte di una somma con altri termini! Trascinalo accanto al membro opposto per trasportarlo con cambio di segno.`,
+          hint: `Trascina "${prettyName}" nello slot \xB1 accanto al membro opposto per applicare il 1\xB0 principio di equivalenza (trasporto con cambio di segno).`
         };
       }
       const updatedFrom = removeFactorFromExpr(fromExpr, varName);
@@ -11428,7 +11691,7 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       id: "reciprocal",
       name: "Regola dei reciproci (inversione dei membri)",
       principle: "Propriet\xE0 dell'inversione: se A = B allora 1/A = 1/B; in una proporzione A/B = C/D si ottiene B/A = D/C.",
-      explanation: null
+      explanation: "reciprocal-both"
     };
     pushHistory({
       equation: clone(newEq),
@@ -11437,7 +11700,7 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       ruleId: "reciprocal",
       steps: [`Calcolo il reciproco di entrambi i membri: ${toPretty(eq, 0)} \u2192 ${toPretty(newEq, 0)}.`],
       conditions: state.conditions.slice(),
-      explanationKey: null,
+      explanationKey: "reciprocal-both",
       note: null,
       verified: true
     }, false);
@@ -11624,7 +11887,7 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       ruleId: "common-denom",
       steps: res.steps,
       conditions: state.conditions.slice(),
-      explanationKey: null,
+      explanationKey: "common-denom",
       note: null,
       verified: true
     }, false);
@@ -11944,24 +12207,16 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       clearTimeout(bubbleTimeout);
       bubbleTimeout = null;
     }
-    const errLow = (error || "").toLowerCase();
-    let badgeText = "Principio di Equivalenza";
-    let ruleReminder = "Ricorda di applicare correttamente i principi di equivalenza delle equazioni.";
-    if (errLow.includes("fa parte di una somma") || errLow.includes("non \xE8 un fattore") || errLow.includes("dividere") || errLow.includes("moltiplicare")) {
-      badgeText = "2\xB0 Principio (Fattori e Prodotti)";
-      ruleReminder = "Secondo principio: puoi dividere entrambi i membri solo per un fattore che moltiplica l'intero membro!";
-    } else if (errLow.includes("additivo") || errLow.includes("trasporto") || errLow.includes("segno") || errLow.includes("trascina la variabile")) {
-      badgeText = "1\xB0 Principio (Regola del Trasporto)";
-      ruleReminder = "Primo principio: spostando un addendo all'altro membro, esso cambia di segno (+ diventa \u2212, \u2212 diventa +).";
-    } else if (errLow.includes("zero") || errLow.includes("\u2260 0")) {
-      badgeText = "Condizione di Esistenza (\u2260 0)";
-      ruleReminder = "Attenzione: la divisione per zero non \xE8 definita nei numeri reali.";
-    }
+    const diag = diagnoseStudentMisconception(error, hint, action);
+    const badgeText = diag.badge || "Principio di Equivalenza";
+    const ruleReminder = diag.ruleReminder || "Ricorda di applicare correttamente i principi di equivalenza delle equazioni.";
+    const explanationText = diag.explanation || error || "Operazione non consentita.";
+    const adviceText = diag.advice || hint || "";
     if (dom.bubbleBadge) dom.bubbleBadge.textContent = badgeText;
-    if (dom.bubbleMessage) dom.bubbleMessage.textContent = error || "Operazione non consentita.";
+    if (dom.bubbleMessage) dom.bubbleMessage.textContent = explanationText;
     if (dom.bubbleHintBox && dom.bubbleHintText) {
-      if (hint) {
-        dom.bubbleHintText.textContent = hint;
+      if (adviceText) {
+        dom.bubbleHintText.textContent = adviceText;
         dom.bubbleHintBox.hidden = false;
       } else {
         dom.bubbleHintBox.hidden = true;
@@ -11972,7 +12227,7 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     if (dom.didacticBubble) dom.didacticBubble.classList.remove("bubble-closing");
     bubbleTimeout = setTimeout(() => {
       dismissDidacticBubble();
-    }, 8e3);
+    }, 9e3);
   }
   function dismissDidacticBubble() {
     if (!dom.didacticBubbleAnchor || dom.didacticBubbleAnchor.hidden) return;
@@ -11992,16 +12247,17 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
   }
   function showInvalidMove(error, hint, action) {
     playSoundInvalid();
+    const diag = diagnoseStudentMisconception(error, hint, action);
     const parts = [];
     parts.push("Mossa non valida: " + error);
-    if (hint) parts.push("Suggerimento: " + hint);
+    if (diag.advice || hint) parts.push("Suggerimento: " + (diag.advice || hint));
     if (action) parts.push("Regola tentata: " + action.label);
     showMessage(parts.join(" "), "error");
-    showDidacticBubble({ error, hint, action });
+    showDidacticBubble({ error, hint: diag.advice || hint, action });
     pushHistory({
       equation: clone(state.currentEq),
-      ruleName: "Tentativo non valido",
-      rulePrinciple: "",
+      ruleName: "Tentativo non valido: " + (diag.badge || "Errore"),
+      rulePrinciple: diag.ruleReminder || "",
       steps: [action ? action.label : ""],
       conditions: [],
       explanationKey: null,

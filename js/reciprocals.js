@@ -82,8 +82,8 @@ export function reciprocalEquation(eq) {
   if (memberIsFractionSum(eq.left) || memberIsFractionSum(eq.right)) {
     return {
       ok: false,
-      error: 'il reciproco di una somma di frazioni NON è la somma dei reciproci: 1/(A/B + C/D) ≠ B/A + D/C.',
-      hint: 'Usa il tasto "🧮 Denominatore comune (m.c.m.)" per sommare le frazioni in un\'unica frazione: solo allora potrai invertire i due membri.',
+      error: 'Il reciproco di una somma di frazioni NON è la somma dei reciproci: 1/(A/B + C/D) ≠ B/A + D/C. Esempio numerico: 1/2 + 1/2 = 1 il cui reciproco è 1, mentre capovolgendo i singoli addendi verrebbe 2 + 2 = 4!',
+      hint: 'Usa il tasto "🧮 Denominatore comune (m.c.m.)" per sommare le frazioni in un\'unica frazione: solo allora potrai invertire entrambi i membri.',
     };
   }
   return {

@@ -18,6 +18,7 @@ import {
   collectVars, FUNC_INFO,
 } from './ast.js';
 import { reduceEquationToCommonDenominator, canReduceToSingleFraction } from './common-denom.js';
+import { memberIsFractionSum } from './reciprocals.js';
 
 export class RuleError extends Error {
   constructor(message, hint) {
@@ -294,6 +295,12 @@ export const ruleReciprocalBothSides = {
   precondition(eq) {
     if (isIdenticallyZero(eq.left) || isIdenticallyZero(eq.right)) {
       throw new RuleError('Non si può calcolare il reciproco di un membro identicamente nullo.');
+    }
+    if (memberIsFractionSum(eq.left) || memberIsFractionSum(eq.right)) {
+      throw new RuleError(
+        'Il reciproco di una somma di frazioni NON è la somma dei reciproci: 1/(A/B + C/D) ≠ B/A + D/C.',
+        'Usa il tasto "🧮 Denominatore comune (m.c.m.)" per sommare le frazioni in un\'unica frazione prima di invertire i membri.'
+      );
     }
     return { ok: true };
   },
@@ -677,7 +684,7 @@ export const ruleCommonDenominator = {
   id: 'common-denom',
   name: 'Minimo comune multiplo (m.c.m.) e denominatore comune',
   principle: 'Somma di frazioni mediante il minimo comune multiplo (m.c.m.) dei denominatori: A/B + C/D = (A·D + B·C)/(B·D), e semplificazione delle frazioni composte in un\'unica frazione.',
-  explanation: null,
+  explanation: 'common-denom',
   apply(eq, ctx = {}) {
     const side = ctx.side || null;
     const res = reduceEquationToCommonDenominator(eq, side);

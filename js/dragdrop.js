@@ -550,6 +550,7 @@ export function applyDragMove({ currentEq, varName, nodeType, fromSide, fromSlot
       return {
         ok: false,
         error: `Non puoi dividere per "${prettyName}" finché fa parte di una somma con altri termini! Trascinalo accanto al membro opposto per trasportarlo con cambio di segno.`,
+        hint: `Trascina "${prettyName}" nello slot ± accanto al membro opposto per applicare il 1° principio di equivalenza (trasporto con cambio di segno).`,
       };
     }
 
