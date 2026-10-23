@@ -8,7 +8,8 @@
 
 import { FORMULAS, TOPICS } from './formulas.js';
 import { solveFormulaSteps } from './worksheet-export.js';
-import { prettyVar } from './render.js';
+import { prettyVar, renderEquation } from './render.js';
+import { clone, toPretty } from './ast.js';
 import { parseEquation } from './parser.js';
 import { isGoalReached } from './algebra.js';
 
@@ -672,6 +673,9 @@ export function initQuizManager(dom, state, handlers = {}) {
       openDashboardModal();
     });
   }
+  if (dom.quizBtnViewBoard) {
+    dom.quizBtnViewBoard.addEventListener('click', () => closeCompletionModal());
+  }
   if (dom.quizBtnCloseCompletion) {
     dom.quizBtnCloseCompletion.addEventListener('click', () => closeCompletionModal());
   }
@@ -805,6 +809,7 @@ export function initQuizManager(dom, state, handlers = {}) {
       performedSteps: performedMoves,
       mistakesCount,
       elapsedSeconds: elapsed,
+      finalEq: state && state.currentEq ? clone(state.currentEq) : null,
     };
 
     const res = recordQuizResult(currentProgress, exerciseDetails);
@@ -828,6 +833,17 @@ export function initQuizManager(dom, state, handlers = {}) {
     if (dom.quizCompletionMsg) {
       const varP = prettyVar(details.targetVar);
       dom.quizCompletionMsg.textContent = `Hai isolato ${varP} in ${details.formulaName}.`;
+    }
+
+    if (dom.quizCompletionFormula) {
+      const eqToRender = details.finalEq || (state && state.currentEq);
+      if (eqToRender) {
+        dom.quizCompletionFormula.innerHTML = renderEquation(eqToRender, {
+          interactive: false,
+          targetVar: details.targetVar,
+        });
+        dom.quizCompletionFormula.setAttribute('aria-label', `Formula finale ricavata: ${toPretty(eqToRender, 0)}`);
+      }
     }
 
     if (dom.quizCompletionStats) {

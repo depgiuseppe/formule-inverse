@@ -10984,6 +10984,9 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         openDashboardModal();
       });
     }
+    if (dom6.quizBtnViewBoard) {
+      dom6.quizBtnViewBoard.addEventListener("click", () => closeCompletionModal());
+    }
     if (dom6.quizBtnCloseCompletion) {
       dom6.quizBtnCloseCompletion.addEventListener("click", () => closeCompletionModal());
     }
@@ -11098,7 +11101,8 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         optimalSteps: activeQuizExercise.optimalSteps,
         performedSteps: performedMoves,
         mistakesCount,
-        elapsedSeconds: elapsed
+        elapsedSeconds: elapsed,
+        finalEq: state6 && state6.currentEq ? clone(state6.currentEq) : null
       };
       const res = recordQuizResult(currentProgress, exerciseDetails);
       showCompletionModal(res, exerciseDetails);
@@ -11114,6 +11118,16 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       if (dom6.quizCompletionMsg) {
         const varP = prettyVar(details.targetVar);
         dom6.quizCompletionMsg.textContent = `Hai isolato ${varP} in ${details.formulaName}.`;
+      }
+      if (dom6.quizCompletionFormula) {
+        const eqToRender = details.finalEq || state6 && state6.currentEq;
+        if (eqToRender) {
+          dom6.quizCompletionFormula.innerHTML = renderEquation(eqToRender, {
+            interactive: false,
+            targetVar: details.targetVar
+          });
+          dom6.quizCompletionFormula.setAttribute("aria-label", `Formula finale ricavata: ${toPretty(eqToRender, 0)}`);
+        }
       }
       if (dom6.quizCompletionStats) {
         dom6.quizCompletionStats.innerHTML = `
@@ -13598,10 +13612,13 @@ ${lines.join(" \\\\\n")}
     quizCompletionStars: $("#quiz-completion-stars"),
     quizCompletionTitle: $("#quiz-completion-title"),
     quizCompletionMsg: $("#quiz-completion-msg"),
+    quizCompletionFormulaCard: $("#quiz-completion-formula-card"),
+    quizCompletionFormula: $("#quiz-completion-formula"),
     quizCompletionStats: $("#quiz-completion-stats"),
     quizCompletionBadges: $("#quiz-completion-badges"),
     quizBtnRetryExercise: $("#quiz-btn-retry-exercise"),
     quizBtnViewStats: $("#quiz-btn-view-stats"),
+    quizBtnViewBoard: $("#quiz-btn-view-board"),
     quizBtnNextExercise: $("#quiz-btn-next-exercise"),
     quizBtnCloseCompletion: $("#quiz-btn-close-completion"),
     quizDashboardBackdrop: $("#quiz-dashboard-backdrop"),
@@ -14992,8 +15009,12 @@ ${lines.join(" \\\\\n")}
     if (dom5.btnCompletionNext) {
       dom5.btnCompletionNext.addEventListener("click", () => {
         playSoundClick();
-        const { id, target } = randomExercise();
-        loadFormula(getFormulaById(id), target);
+        if (state5.mode === "quiz" && state5.quizManager) {
+          state5.quizManager.startNewQuizExercise();
+        } else {
+          const { id, target } = randomExercise();
+          loadFormula(getFormulaById(id), target);
+        }
       });
     }
     if (dom5.btnCalcSample) {

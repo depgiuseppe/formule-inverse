@@ -169,19 +169,6 @@
       <button class="mode-btn" data-mode="auto" type="button" aria-pressed="false" title="Modalità Automatica: a ogni clic del mouse il programma esegue una operazione giustificando la regola">Automatica</button>
     </div>
 
-    <div class="work-header-tools" role="toolbar" aria-label="Regole e strumenti algebrici">
-      <button id="btn-speak-equation" class="btn-mini btn-speak-math" type="button" aria-pressed="false" aria-label="Ascolta formula con sintesi vocale per DSA e non vedenti" title="Ascolta lettura vocale della formula (per studenti DSA e non vedenti)">🔊 Ascolta formula</button>
-      <button id="btn-mirror" class="btn-mini" type="button" title="Regola dello specchio: scambia i due membri dell'equazione (A = B ↔ B = A)">🪞 Regola dello specchio</button>
-      <button id="btn-reciprocal" class="btn-mini" type="button" title="Regola dei reciproci: scambia numeratore e denominatore di entrambi i membri (A/B = C/D ↔ B/A = D/C)">🔁 Regola dei reciproci</button>
-      <button id="btn-distribute" class="btn-mini" type="button" title="Proprietà distributiva: sviluppa i prodotti con parentesi, es. a(b − c) = ab − ac">📦 Sviluppa parentesi</button>
-      <button id="btn-factor-common" class="btn-mini" type="button" title="Regola del raccoglimento a fattor comune: ax + ab = a(x + b)">🧩 Raccoglimento a fattori</button>
-      <button id="btn-common-denom" class="btn-mini" type="button" title="Minimo comune multiplo (m.c.m.): somma frazioni e termini a denominatore comune, eliminando doppie frazioni in un'unica frazione">🧮 Denominatore comune (m.c.m.)</button>
-      <button id="btn-change-sign" class="btn-mini" type="button" title="Regola del cambio di segno: moltiplica entrambi i membri per −1 cambiando tutti i segni (+ ↔ −)">± Cambio segno</button>
-      <button id="btn-cross" class="btn-mini" type="button" aria-pressed="false" title="Croce di semplificazione: trascinala su due fattori uguali, uno al numeratore e uno al denominatore, per eliminarli">✗ Croce di semplificazione</button>
-      <button id="btn-export-worksheet" class="btn-mini btn-worksheet" type="button" title="Esporta scheda didattica o verifica per docenti in LaTeX o PDF">📄 Scheda / Verifica docenti</button>
-      <button id="btn-mode-quiz" class="btn-mini btn-quiz-toggle" type="button" aria-pressed="false" title="Attiva o disattiva la Modalità Eserciziario / Quiz con livelli di difficoltà, efficienza mosse e badge">🎯 Eserciziario / Quiz</button>
-    </div>
-
     <!-- Quiz HUD & Controls (visibile in Modalità Quiz) -->
     <div class="quiz-hud-card" id="quiz-hud" hidden>
       <div class="quiz-hud-header">
@@ -291,6 +278,20 @@
         <code class="latex-live-code" id="latex-live-code"></code>
         <button id="btn-copy-latex-inline" class="btn-icon-mini" type="button" title="Copia codice LaTeX" aria-label="Copia codice LaTeX">📋</button>
       </div>
+    </div>
+
+    <!-- Barra regole e strumenti algebrici (posizionata subito dopo la formula centrale) -->
+    <div class="work-header-tools" role="toolbar" aria-label="Regole e strumenti algebrici">
+      <button id="btn-speak-equation" class="btn-mini btn-speak-math" type="button" aria-pressed="false" aria-label="Ascolta formula con sintesi vocale per DSA e non vedenti" title="Ascolta lettura vocale della formula (per studenti DSA e non vedenti)">🔊 Ascolta formula</button>
+      <button id="btn-mirror" class="btn-mini" type="button" title="Regola dello specchio: scambia i due membri dell'equazione (A = B ↔ B = A)">🪞 Regola dello specchio</button>
+      <button id="btn-reciprocal" class="btn-mini" type="button" title="Regola dei reciproci: scambia numeratore e denominatore di entrambi i membri (A/B = C/D ↔ B/A = D/C)">🔁 Regola dei reciproci</button>
+      <button id="btn-distribute" class="btn-mini" type="button" title="Proprietà distributiva: sviluppa i prodotti con parentesi, potenze di frazioni o radici">📦 Sviluppa parentesi</button>
+      <button id="btn-factor-common" class="btn-mini" type="button" title="Regola del raccoglimento a fattor comune: ax + ab = a(x + b)">🧩 Raccoglimento a fattori</button>
+      <button id="btn-common-denom" class="btn-mini" type="button" title="Minimo comune multiplo (m.c.m.): somma frazioni e termini a denominatore comune, eliminando doppie frazioni in un'unica frazione">🧮 Denominatore comune (m.c.m.)</button>
+      <button id="btn-change-sign" class="btn-mini" type="button" title="Regola del cambio di segno: moltiplica entrambi i membri per −1 cambiando tutti i segni (+ ↔ −)">± Cambio segno</button>
+      <button id="btn-cross" class="btn-mini" type="button" aria-pressed="false" title="Croce di semplificazione: trascinala su due fattori uguali, uno al numeratore e uno al denominatore, per eliminarli">✗ Croce di semplificazione</button>
+      <button id="btn-export-worksheet" class="btn-mini btn-worksheet" type="button" title="Esporta scheda didattica o verifica per docenti in LaTeX o PDF">📄 Scheda / Verifica docenti</button>
+      <button id="btn-mode-quiz" class="btn-mini btn-quiz-toggle" type="button" aria-pressed="false" title="Attiva o disattiva la Modalità Eserciziario / Quiz con livelli di difficoltà, efficienza mosse e badge">🎯 Eserciziario / Quiz</button>
     </div>
 
     <!-- Tastierino: operazioni su entrambi i membri + grandezze dell'equazione -->
@@ -594,11 +595,18 @@
     <p id="quiz-completion-msg" class="modal-subtitle">Hai isolato la grandezza con successo.</p>
 
     <div class="quiz-completion-stats-box" id="quiz-completion-stats"></div>
+
+    <div class="quiz-completion-formula-card" id="quiz-completion-formula-card">
+      <div class="quiz-completion-formula-label">Formula inversa ricavata:</div>
+      <div class="quiz-completion-formula-display" id="quiz-completion-formula" role="region" aria-label="Formula inversa ricavata"></div>
+    </div>
+
     <div class="quiz-new-badges-box" id="quiz-completion-badges" hidden></div>
 
     <div class="modal-actions quiz-completion-actions">
       <button class="btn btn-secondary" id="quiz-btn-retry-exercise" type="button">↺ Riprova Esercizio</button>
       <button class="btn btn-secondary" id="quiz-btn-view-stats" type="button">🏆 Badge &amp; Progressi</button>
+      <button class="btn btn-secondary" id="quiz-btn-view-board" type="button" title="Guarda la lavagna e i passaggi eseguiti">👁️ Vedi Lavagna</button>
       <button class="btn btn-primary" id="quiz-btn-next-exercise" type="button">Prossimo Esercizio ➔</button>
       <button class="btn-close-modal" id="quiz-btn-close-completion" type="button" aria-label="Chiudi finestra">✕</button>
     </div>

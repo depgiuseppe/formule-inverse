@@ -941,7 +941,7 @@ body.dark-theme .app-header {
   display: flex;
   flex-wrap: wrap;
   gap: .4rem;
-  margin-bottom: 1rem;
+  margin: 0.6rem 0 1rem 0;
 }
 .work-header-tools .btn-mini,
 .history-header-tools .btn-mini { min-height: 36px; }
@@ -4693,6 +4693,60 @@ body {
   align-items: center;
   font-size: 0.88rem;
   color: var(--ink-soft);
+}
+
+/* Card formula finale ricavata nel modal quiz */
+.quiz-completion-formula-card {
+  background: var(--bg-card, #ffffff);
+  border: 1.5px solid var(--accent, #6366f1);
+  border-radius: var(--radius-md, 12px);
+  padding: 0.85rem 1rem;
+  margin: 0.75rem 0 0.9rem 0;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.quiz-completion-formula-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #6366f1, #3b82f6, #10b981);
+}
+
+.quiz-completion-formula-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ink-muted, #64748b);
+  margin-bottom: 0.45rem;
+}
+
+.quiz-completion-formula-display {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.35rem;
+  line-height: 1.6;
+  padding: 0.35rem 0.2rem;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.quiz-completion-formula-display .math-node.node-target {
+  color: var(--accent, #6366f1) !important;
+  font-weight: 800;
+}
+
+[data-theme="dark"] .quiz-completion-formula-card {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
 .unlocked-badges-banner {

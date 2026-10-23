@@ -266,10 +266,13 @@ const dom = {
   quizCompletionStars: $('#quiz-completion-stars'),
   quizCompletionTitle: $('#quiz-completion-title'),
   quizCompletionMsg: $('#quiz-completion-msg'),
+  quizCompletionFormulaCard: $('#quiz-completion-formula-card'),
+  quizCompletionFormula: $('#quiz-completion-formula'),
   quizCompletionStats: $('#quiz-completion-stats'),
   quizCompletionBadges: $('#quiz-completion-badges'),
   quizBtnRetryExercise: $('#quiz-btn-retry-exercise'),
   quizBtnViewStats: $('#quiz-btn-view-stats'),
+  quizBtnViewBoard: $('#quiz-btn-view-board'),
   quizBtnNextExercise: $('#quiz-btn-next-exercise'),
   quizBtnCloseCompletion: $('#quiz-btn-close-completion'),
   quizDashboardBackdrop: $('#quiz-dashboard-backdrop'),
@@ -1793,8 +1796,12 @@ function bindWorkAreaEvents() {
   if (dom.btnCompletionNext) {
     dom.btnCompletionNext.addEventListener('click', () => {
       playSoundClick();
-      const { id, target } = randomExercise();
-      loadFormula(getFormulaById(id), target);
+      if (state.mode === 'quiz' && state.quizManager) {
+        state.quizManager.startNewQuizExercise();
+      } else {
+        const { id, target } = randomExercise();
+        loadFormula(getFormulaById(id), target);
+      }
     });
   }
   if (dom.btnCalcSample) {
