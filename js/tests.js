@@ -25,6 +25,12 @@ import {
   solveFormulaSteps, buildWorksheetExercises, generateLatexDocument,
   generateHtmlWorksheet, escapeLatexText
 } from './worksheet-export.js';
+import {
+  DIFFICULTY_LEVELS, classifyFormulaDifficulty, getQuizFormulas,
+  getRandomQuizExercise, calculateStepEfficiency, calculateExerciseXp,
+  getPlayerRank, MASTERY_BADGES, checkBadgesToUnlock, getDefaultProgress,
+  loadQuizProgress, saveQuizProgress, resetQuizProgress, recordQuizResult
+} from './quiz.js';
 
 let counter = 0;
 function test(name, fn) {
@@ -1458,6 +1464,105 @@ export function runAllTests() {
     if (!html.includes('workspace-grid')) return 'Manca classe quadretti';
     if (!html.includes('solutions-page')) return 'Manca pagina soluzioni';
     if (!html.includes('math-eq')) return 'Manca rendering semantico formule';
+    return true;
+  }));
+
+  // ---- Test Modalità Quiz / Eserciziario ----
+  results.push(test('Quiz: Livelli di difficoltà e configurazione passaggi', () => {
+    if (!DIFFICULTY_LEVELS.easy || !DIFFICULTY_LEVELS.medium || !DIFFICULTY_LEVELS.hard) {
+      return 'Mancano definizioni dei tre livelli di difficoltà';
+    }
+    if (DIFFICULTY_LEVELS.easy.maxSteps !== 3) return 'Livello easy non configurato a max 3 passaggi';
+    if (DIFFICULTY_LEVELS.medium.minSteps !== 4 || DIFFICULTY_LEVELS.medium.maxSteps !== 5) {
+      return 'Livello medium non configurato a 4-5 passaggi';
+    }
+    if (DIFFICULTY_LEVELS.hard.minSteps !== 6) return 'Livello hard non configurato a min 6 passaggi';
+    return true;
+  }));
+
+  results.push(test('Quiz: Classificazione automatica della difficoltà e mosse ottimali', () => {
+    const easySol = classifyFormulaDifficulty('v = s/t', 's');
+    if (!easySol.solvable) return 'v = s/t -> s non risulta risolvibile';
+    if (easySol.level !== 'easy') return `Atteso livello easy per v = s/t -> s, ottenuto: ${easySol.level}`;
+    if (easySol.steps !== 3) return `Attesi 3 passaggi, ottenuti: ${easySol.steps}`;
+
+    const medSol = classifyFormulaDifficulty('v = s/t', 't');
+    if (!medSol.solvable) return 'v = s/t -> t non risulta risolvibile';
+    if (medSol.level !== 'medium') return `Atteso livello medium per v = s/t -> t, ottenuto: ${medSol.level}`;
+    if (medSol.steps !== 4) return `Attesi 4 passaggi, ottenuti: ${medSol.steps}`;
+    return true;
+  }));
+
+  results.push(test('Quiz: Calcolo dell efficienza delle mosse (Step-Efficiency) e attribuzione stelle', () => {
+    const perfect = calculateStepEfficiency(3, 3);
+    if (perfect.efficiency !== 100 || perfect.stars !== 3 || !perfect.isOptimal) {
+      return 'Risoluzione ottimale non valutata al 100% / 3 stelle';
+    }
+
+    const good = calculateStepEfficiency(3, 5);
+    if (good.stars !== 2 || good.isOptimal) {
+      return '2 mosse extra devono attribuire 2 stelle';
+    }
+
+    const sub = calculateStepEfficiency(2, 6);
+    if (sub.stars !== 1) return 'Molte mosse extra devono attribuire 1 stella';
+    return true;
+  }));
+
+  results.push(test('Quiz: Punti esperienza XP e progressione Rank dello studente', () => {
+    const xp = calculateExerciseXp('easy', 3, 0, 20);
+    if (xp !== 40) return `Calcolo XP inatteso: atteso 40, ottenuto ${xp}`;
+
+    const r1 = getPlayerRank(10);
+    if (r1.level !== 1 || !r1.title.includes('Apprendista')) return 'Rank 1 non corretto';
+
+    const r3 = getPlayerRank(200);
+    if (r3.level !== 3 || !r3.title.includes('Esperto')) return 'Rank 3 non corretto';
+    return true;
+  }));
+
+  results.push(test('Quiz: Catalogo e logica di sblocco dei Distintivi di Maestria (Badges)', () => {
+    if (MASTERY_BADGES.length !== 12) return `Attesi 12 badge, trovati: ${MASTERY_BADGES.length}`;
+    const def = getDefaultProgress();
+    const unlocked = checkBadgesToUnlock({ ...def, totalSolved: 1 }, { stars: 3, performedSteps: 2, optimalSteps: 2, mistakesCount: 0 });
+    if (!unlocked.includes('first_win')) return 'first_win non sbloccato al primo esercizio';
+    if (!unlocked.includes('optimal_sniper')) return 'optimal_sniper non sbloccato con mosse ottimali';
+    if (!unlocked.includes('flawless')) return 'flawless non sbloccato senza errori';
+    return true;
+  }));
+
+  results.push(test('Quiz: Persistenza e aggiornamento statistiche in localStorage', () => {
+    const mockStorage = {
+      data: {},
+      getItem(k) { return this.data[k] || null; },
+      setItem(k, v) { this.data[k] = String(v); },
+      removeItem(k) { delete this.data[k]; }
+    };
+    const init = loadQuizProgress(mockStorage);
+    if (init.totalSolved !== 0) return 'Storage iniziale non vuoto';
+
+    const res = recordQuizResult(init, {
+      formulaId: 'v-st',
+      formulaName: 'velocità',
+      formulaStr: 'v = s/t',
+      targetVar: 's',
+      level: 'easy',
+      optimalSteps: 3,
+      performedSteps: 3,
+      mistakesCount: 0,
+      elapsedSeconds: 15
+    }, mockStorage);
+
+    if (res.stars !== 3) return 'Attese 3 stelle';
+    if (res.updatedProgress.totalSolved !== 1) return 'totalSolved non incrementato';
+    if (res.updatedProgress.streak !== 1) return 'streak non incrementata';
+
+    const reloaded = loadQuizProgress(mockStorage);
+    if (reloaded.totalSolved !== 1) return 'Persistenza fallita al ricaricamento';
+
+    resetQuizProgress(mockStorage);
+    const afterReset = loadQuizProgress(mockStorage);
+    if (afterReset.totalSolved !== 0) return 'Reset progressi fallito';
     return true;
   }));
 

@@ -9762,6 +9762,775 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     }
   }
 
+  // js/quiz.js
+  var QUIZ_STORAGE_KEY = "formuleInverse.quizProgress";
+  var DIFFICULTY_LEVELS = {
+    easy: {
+      id: "easy",
+      name: "Base",
+      label: "\u{1F7E2} Base (1-3 passaggi)",
+      description: "Equazioni lineari e prodotti/frazioni dirette risolvibili con principi di equivalenza base.",
+      minSteps: 1,
+      maxSteps: 3,
+      baseXp: 15,
+      color: "#10b981"
+    },
+    medium: {
+      id: "medium",
+      name: "Intermedio",
+      label: "\u{1F7E1} Intermedio (4-5 passaggi)",
+      description: "Frazioni composte, somme algebriche e binomi con isolamento articolato.",
+      minSteps: 4,
+      maxSteps: 5,
+      baseXp: 30,
+      color: "#f59e0b"
+    },
+    hard: {
+      id: "hard",
+      name: "Avanzato",
+      label: "\u{1F534} Avanzato (6+ passaggi)",
+      description: "Formule avanzate con radici, potenze, m.c.m. o raccoglimenti a fattor comune.",
+      minSteps: 6,
+      maxSteps: 99,
+      baseXp: 50,
+      color: "#ef4444"
+    }
+  };
+  function classifyFormulaDifficulty(formulaInput, targetVar) {
+    const formulaStr = typeof formulaInput === "string" ? formulaInput : formulaInput.formula;
+    const sol = solveFormulaSteps(formulaStr, targetVar);
+    if (!sol || !sol.success) {
+      return {
+        level: "hard",
+        steps: 99,
+        solvable: false,
+        solution: null
+      };
+    }
+    const steps = sol.steps ? sol.steps.length : 0;
+    let level = "easy";
+    if (steps >= 6) {
+      level = "hard";
+    } else if (steps >= 4) {
+      level = "medium";
+    } else {
+      level = "easy";
+    }
+    return {
+      level,
+      steps,
+      solvable: true,
+      solution: sol
+    };
+  }
+  function getQuizFormulas(level = "all", topic = null) {
+    const candidates = [];
+    for (const f of FORMULAS) {
+      if (topic && f.topic !== topic) continue;
+      if (!f.isolate || f.isolate.length === 0) continue;
+      for (const t of f.isolate) {
+        if (f.formula.startsWith(t + " =") || f.formula.startsWith(t + "=")) {
+          continue;
+        }
+        const diff = classifyFormulaDifficulty(f.formula, t);
+        if (!diff.solvable || diff.steps === 0) continue;
+        if (level === "all" || diff.level === level) {
+          candidates.push({
+            formulaEntry: f,
+            targetVar: t,
+            optimalSteps: diff.steps,
+            level: diff.level
+          });
+        }
+      }
+    }
+    return candidates;
+  }
+  function getRandomQuizExercise(level = "all", topic = null) {
+    let list = getQuizFormulas(level, topic);
+    if (list.length === 0 && topic) {
+      list = getQuizFormulas(level, null);
+    }
+    if (list.length === 0) {
+      list = getQuizFormulas("all", null);
+    }
+    if (list.length === 0) {
+      const fallbackFormula = FORMULAS[0];
+      return {
+        formulaEntry: fallbackFormula,
+        targetVar: fallbackFormula.isolate[1] || "t",
+        optimalSteps: 2,
+        level: "easy"
+      };
+    }
+    const idx = Math.floor(Math.random() * list.length);
+    return list[idx];
+  }
+  function calculateStepEfficiency(optimalSteps, performedSteps) {
+    const opt = Math.max(1, Number(optimalSteps) || 1);
+    const perf = Math.max(0, Number(performedSteps) || 0);
+    const efficiency = Math.max(
+      10,
+      Math.min(100, Math.round(opt / Math.max(opt, perf) * 100))
+    );
+    let stars = 1;
+    let isOptimal = false;
+    let label = "\u2B50 Risolto con passaggi aggiuntivi";
+    if (perf <= opt) {
+      stars = 3;
+      isOptimal = true;
+      label = "\u2B50\u2B50\u2B50 Perfetto! Mosse ottimali";
+    } else if (perf <= opt + 2) {
+      stars = 2;
+      label = "\u2B50\u2B50 Molto buono! Percorso efficiente";
+    } else {
+      stars = 1;
+      label = "\u2B50 Completato";
+    }
+    return {
+      efficiency,
+      stars,
+      isOptimal,
+      optimalSteps: opt,
+      performedSteps: perf,
+      label
+    };
+  }
+  function calculateExerciseXp(level, stars, mistakesCount = 0, elapsedSeconds = 0) {
+    const lvlConfig = DIFFICULTY_LEVELS[level] || DIFFICULTY_LEVELS.easy;
+    let xp = lvlConfig.baseXp;
+    if (stars === 3) xp += 15;
+    else if (stars === 2) xp += 5;
+    if (mistakesCount === 0) xp += 5;
+    if (elapsedSeconds > 0 && elapsedSeconds <= 45) xp += 5;
+    return xp;
+  }
+  function getPlayerRank(totalXp = 0) {
+    const xp = Math.max(0, Number(totalXp) || 0);
+    const ranks = [
+      { title: "Apprendista dei Principi", level: 1, minXp: 0, nextXp: 50, avatar: "\u{1F949}" },
+      { title: "Praticante Algebrico", level: 2, minXp: 50, nextXp: 150, avatar: "\u{1F948}" },
+      { title: "Esperto delle Formule", level: 3, minXp: 150, nextXp: 300, avatar: "\u{1F947}" },
+      { title: "Maestro dell'Equivalenza", level: 4, minXp: 300, nextXp: 500, avatar: "\u{1F48E}" },
+      { title: "Gran Maestro STEM", level: 5, minXp: 500, nextXp: 1e3, avatar: "\u{1F451}" }
+    ];
+    let current = ranks[0];
+    for (const r of ranks) {
+      if (xp >= r.minXp) current = r;
+    }
+    const range = current.nextXp - current.minXp;
+    const currentInLevel = Math.max(0, xp - current.minXp);
+    const progressPercent = Math.min(100, Math.round(currentInLevel / range * 100));
+    return {
+      title: current.title,
+      level: current.level,
+      avatar: current.avatar,
+      currentXp: xp,
+      minXp: current.minXp,
+      nextXp: current.nextXp,
+      progressPercent
+    };
+  }
+  var MASTERY_BADGES = [
+    {
+      id: "first_win",
+      title: "Primo Traguardo",
+      icon: "\u{1F3AF}",
+      description: "Completa con successo il tuo primo esercizio in modalit\xE0 Quiz.",
+      category: "milestone",
+      check: (stats) => stats.totalSolved >= 1
+    },
+    {
+      id: "optimal_sniper",
+      title: "Cecchino Algebrico",
+      icon: "\u26A1",
+      description: "Risolvi un esercizio con efficienza 100% (mosse ottimali).",
+      category: "skill",
+      check: (stats, res) => !!(res && res.stars === 3 && res.performedSteps <= res.optimalSteps)
+    },
+    {
+      id: "flawless",
+      title: "Mente Rigorosa",
+      icon: "\u{1F6E1}\uFE0F",
+      description: "Risolvi un esercizio senza commettere nessun errore di principio.",
+      category: "skill",
+      check: (stats, res) => !!(res && res.mistakesCount === 0)
+    },
+    {
+      id: "easy_trio",
+      title: "Basi d'Acciaio",
+      icon: "\u{1F7E2}",
+      description: "Completa 3 esercizi di livello Base.",
+      category: "difficulty",
+      check: (stats) => stats.solvedByLevel && stats.solvedByLevel.easy >= 3
+    },
+    {
+      id: "medium_trio",
+      title: "Architetto delle Formule",
+      icon: "\u{1F7E1}",
+      description: "Completa 3 esercizi di livello Intermedio.",
+      category: "difficulty",
+      check: (stats) => stats.solvedByLevel && stats.solvedByLevel.medium >= 3
+    },
+    {
+      id: "hard_master",
+      title: "Campione delle Inverse",
+      icon: "\u{1F534}",
+      description: "Completa 2 esercizi di livello Avanzato.",
+      category: "difficulty",
+      check: (stats) => stats.solvedByLevel && stats.solvedByLevel.hard >= 2
+    },
+    {
+      id: "triple_three_stars",
+      title: "Caccia alle Tre Stelle",
+      icon: "\u2B50",
+      description: "Ottieni 3 stelle (punteggio perfetto) in almeno 3 esercizi.",
+      category: "mastery",
+      check: (stats) => stats.perfectSolves >= 3
+    },
+    {
+      id: "streak_3",
+      title: "Inarrestabile (x3)",
+      icon: "\u{1F525}",
+      description: "Raggiungi una serie di 3 esercizi completati consecutivamente.",
+      category: "streak",
+      check: (stats) => stats.bestStreak >= 3
+    },
+    {
+      id: "streak_5",
+      title: "Dominio Totale (x5)",
+      icon: "\u{1F30B}",
+      description: "Raggiungi una serie di 5 esercizi completati consecutivamente.",
+      category: "streak",
+      check: (stats) => stats.bestStreak >= 5
+    },
+    {
+      id: "speed_demon",
+      title: "Risolutore Rapido",
+      icon: "\u23F1\uFE0F",
+      description: "Risolvi un esercizio in meno di 45 secondi.",
+      category: "speed",
+      check: (stats, res) => !!(res && res.elapsedSeconds > 0 && res.elapsedSeconds <= 45)
+    },
+    {
+      id: "stem_explorer",
+      title: "Esploratore STEM",
+      icon: "\u{1F310}",
+      description: "Completa esercizi in almeno 3 argomenti fisici o matematici diversi.",
+      category: "exploration",
+      check: (stats) => Array.isArray(stats.topicsExplored) && stats.topicsExplored.length >= 3
+    },
+    {
+      id: "xp_centurion",
+      title: "Club dei 100 XP",
+      icon: "\u{1F4AF}",
+      description: "Accumula almeno 100 Punti Esperienza nel Quiz.",
+      category: "points",
+      check: (stats) => stats.points >= 100
+    }
+  ];
+  function checkBadgesToUnlock(stats, latestResult = null) {
+    const newlyUnlocked = [];
+    const currentBadges = stats.badges || {};
+    for (const badge of MASTERY_BADGES) {
+      if (currentBadges[badge.id] && currentBadges[badge.id].unlocked) {
+        continue;
+      }
+      try {
+        if (badge.check(stats, latestResult)) {
+          newlyUnlocked.push(badge.id);
+        }
+      } catch (e) {
+      }
+    }
+    return newlyUnlocked;
+  }
+  function getDefaultProgress() {
+    return {
+      totalSolved: 0,
+      solvedByLevel: {
+        easy: 0,
+        medium: 0,
+        hard: 0
+      },
+      perfectSolves: 0,
+      totalOptimalSteps: 0,
+      totalPerformedSteps: 0,
+      averageEfficiency: 100,
+      streak: 0,
+      bestStreak: 0,
+      points: 0,
+      topicsExplored: [],
+      badges: {},
+      recentHistory: []
+    };
+  }
+  function getSafeStorage(customStorage) {
+    if (customStorage) return customStorage;
+    if (typeof window !== "undefined" && window.localStorage) return window.localStorage;
+    return null;
+  }
+  function loadQuizProgress(customStorage = null) {
+    const store = getSafeStorage(customStorage);
+    if (!store) return getDefaultProgress();
+    try {
+      const raw = store.getItem(QUIZ_STORAGE_KEY);
+      if (!raw) return getDefaultProgress();
+      const data = JSON.parse(raw);
+      const def = getDefaultProgress();
+      return {
+        ...def,
+        ...data,
+        solvedByLevel: { ...def.solvedByLevel, ...data.solvedByLevel || {} },
+        badges: { ...data.badges || {} },
+        topicsExplored: Array.isArray(data.topicsExplored) ? data.topicsExplored : [],
+        recentHistory: Array.isArray(data.recentHistory) ? data.recentHistory : []
+      };
+    } catch (err) {
+      return getDefaultProgress();
+    }
+  }
+  function saveQuizProgress(progress, customStorage = null) {
+    const store = getSafeStorage(customStorage);
+    if (!store) return false;
+    try {
+      store.setItem(QUIZ_STORAGE_KEY, JSON.stringify(progress));
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+  function resetQuizProgress(customStorage = null) {
+    const store = getSafeStorage(customStorage);
+    if (store) {
+      try {
+        store.removeItem(QUIZ_STORAGE_KEY);
+      } catch (e) {
+      }
+    }
+    return getDefaultProgress();
+  }
+  function recordQuizResult(progress, exerciseDetails, customStorage = null) {
+    const p = progress ? JSON.parse(JSON.stringify(progress)) : getDefaultProgress();
+    const d = exerciseDetails || {};
+    const level = d.level || "easy";
+    const optSteps = Math.max(1, Number(d.optimalSteps) || 1);
+    const perfSteps = Math.max(0, Number(d.performedSteps) || 0);
+    const mistakes = Math.max(0, Number(d.mistakesCount) || 0);
+    const elapsed = Math.max(0, Number(d.elapsedSeconds) || 0);
+    const topic = d.topic || "fisica";
+    const effResult = calculateStepEfficiency(optSteps, perfSteps);
+    const xpEarned = calculateExerciseXp(level, effResult.stars, mistakes, elapsed);
+    p.totalSolved = (p.totalSolved || 0) + 1;
+    p.solvedByLevel = p.solvedByLevel || { easy: 0, medium: 0, hard: 0 };
+    p.solvedByLevel[level] = (p.solvedByLevel[level] || 0) + 1;
+    if (effResult.stars === 3) {
+      p.perfectSolves = (p.perfectSolves || 0) + 1;
+    }
+    p.totalOptimalSteps = (p.totalOptimalSteps || 0) + optSteps;
+    p.totalPerformedSteps = (p.totalPerformedSteps || 0) + perfSteps;
+    p.averageEfficiency = Math.round(
+      p.totalOptimalSteps / Math.max(p.totalOptimalSteps, p.totalPerformedSteps) * 100
+    );
+    p.streak = (p.streak || 0) + 1;
+    p.bestStreak = Math.max(p.bestStreak || 0, p.streak);
+    p.points = (p.points || 0) + xpEarned;
+    p.topicsExplored = Array.isArray(p.topicsExplored) ? p.topicsExplored : [];
+    if (topic && !p.topicsExplored.includes(topic)) {
+      p.topicsExplored.push(topic);
+    }
+    const resultForBadges = {
+      ...d,
+      level,
+      optimalSteps: optSteps,
+      performedSteps: perfSteps,
+      mistakesCount: mistakes,
+      elapsedSeconds: elapsed,
+      stars: effResult.stars,
+      efficiency: effResult.efficiency,
+      isOptimal: effResult.isOptimal,
+      xpEarned
+    };
+    const newlyUnlocked = checkBadgesToUnlock(p, resultForBadges);
+    p.badges = p.badges || {};
+    const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+    for (const bId of newlyUnlocked) {
+      p.badges[bId] = {
+        unlocked: true,
+        unlockedAt: nowIso
+      };
+    }
+    p.recentHistory = Array.isArray(p.recentHistory) ? p.recentHistory : [];
+    p.recentHistory.unshift({
+      timestamp: nowIso,
+      formulaId: d.formulaId || "",
+      formulaName: d.formulaName || "",
+      formulaStr: d.formulaStr || "",
+      targetVar: d.targetVar || "",
+      level,
+      optimalSteps: optSteps,
+      performedSteps: perfSteps,
+      stars: effResult.stars,
+      efficiency: effResult.efficiency,
+      xpEarned
+    });
+    if (p.recentHistory.length > 20) {
+      p.recentHistory = p.recentHistory.slice(0, 20);
+    }
+    saveQuizProgress(p, customStorage);
+    return {
+      updatedProgress: p,
+      newlyUnlockedBadges: newlyUnlocked,
+      xpEarned,
+      stars: effResult.stars,
+      efficiency: effResult.efficiency,
+      isOptimal: effResult.isOptimal
+    };
+  }
+  function initQuizManager(dom2, state2, handlers = {}) {
+    let activeQuizExercise = null;
+    let quizStartTime = null;
+    let quizTimerInterval = null;
+    let performedMoves = 0;
+    let mistakesCount = 0;
+    let selectedLevel = "easy";
+    let selectedTopic = "";
+    if (dom2.quizTopicSelect) {
+      dom2.quizTopicSelect.innerHTML = '<option value="">Tutti gli argomenti</option>';
+      TOPICS.forEach((t) => {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+        dom2.quizTopicSelect.appendChild(opt);
+      });
+      dom2.quizTopicSelect.addEventListener("change", () => {
+        selectedTopic = dom2.quizTopicSelect.value;
+        startNewQuizExercise();
+      });
+    }
+    const levelBtns = [
+      { btn: dom2.quizLevelEasy, level: "easy" },
+      { btn: dom2.quizLevelMedium, level: "medium" },
+      { btn: dom2.quizLevelHard, level: "hard" },
+      { btn: dom2.quizLevelAll, level: "all" }
+    ];
+    levelBtns.forEach(({ btn, level }) => {
+      if (!btn) return;
+      btn.addEventListener("click", () => {
+        levelBtns.forEach((b) => b.btn && b.btn.classList.remove("active"));
+        btn.classList.add("active");
+        selectedLevel = level;
+        startNewQuizExercise();
+      });
+    });
+    if (dom2.quizBtnNew) {
+      dom2.quizBtnNew.addEventListener("click", () => startNewQuizExercise());
+    }
+    if (dom2.quizBtnDashboard) {
+      dom2.quizBtnDashboard.addEventListener("click", () => openDashboardModal());
+    }
+    if (dom2.btnQuizDashboard) {
+      dom2.btnQuizDashboard.addEventListener("click", () => openDashboardModal());
+    }
+    if (dom2.quizBtnNextExercise) {
+      dom2.quizBtnNextExercise.addEventListener("click", () => {
+        closeCompletionModal();
+        startNewQuizExercise();
+      });
+    }
+    if (dom2.quizBtnRetryExercise) {
+      dom2.quizBtnRetryExercise.addEventListener("click", () => {
+        closeCompletionModal();
+        retryCurrentQuizExercise();
+      });
+    }
+    if (dom2.quizBtnViewStats) {
+      dom2.quizBtnViewStats.addEventListener("click", () => {
+        closeCompletionModal();
+        openDashboardModal();
+      });
+    }
+    if (dom2.quizBtnCloseCompletion) {
+      dom2.quizBtnCloseCompletion.addEventListener("click", () => closeCompletionModal());
+    }
+    if (dom2.quizBtnCloseDashboard) {
+      dom2.quizBtnCloseDashboard.addEventListener("click", () => closeDashboardModal());
+    }
+    if (dom2.quizBtnCloseDashboardBottom) {
+      dom2.quizBtnCloseDashboardBottom.addEventListener("click", () => closeDashboardModal());
+    }
+    if (dom2.quizBtnResetProgress) {
+      dom2.quizBtnResetProgress.addEventListener("click", () => {
+        if (confirm("Sei sicuro di voler azzerare tutti i progressi e i badge del Quiz? Questa azione non pu\xF2 essere annullata.")) {
+          resetQuizProgress();
+          renderDashboardModal();
+        }
+      });
+    }
+    if (dom2.quizCompletionModalBackdrop) {
+      dom2.quizCompletionModalBackdrop.addEventListener("click", (e) => {
+        if (e.target === dom2.quizCompletionModalBackdrop) closeCompletionModal();
+      });
+    }
+    if (dom2.quizDashboardBackdrop) {
+      dom2.quizDashboardBackdrop.addEventListener("click", (e) => {
+        if (e.target === dom2.quizDashboardBackdrop) closeDashboardModal();
+      });
+    }
+    function startTimer() {
+      stopTimer();
+      quizStartTime = Date.now();
+      updateTimerDisplay();
+      quizTimerInterval = setInterval(updateTimerDisplay, 1e3);
+    }
+    function stopTimer() {
+      if (quizTimerInterval) {
+        clearInterval(quizTimerInterval);
+        quizTimerInterval = null;
+      }
+    }
+    function updateTimerDisplay() {
+      if (!dom2.quizTimer || !quizStartTime) return;
+      const elapsed = Math.floor((Date.now() - quizStartTime) / 1e3);
+      const mins = String(Math.floor(elapsed / 60)).padStart(2, "0");
+      const secs = String(elapsed % 60).padStart(2, "0");
+      dom2.quizTimer.textContent = `\u23F1\uFE0F ${mins}:${secs}`;
+    }
+    function updateQuizHud() {
+      if (!dom2.quizHud) return;
+      const isQuizMode = state2.mode === "quiz";
+      dom2.quizHud.hidden = !isQuizMode;
+      if (!isQuizMode) return;
+      if (activeQuizExercise) {
+        const lvlConfig = DIFFICULTY_LEVELS[activeQuizExercise.level] || DIFFICULTY_LEVELS.easy;
+        if (dom2.quizCurrentLevel) {
+          dom2.quizCurrentLevel.textContent = `Livello: ${lvlConfig.name}`;
+          dom2.quizCurrentLevel.style.borderColor = lvlConfig.color;
+        }
+        if (dom2.quizMovesCount) dom2.quizMovesCount.textContent = String(performedMoves);
+        if (dom2.quizOptimalCount) dom2.quizOptimalCount.textContent = String(activeQuizExercise.optimalSteps);
+        const eff = calculateStepEfficiency(activeQuizExercise.optimalSteps, performedMoves);
+        if (dom2.quizEfficiencyBadge) {
+          dom2.quizEfficiencyBadge.textContent = `${eff.efficiency}% ${"\u2B50".repeat(eff.stars)}`;
+        }
+      }
+    }
+    function startNewQuizExercise() {
+      const exercise = getRandomQuizExercise(selectedLevel, selectedTopic || null);
+      activeQuizExercise = exercise;
+      performedMoves = 0;
+      mistakesCount = 0;
+      startTimer();
+      updateQuizHud();
+      if (handlers.loadFormula) {
+        handlers.loadFormula(exercise.formulaEntry, exercise.targetVar);
+      }
+    }
+    function retryCurrentQuizExercise() {
+      if (!activeQuizExercise) {
+        startNewQuizExercise();
+        return;
+      }
+      performedMoves = 0;
+      mistakesCount = 0;
+      startTimer();
+      updateQuizHud();
+      if (handlers.loadFormula) {
+        handlers.loadFormula(activeQuizExercise.formulaEntry, activeQuizExercise.targetVar);
+      }
+    }
+    function onMoveExecuted(isValid) {
+      if (state2.mode !== "quiz") return;
+      if (isValid) {
+        performedMoves++;
+      } else {
+        mistakesCount++;
+      }
+      updateQuizHud();
+    }
+    function onGoalReached() {
+      if (state2.mode !== "quiz" || !activeQuizExercise) return;
+      stopTimer();
+      const elapsed = quizStartTime ? Math.floor((Date.now() - quizStartTime) / 1e3) : 0;
+      const currentProgress = loadQuizProgress();
+      const exerciseDetails = {
+        formulaId: activeQuizExercise.formulaEntry.id,
+        formulaName: activeQuizExercise.formulaEntry.name,
+        formulaStr: activeQuizExercise.formulaEntry.formula,
+        targetVar: activeQuizExercise.targetVar,
+        level: activeQuizExercise.level,
+        topic: activeQuizExercise.formulaEntry.topic,
+        optimalSteps: activeQuizExercise.optimalSteps,
+        performedSteps: performedMoves,
+        mistakesCount,
+        elapsedSeconds: elapsed
+      };
+      const res = recordQuizResult(currentProgress, exerciseDetails);
+      showCompletionModal(res, exerciseDetails);
+    }
+    function showCompletionModal(result, details) {
+      if (!dom2.quizCompletionModalBackdrop) return;
+      if (dom2.quizCompletionStars) {
+        dom2.quizCompletionStars.textContent = "\u2B50".repeat(result.stars);
+      }
+      if (dom2.quizCompletionTitle) {
+        dom2.quizCompletionTitle.textContent = result.stars === 3 ? "\u{1F3C6} Risoluzione Perfetta!" : result.stars === 2 ? "\u{1F389} Ottimo Lavoro!" : "\u2713 Esercizio Completato!";
+      }
+      if (dom2.quizCompletionMsg) {
+        const varP = prettyVar(details.targetVar);
+        dom2.quizCompletionMsg.textContent = `Hai isolato ${varP} in ${details.formulaName}.`;
+      }
+      if (dom2.quizCompletionStats) {
+        dom2.quizCompletionStats.innerHTML = `
+        <div class="completion-stat-row">
+          <span>Mosse eseguite:</span>
+          <strong>${details.performedSteps} (su ${details.optimalSteps} ottimali)</strong>
+        </div>
+        <div class="completion-stat-row">
+          <span>Efficienza algebrica:</span>
+          <strong class="${result.stars === 3 ? "text-success" : ""}">${result.efficiency}%</strong>
+        </div>
+        <div class="completion-stat-row">
+          <span>Tempo impiegato:</span>
+          <strong>${details.elapsedSeconds}s</strong>
+        </div>
+        <div class="completion-stat-row">
+          <span>Punti Guadagnati:</span>
+          <strong class="text-primary">+${result.xpEarned} XP</strong>
+        </div>
+      `;
+      }
+      if (dom2.quizCompletionBadges) {
+        if (result.newlyUnlockedBadges && result.newlyUnlockedBadges.length > 0) {
+          dom2.quizCompletionBadges.hidden = false;
+          const badgesHtml = result.newlyUnlockedBadges.map((bId) => {
+            const badgeObj = MASTERY_BADGES.find((b) => b.id === bId);
+            if (!badgeObj) return "";
+            return `
+            <div class="unlocked-badge-celebration">
+              <span class="unlocked-badge-icon">${badgeObj.icon}</span>
+              <div class="unlocked-badge-info">
+                <strong>Nuovo Badge Sbloccato: ${badgeObj.title}!</strong>
+                <p>${badgeObj.description}</p>
+              </div>
+            </div>
+          `;
+          }).join("");
+          dom2.quizCompletionBadges.innerHTML = `
+          <div class="unlocked-badges-banner">
+            ${badgesHtml}
+          </div>
+        `;
+        } else {
+          dom2.quizCompletionBadges.hidden = true;
+          dom2.quizCompletionBadges.innerHTML = "";
+        }
+      }
+      dom2.quizCompletionModalBackdrop.hidden = false;
+    }
+    function closeCompletionModal() {
+      if (dom2.quizCompletionModalBackdrop) {
+        dom2.quizCompletionModalBackdrop.hidden = true;
+      }
+    }
+    function openDashboardModal() {
+      renderDashboardModal();
+      if (dom2.quizDashboardBackdrop) {
+        dom2.quizDashboardBackdrop.hidden = false;
+      }
+    }
+    function closeDashboardModal() {
+      if (dom2.quizDashboardBackdrop) {
+        dom2.quizDashboardBackdrop.hidden = true;
+      }
+    }
+    function renderDashboardModal() {
+      const progress = loadQuizProgress();
+      const rank = getPlayerRank(progress.points);
+      if (dom2.quizRankTitle) dom2.quizRankTitle.textContent = rank.title;
+      if (dom2.quizRankLevel) dom2.quizRankLevel.textContent = `Livello ${rank.level}`;
+      if (dom2.quizRankAvatar) dom2.quizRankAvatar.textContent = rank.avatar;
+      if (dom2.quizXpText) dom2.quizXpText.textContent = `${rank.currentXp} XP`;
+      if (dom2.quizXpBar) dom2.quizXpBar.style.width = `${rank.progressPercent}%`;
+      if (dom2.quizStatTotal) dom2.quizStatTotal.textContent = String(progress.totalSolved || 0);
+      if (dom2.quizStatEasy) dom2.quizStatEasy.textContent = String(progress.solvedByLevel && progress.solvedByLevel.easy || 0);
+      if (dom2.quizStatMedium) dom2.quizStatMedium.textContent = String(progress.solvedByLevel && progress.solvedByLevel.medium || 0);
+      if (dom2.quizStatHard) dom2.quizStatHard.textContent = String(progress.solvedByLevel && progress.solvedByLevel.hard || 0);
+      if (dom2.quizStatEfficiency) dom2.quizStatEfficiency.textContent = `${progress.averageEfficiency || 100}%`;
+      if (dom2.quizStatStreak) dom2.quizStatStreak.textContent = `${progress.bestStreak || 0} \u{1F525}`;
+      if (dom2.quizBadgesGrid) {
+        const unlockedCount = Object.values(progress.badges || {}).filter((b) => b && b.unlocked).length;
+        if (dom2.quizBadgesCountBadge) {
+          dom2.quizBadgesCountBadge.textContent = `${unlockedCount} / ${MASTERY_BADGES.length} Sbloccati`;
+        }
+        dom2.quizBadgesGrid.innerHTML = MASTERY_BADGES.map((b) => {
+          const isUnlocked = progress.badges && progress.badges[b.id] && progress.badges[b.id].unlocked;
+          const cls = isUnlocked ? "quiz-badge-card unlocked" : "quiz-badge-card locked";
+          const dateStr = isUnlocked && progress.badges[b.id].unlockedAt ? new Date(progress.badges[b.id].unlockedAt).toLocaleDateString("it-IT") : "Bloccato";
+          return `
+          <div class="${cls}">
+            <div class="badge-icon-box">${b.icon}</div>
+            <div class="badge-content-box">
+              <strong class="badge-title">${b.title}</strong>
+              <p class="badge-desc">${b.description}</p>
+              <span class="badge-status-tag">${isUnlocked ? "\u2713 Sbloccato (" + dateStr + ")" : "\u{1F512} Da sbloccare"}</span>
+            </div>
+          </div>
+        `;
+        }).join("");
+      }
+      if (dom2.quizHistoryList) {
+        if (!progress.recentHistory || progress.recentHistory.length === 0) {
+          dom2.quizHistoryList.innerHTML = '<li class="history-empty">Nessun esercizio completato finora.</li>';
+        } else {
+          dom2.quizHistoryList.innerHTML = progress.recentHistory.map((h) => {
+            const starsStr = "\u2B50".repeat(h.stars);
+            return `
+            <li class="quiz-history-item">
+              <div class="quiz-history-head">
+                <span class="history-formula-name"><strong>${h.formulaName || h.formulaStr}</strong> (Isola ${prettyVar(h.targetVar)})</span>
+                <span class="history-stars">${starsStr}</span>
+              </div>
+              <div class="quiz-history-details">
+                <span>Livello: <em>${h.level}</em></span>
+                <span>Mosse: <strong>${h.performedSteps}/${h.optimalSteps}</strong></span>
+                <span>Efficienza: <strong>${h.efficiency}%</strong></span>
+                <span class="text-primary">+${h.xpEarned} XP</span>
+              </div>
+            </li>
+          `;
+          }).join("");
+        }
+      }
+    }
+    function setQuizModeActive(active) {
+      if (active) {
+        if (!activeQuizExercise) {
+          startNewQuizExercise();
+        } else {
+          startTimer();
+          updateQuizHud();
+        }
+      } else {
+        stopTimer();
+        updateQuizHud();
+        closeCompletionModal();
+        closeDashboardModal();
+      }
+    }
+    return {
+      startNewQuizExercise,
+      retryCurrentQuizExercise,
+      onMoveExecuted,
+      onGoalReached,
+      setQuizModeActive,
+      openDashboardModal,
+      closeDashboardModal,
+      closeCompletionModal,
+      getActiveExercise: () => activeQuizExercise
+    };
+  }
+
   // js/app.js
   var state = {
     baseFormula: null,
@@ -9772,6 +10541,7 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     history: [],
     historyIndex: -1,
     mode: "free",
+    quizManager: null,
     selectedId: null,
     pendingMove: null,
     goalReached: false,
@@ -9926,7 +10696,55 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     btnDownloadLatex: $("#btn-download-latex"),
     btnCopyLatex: $("#btn-copy-latex"),
     btnDownloadHtml: $("#btn-download-html"),
-    btnCloseWorksheet: $("#btn-close-worksheet")
+    btnCloseWorksheet: $("#btn-close-worksheet"),
+    // --- Modalità Eserciziario / Quiz Interattivo & Badge ---
+    btnModeQuiz: $("#btn-mode-quiz"),
+    btnQuizDashboard: $("#btn-quiz-dashboard"),
+    quizHud: $("#quiz-hud"),
+    quizCurrentLevel: $("#quiz-current-level"),
+    quizTimer: $("#quiz-timer"),
+    quizBtnNew: $("#quiz-btn-new"),
+    quizBtnDashboard: $("#quiz-btn-dashboard"),
+    quizLevelEasy: $("#quiz-level-easy"),
+    quizLevelMedium: $("#quiz-level-medium"),
+    quizLevelHard: $("#quiz-level-hard"),
+    quizLevelAll: $("#quiz-level-all"),
+    quizTopicSelect: $("#quiz-topic-select"),
+    quizMovesCount: $("#quiz-moves-count"),
+    quizOptimalCount: $("#quiz-optimal-count"),
+    quizEfficiencyBadge: $("#quiz-efficiency-badge"),
+    quizCompletionModalBackdrop: $("#quiz-completion-modal-backdrop"),
+    quizCompletionModal: $("#quiz-completion-modal"),
+    quizCompletionIcon: $("#quiz-completion-icon"),
+    quizCompletionStars: $("#quiz-completion-stars"),
+    quizCompletionTitle: $("#quiz-completion-title"),
+    quizCompletionMsg: $("#quiz-completion-msg"),
+    quizCompletionStats: $("#quiz-completion-stats"),
+    quizCompletionBadges: $("#quiz-completion-badges"),
+    quizBtnRetryExercise: $("#quiz-btn-retry-exercise"),
+    quizBtnViewStats: $("#quiz-btn-view-stats"),
+    quizBtnNextExercise: $("#quiz-btn-next-exercise"),
+    quizBtnCloseCompletion: $("#quiz-btn-close-completion"),
+    quizDashboardBackdrop: $("#quiz-dashboard-backdrop"),
+    quizDashboardModal: $("#quiz-dashboard-modal"),
+    quizDashboardTitle: $("#quiz-dashboard-title"),
+    quizBtnCloseDashboard: $("#quiz-btn-close-dashboard"),
+    quizRankAvatar: $("#quiz-rank-avatar"),
+    quizRankTitle: $("#quiz-rank-title"),
+    quizRankLevel: $("#quiz-rank-level"),
+    quizXpText: $("#quiz-xp-text"),
+    quizXpBar: $("#quiz-xp-bar"),
+    quizStatTotal: $("#quiz-stat-total"),
+    quizStatEasy: $("#quiz-stat-easy"),
+    quizStatMedium: $("#quiz-stat-medium"),
+    quizStatHard: $("#quiz-stat-hard"),
+    quizStatEfficiency: $("#quiz-stat-efficiency"),
+    quizStatStreak: $("#quiz-stat-streak"),
+    quizBadgesCountBadge: $("#quiz-badges-count-badge"),
+    quizBadgesGrid: $("#quiz-badges-grid"),
+    quizHistoryList: $("#quiz-history-list"),
+    quizBtnResetProgress: $("#quiz-btn-reset-progress"),
+    quizBtnCloseDashboardBottom: $("#quiz-btn-close-dashboard-bottom")
   };
   function init() {
     initTheme();
@@ -9946,6 +10764,7 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     initPwa();
     initMobileNav();
     initWorksheetExporter(dom, state);
+    state.quizManager = initQuizManager(dom, state, { loadFormula });
     loadFormula(getFormulaById("v-st"), "t");
   }
   var deferredInstallPrompt = null;
@@ -11889,6 +12708,9 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         if (dom.completionSubtitle) {
           dom.completionSubtitle.textContent = `Formula inversa ricavata con successo: ${toPretty(state.currentEq, 0)}.`;
         }
+        if (state.mode === "quiz" && state.quizManager) {
+          state.quizManager.onGoalReached();
+        }
       }
     }
     if (dom.objectiveTargetPicker && f && f.isolate) {
@@ -12098,6 +12920,9 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     state.historyIndex = state.history.length - 1;
     renderHistory();
     updateHistoryButtons();
+    if (!isInitial && state.quizManager) {
+      state.quizManager.onMoveExecuted(!isFailed);
+    }
   }
   function renderHistory() {
     if (state.history.length === 0) {
@@ -12385,6 +13210,13 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         btn.classList.add("active");
         btn.setAttribute("aria-pressed", "true");
         state.mode = btn.dataset.mode;
+        if (dom.btnModeQuiz) {
+          dom.btnModeQuiz.classList.remove("active");
+          dom.btnModeQuiz.setAttribute("aria-pressed", "false");
+        }
+        if (state.quizManager) {
+          state.quizManager.setQuizModeActive(false);
+        }
         const modeDesc = {
           free: "\u{1F513} Modalit\xE0 Libera: interagisci liberamente trascinando variabili e applicando operazioni.",
           auto: "\u26A1 Modalit\xE0 Automatica: a ogni clic del mouse il programma esegue una operazione giustificando la regola."
@@ -12406,6 +13238,53 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         }
       });
     });
+    if (dom.btnModeQuiz) {
+      dom.btnModeQuiz.addEventListener("click", () => {
+        const isCurrentlyQuiz = state.mode === "quiz";
+        if (isCurrentlyQuiz) {
+          state.mode = "free";
+          dom.btnModeQuiz.classList.remove("active");
+          dom.btnModeQuiz.setAttribute("aria-pressed", "false");
+          document.querySelectorAll(".mode-btn").forEach((b) => {
+            const isFree = b.dataset.mode === "free";
+            b.classList.toggle("active", isFree);
+            b.setAttribute("aria-pressed", isFree ? "true" : "false");
+          });
+          if (state.quizManager) state.quizManager.setQuizModeActive(false);
+          const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
+          if (card) card.classList.remove("is-auto-mode");
+          const hintBadge = document.querySelector(".drag-hint-badge");
+          const hintText = document.querySelector(".drag-hint-text");
+          if (hintBadge && hintText) {
+            hintBadge.textContent = "\u2728 Modalit\xE0 Libera";
+            hintText.innerHTML = "Trascina una variabile dall'altra parte dell'uguale: rilasciala <strong>sotto la linea di frazione</strong> per dividere, o al numeratore per moltiplicare!";
+          }
+          renderEquationView();
+          clearSelection();
+          showMessage("Modalit\xE0 Quiz disattivata. Tornato in Modalit\xE0 Libera.", "info");
+        } else {
+          state.mode = "quiz";
+          dom.btnModeQuiz.classList.add("active");
+          dom.btnModeQuiz.setAttribute("aria-pressed", "true");
+          document.querySelectorAll(".mode-btn").forEach((b) => {
+            b.classList.remove("active");
+            b.setAttribute("aria-pressed", "false");
+          });
+          if (state.quizManager) state.quizManager.setQuizModeActive(true);
+          const card = dom.equationDisplay ? dom.equationDisplay.closest(".equation-display-card") : null;
+          if (card) card.classList.remove("is-auto-mode");
+          const hintBadge = document.querySelector(".drag-hint-badge");
+          const hintText = document.querySelector(".drag-hint-text");
+          if (hintBadge && hintText) {
+            hintBadge.textContent = "\u{1F3AF} Modalit\xE0 Quiz";
+            hintText.innerHTML = "Risolvi l'esercizio nel <strong>minor numero di passaggi possibile</strong>. Trascina variabili o usa le operazioni!";
+          }
+          renderEquationView();
+          clearSelection();
+          showMessage("\u{1F3AF} Modalit\xE0 Eserciziario / Quiz attivata! Risolvi le formule con la massima efficienza algebrica.", "info");
+        }
+      });
+    }
   }
   var _isAutoStepping = false;
   function executeNextAutoStep() {
@@ -12718,6 +13597,14 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
+        if (dom.quizCompletionModalBackdrop && !dom.quizCompletionModalBackdrop.hidden) {
+          dom.quizCompletionModalBackdrop.hidden = true;
+          return;
+        }
+        if (dom.quizDashboardBackdrop && !dom.quizDashboardBackdrop.hidden) {
+          dom.quizDashboardBackdrop.hidden = true;
+          return;
+        }
         if (dom.worksheetModalBackdrop && !dom.worksheetModalBackdrop.hidden) {
           dom.worksheetModalBackdrop.hidden = true;
           return;

@@ -30,6 +30,7 @@ import {
   clearUserFormulas, exportUserFormulasJSON, importUserFormulasJSON,
 } from './formula-db.js';
 import { initWorksheetExporter, openWorksheetModal } from './worksheet-export.js';
+import { initQuizManager } from './quiz.js';
 
 // ---------------------------------------------------------------------------
 // Stato
@@ -43,6 +44,7 @@ const state = {
   history: [],
   historyIndex: -1,
   mode: 'free',
+  quizManager: null,
   selectedId: null,
   pendingMove: null,
   goalReached: false,
@@ -202,6 +204,54 @@ const dom = {
   btnCopyLatex: $('#btn-copy-latex'),
   btnDownloadHtml: $('#btn-download-html'),
   btnCloseWorksheet: $('#btn-close-worksheet'),
+  // --- Modalità Eserciziario / Quiz Interattivo & Badge ---
+  btnModeQuiz: $('#btn-mode-quiz'),
+  btnQuizDashboard: $('#btn-quiz-dashboard'),
+  quizHud: $('#quiz-hud'),
+  quizCurrentLevel: $('#quiz-current-level'),
+  quizTimer: $('#quiz-timer'),
+  quizBtnNew: $('#quiz-btn-new'),
+  quizBtnDashboard: $('#quiz-btn-dashboard'),
+  quizLevelEasy: $('#quiz-level-easy'),
+  quizLevelMedium: $('#quiz-level-medium'),
+  quizLevelHard: $('#quiz-level-hard'),
+  quizLevelAll: $('#quiz-level-all'),
+  quizTopicSelect: $('#quiz-topic-select'),
+  quizMovesCount: $('#quiz-moves-count'),
+  quizOptimalCount: $('#quiz-optimal-count'),
+  quizEfficiencyBadge: $('#quiz-efficiency-badge'),
+  quizCompletionModalBackdrop: $('#quiz-completion-modal-backdrop'),
+  quizCompletionModal: $('#quiz-completion-modal'),
+  quizCompletionIcon: $('#quiz-completion-icon'),
+  quizCompletionStars: $('#quiz-completion-stars'),
+  quizCompletionTitle: $('#quiz-completion-title'),
+  quizCompletionMsg: $('#quiz-completion-msg'),
+  quizCompletionStats: $('#quiz-completion-stats'),
+  quizCompletionBadges: $('#quiz-completion-badges'),
+  quizBtnRetryExercise: $('#quiz-btn-retry-exercise'),
+  quizBtnViewStats: $('#quiz-btn-view-stats'),
+  quizBtnNextExercise: $('#quiz-btn-next-exercise'),
+  quizBtnCloseCompletion: $('#quiz-btn-close-completion'),
+  quizDashboardBackdrop: $('#quiz-dashboard-backdrop'),
+  quizDashboardModal: $('#quiz-dashboard-modal'),
+  quizDashboardTitle: $('#quiz-dashboard-title'),
+  quizBtnCloseDashboard: $('#quiz-btn-close-dashboard'),
+  quizRankAvatar: $('#quiz-rank-avatar'),
+  quizRankTitle: $('#quiz-rank-title'),
+  quizRankLevel: $('#quiz-rank-level'),
+  quizXpText: $('#quiz-xp-text'),
+  quizXpBar: $('#quiz-xp-bar'),
+  quizStatTotal: $('#quiz-stat-total'),
+  quizStatEasy: $('#quiz-stat-easy'),
+  quizStatMedium: $('#quiz-stat-medium'),
+  quizStatHard: $('#quiz-stat-hard'),
+  quizStatEfficiency: $('#quiz-stat-efficiency'),
+  quizStatStreak: $('#quiz-stat-streak'),
+  quizBadgesCountBadge: $('#quiz-badges-count-badge'),
+  quizBadgesGrid: $('#quiz-badges-grid'),
+  quizHistoryList: $('#quiz-history-list'),
+  quizBtnResetProgress: $('#quiz-btn-reset-progress'),
+  quizBtnCloseDashboardBottom: $('#quiz-btn-close-dashboard-bottom'),
 };
 
 // ---------------------------------------------------------------------------
@@ -225,6 +275,7 @@ function init() {
   initPwa();
   initMobileNav();
   initWorksheetExporter(dom, state);
+  state.quizManager = initQuizManager(dom, state, { loadFormula });
   loadFormula(getFormulaById('v-st'), 't');
 }
 
@@ -2522,6 +2573,9 @@ function updateObjective() {
       if (dom.completionSubtitle) {
         dom.completionSubtitle.textContent = `Formula inversa ricavata con successo: ${toPretty(state.currentEq, 0)}.`;
       }
+      if (state.mode === 'quiz' && state.quizManager) {
+        state.quizManager.onGoalReached();
+      }
     }
   }
 
@@ -2764,6 +2818,9 @@ function pushHistory(entry, isInitial = false, isFailed = false) {
   state.historyIndex = state.history.length - 1;
   renderHistory();
   updateHistoryButtons();
+  if (!isInitial && state.quizManager) {
+    state.quizManager.onMoveExecuted(!isFailed);
+  }
 }
 
 function renderHistory() {
@@ -3066,6 +3123,15 @@ function bindModeEvents() {
       btn.classList.add('active');
       btn.setAttribute('aria-pressed', 'true');
       state.mode = btn.dataset.mode;
+
+      if (dom.btnModeQuiz) {
+        dom.btnModeQuiz.classList.remove('active');
+        dom.btnModeQuiz.setAttribute('aria-pressed', 'false');
+      }
+      if (state.quizManager) {
+        state.quizManager.setQuizModeActive(false);
+      }
+
       const modeDesc = {
         free: '🔓 Modalità Libera: interagisci liberamente trascinando variabili e applicando operazioni.',
         auto: '⚡ Modalità Automatica: a ogni clic del mouse il programma esegue una operazione giustificando la regola.',
@@ -3073,6 +3139,7 @@ function bindModeEvents() {
       showMessage(modeDesc[state.mode] || '', 'info');
       const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
       if (card) card.classList.toggle('is-auto-mode', state.mode === 'auto');
+
       if (state.mode === 'auto') {
         showAutoMode();
       } else {
@@ -3087,6 +3154,56 @@ function bindModeEvents() {
       }
     });
   });
+
+  if (dom.btnModeQuiz) {
+    dom.btnModeQuiz.addEventListener('click', () => {
+      const isCurrentlyQuiz = state.mode === 'quiz';
+      if (isCurrentlyQuiz) {
+        // Disattiva e torna a Libera
+        state.mode = 'free';
+        dom.btnModeQuiz.classList.remove('active');
+        dom.btnModeQuiz.setAttribute('aria-pressed', 'false');
+        document.querySelectorAll('.mode-btn').forEach((b) => {
+          const isFree = b.dataset.mode === 'free';
+          b.classList.toggle('active', isFree);
+          b.setAttribute('aria-pressed', isFree ? 'true' : 'false');
+        });
+        if (state.quizManager) state.quizManager.setQuizModeActive(false);
+        const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
+        if (card) card.classList.remove('is-auto-mode');
+        const hintBadge = document.querySelector('.drag-hint-badge');
+        const hintText = document.querySelector('.drag-hint-text');
+        if (hintBadge && hintText) {
+          hintBadge.textContent = '✨ Modalità Libera';
+          hintText.innerHTML = 'Trascina una variabile dall\'altra parte dell\'uguale: rilasciala <strong>sotto la linea di frazione</strong> per dividere, o al numeratore per moltiplicare!';
+        }
+        renderEquationView();
+        clearSelection();
+        showMessage('Modalità Quiz disattivata. Tornato in Modalità Libera.', 'info');
+      } else {
+        // Attiva Quiz Mode
+        state.mode = 'quiz';
+        dom.btnModeQuiz.classList.add('active');
+        dom.btnModeQuiz.setAttribute('aria-pressed', 'true');
+        document.querySelectorAll('.mode-btn').forEach((b) => {
+          b.classList.remove('active');
+          b.setAttribute('aria-pressed', 'false');
+        });
+        if (state.quizManager) state.quizManager.setQuizModeActive(true);
+        const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
+        if (card) card.classList.remove('is-auto-mode');
+        const hintBadge = document.querySelector('.drag-hint-badge');
+        const hintText = document.querySelector('.drag-hint-text');
+        if (hintBadge && hintText) {
+          hintBadge.textContent = '🎯 Modalità Quiz';
+          hintText.innerHTML = 'Risolvi l\'esercizio nel <strong>minor numero di passaggi possibile</strong>. Trascina variabili o usa le operazioni!';
+        }
+        renderEquationView();
+        clearSelection();
+        showMessage('🎯 Modalità Eserciziario / Quiz attivata! Risolvi le formule con la massima efficienza algebrica.', 'info');
+      }
+    });
+  }
 }
 
 let _isAutoStepping = false;
@@ -3427,6 +3544,14 @@ function bindGlobalEvents() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (dom.quizCompletionModalBackdrop && !dom.quizCompletionModalBackdrop.hidden) {
+        dom.quizCompletionModalBackdrop.hidden = true;
+        return;
+      }
+      if (dom.quizDashboardBackdrop && !dom.quizDashboardBackdrop.hidden) {
+        dom.quizDashboardBackdrop.hidden = true;
+        return;
+      }
       if (dom.worksheetModalBackdrop && !dom.worksheetModalBackdrop.hidden) {
         dom.worksheetModalBackdrop.hidden = true;
         return;
