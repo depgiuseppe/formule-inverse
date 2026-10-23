@@ -10,6 +10,7 @@
 //   - supporto a denominatori sottintesi (/1) e linee di frazione dinamiche.
 
 import { unwrap, toPretty, FUNC_PRETTY } from './ast.js';
+import { verbalizeEquation, verbalizeAst } from './a11y.js';
 
 // Ritorna una stringa HTML che rappresenta l'equazione.
 export function renderEquation(eq, opts = {}) {
@@ -32,8 +33,9 @@ export function renderEquation(eq, opts = {}) {
   const leftMember = renderMember(eq.left, 'left', memberOpts);
   const rightMember = renderMember(eq.right, 'right', memberOpts);
 
+  const speechLabel = verbalizeEquation(eq);
   return (
-    `<div class="math-eq interactive-math-eq ${showImplicitDen ? 'show-implicit-denominators' : ''}">` +
+    `<div class="math-eq interactive-math-eq ${showImplicitDen ? 'show-implicit-denominators' : ''}" role="region" aria-label="Equazione: ${escapeHtml(speechLabel)}" aria-roledescription="equazione matematica interattiva">` +
     `  <div class="math-member-wrap math-member-left">${leftMember}</div>` +
     `  <div class="eq-sign-wrap"><span class="eq-sign" aria-label="uguale">=</span></div>` +
     `  <div class="math-member-wrap math-member-right">${rightMember}</div>` +

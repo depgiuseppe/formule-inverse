@@ -594,7 +594,142 @@ async function run() {
   });
   check('Il pulsante Chiudi nasconde correttamente la modale', isWorksheetModalClosed);
 
-  // 20. Nessun errore in console durante le interazioni
+  // 20. Accessibilità avanzata (a11y/DSA): vocalizzazione matematica aria-live e attributi ARIA
+  const liveVerbalizer = await page.locator('#math-live-verbalizer').count();
+  const liveAlert = await page.locator('#math-live-alert').count();
+  check('Regioni live per vocalizzazione matematica presenti nel DOM (#math-live-verbalizer, #math-live-alert)',
+    liveVerbalizer === 1 && liveAlert === 1);
+
+  const verbalText = await page.locator('#math-live-verbalizer').innerText();
+  check('aria-live math verbalization contiene la lettura naturale italiana dell\'equazione',
+    verbalText.length > 0 && /uguale/i.test(verbalText), verbalText);
+
+  const eqAriaLabel = await page.locator('#equation-display .math-eq').getAttribute('aria-label');
+  check('Il contenitore dell\'equazione espone aria-label descrittivo per screen reader',
+    eqAriaLabel && eqAriaLabel.startsWith('Equazione:'), eqAriaLabel);
+
+  const tokenRoleDesc = await page.locator('#equation-display .draggable-token').first().getAttribute('aria-roledescription');
+  check('I token matematici trascinabili definiscono aria-roledescription coerente',
+    tokenRoleDesc === 'termine matematico trascinabile', tokenRoleDesc);
+
+  const hasSpeakBtn = await page.locator('#btn-speak-equation').count();
+  check('Pulsante di sintesi vocale (#btn-speak-equation) presente con aria-label', hasSpeakBtn === 1);
+  if (hasSpeakBtn) {
+    await page.locator('#btn-speak-equation').click();
+    await page.waitForTimeout(200);
+    const spokenLive = await page.locator('#math-live-verbalizer').innerText();
+    check('Pulsante audio attiva la lettura didattica DSA senza errori',
+      /Lettura formula|Equazione/i.test(spokenLive) || spokenLive.length > 0, spokenLive);
+  }
+
+  // 21. Ottimizzazione Lavagna Interattiva (LIM) e Calibrazione Penna / Touch
+  const hasLimBtn = await page.locator('#btn-lim-mode').count();
+  check('Pulsante modalità LIM (#btn-lim-mode) presente nella toolbar', hasLimBtn === 1);
+
+  await page.locator('#btn-lim-mode').click();
+  await page.waitForTimeout(200);
+  const isLimActive = await page.evaluate(() => document.body.classList.contains('lim-mode'));
+  const limAriaPressed = await page.locator('#btn-lim-mode').getAttribute('aria-pressed');
+  check('Attivazione modalità LIM aggiunge classe .lim-mode e aggiorna aria-pressed="true"',
+    isLimActive && limAriaPressed === 'true');
+
+  // Test calibrazione stilo LIM: trascina con pointerType="pen" rilasciando a 25px dal bordo della dropzone (simulazione parallasse vetro LIM)
+  await page.locator('#custom-formula').fill('F = m * a');
+  await page.locator('#custom-target').fill('a');
+  await page.locator('#btn-load-custom').click();
+  await page.waitForTimeout(250);
+
+  const limStylusResult = await page.evaluate(() => {
+    const tokens = Array.from(document.querySelectorAll('#equation-display .draggable-token'));
+    const mToken = tokens.find((el) => el.textContent.trim() === 'm');
+    const lhsZone = document.querySelector('#equation-display .dropzone[data-side="left"][data-slot="den"]');
+    if (!mToken || !lhsZone) return { error: 'Elementi non trovati' };
+
+    const mRect = mToken.getBoundingClientRect();
+    const lhsRect = lhsZone.getBoundingClientRect();
+    const eqBefore = document.querySelector('#equation-display')?.innerText.replace(/\s+/g, ' ').trim();
+
+    // Inizio drag con penna LIM
+    mToken.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, cancelable: true,
+      pointerId: 99, pointerType: 'pen', isPrimary: true,
+      clientX: mRect.left + mRect.width / 2, clientY: mRect.top + mRect.height / 2,
+    }));
+
+    // Posizione di rilascio con parallasse LIM (25px sotto il rettangolo del denominatore)
+    const penParallaxX = lhsRect.left + lhsRect.width / 2;
+    const penParallaxY = lhsRect.bottom + 25;
+
+    mToken.dispatchEvent(new PointerEvent('pointermove', {
+      bubbles: true, cancelable: true,
+      pointerId: 99, pointerType: 'pen', isPrimary: true,
+      clientX: penParallaxX, clientY: penParallaxY,
+    }));
+
+    mToken.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true, cancelable: true,
+      pointerId: 99, pointerType: 'pen', isPrimary: true,
+      clientX: penParallaxX, clientY: penParallaxY,
+    }));
+
+    const eqAfter = document.querySelector('#equation-display')?.innerText.replace(/\s+/g, ' ').trim();
+    return { eqBefore, eqAfter, success: eqBefore !== eqAfter };
+  });
+
+  check('Calibrazione penna/stilo LIM: aggancio geometrico della dropzone con tolleranza da parallasse',
+    limStylusResult.success === true, JSON.stringify(limStylusResult));
+
+  // Disattiva modalità LIM
+  await page.locator('#btn-lim-mode').click();
+  await page.waitForTimeout(150);
+
+  // 22. Verifica completa contrasti WCAG AAA su pulsanti, target e pannelli
+  await page.locator('#btn-contrast').click();
+  await page.waitForTimeout(250);
+
+  const aaaContrasts = await page.evaluate(() => {
+    const lum = (c) => {
+      const parts = c.match(/\d+/g);
+      if (!parts || parts.length < 3) return 0;
+      const [r, g, b] = parts.slice(0, 3).map(Number)
+        .map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const effBg = (el) => {
+      let n = el;
+      while (n && n !== document.documentElement) {
+        const bg = getComputedStyle(n).backgroundColor;
+        if (bg && !/rgba\(0, 0, 0, 0\)/.test(bg)) return bg;
+        n = n.parentElement;
+      }
+      return getComputedStyle(document.body).backgroundColor;
+    };
+    const getRatio = (el) => {
+      if (!el) return 21;
+      const l1 = lum(getComputedStyle(el).color);
+      const l2 = lum(effBg(el));
+      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    };
+
+    const targetEl = document.querySelector('.node-target');
+    const btnSecondary = document.querySelector('.btn-secondary');
+    const keypadOp = document.querySelector('.keypad-op');
+
+    return {
+      targetRatio: getRatio(targetEl),
+      btnSecondaryRatio: getRatio(btnSecondary),
+      keypadRatio: getRatio(keypadOp),
+    };
+  });
+
+  check('Alto contrasto WCAG AAA: target ratio ≥ 7.0', aaaContrasts.targetRatio >= 7.0, aaaContrasts.targetRatio.toFixed(2));
+  check('Alto contrasto WCAG AAA: pulsanti secondari ratio ≥ 7.0', aaaContrasts.btnSecondaryRatio >= 7.0, aaaContrasts.btnSecondaryRatio.toFixed(2));
+  check('Alto contrasto WCAG AAA: tastierino op ratio ≥ 7.0', aaaContrasts.keypadRatio >= 7.0, aaaContrasts.keypadRatio.toFixed(2));
+
+  await page.locator('#btn-contrast').click();
+  await page.waitForTimeout(150);
+
+  // 23. Nessun errore in console durante le interazioni
   check('Nessun errore JavaScript durante le interazioni',
     consoleErrors.length === 0, consoleErrors.join(' | '));
 

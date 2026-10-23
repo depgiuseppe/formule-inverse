@@ -782,7 +782,7 @@ export function cleanupTouchDrag(container) {
 
   const targetContainer = container || (typeof document !== 'undefined' ? document.getElementById('equation-display') : null);
   if (targetContainer) {
-    targetContainer.classList.remove('is-dragging-equation');
+    targetContainer.classList.remove('is-dragging-equation', 'lim-stylus-mode', 'lim-stylus-active');
     clearDropzonesHighlight(targetContainer);
   }
 
@@ -977,13 +977,77 @@ export function clearDropzonesHighlight(container) {
 }
 
 /**
- * Pointer events per touch screens (iPad / mobile / laptop touch).
+ * Calibrazione precisa del tocco e dello stilo LIM (Lavagna Interattiva Multimediale).
+ * Cerca prima il contatto diretto via elementFromPoint; se assente o impreciso (dovuto
+ * alla parallasse del vetro spesso o a tratti veloci della penna), ricerca geometricamente
+ * la dropzone di destinazione più vicina entro la soglia di tolleranza calibrata.
+ */
+export function findCalibratedDropzone(container, clientX, clientY, pointerType = 'touch', activeDragData = null) {
+  if (!container || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+
+  // 1. Risoluzione diretta del punto
+  if (typeof document !== 'undefined') {
+    const elemBelow = document.elementFromPoint(clientX, clientY);
+    const directDz = elemBelow ? elemBelow.closest('.dropzone') : null;
+    if (directDz) {
+      if (activeDragData &&
+          directDz.dataset.side === activeDragData.fromSide &&
+          directDz.dataset.slot === activeDragData.fromSlot) {
+        return null;
+      }
+      return directDz;
+    }
+  }
+
+  // 2. Calibrazione di prossimità per stilo LIM e tocco
+  const isPen = pointerType === 'pen';
+  const isLimMode = container.classList.contains('lim-mode') ||
+    (typeof document !== 'undefined' && (document.body.classList.contains('lim-mode') || document.body.classList.contains('lim-stylus-mode')));
+
+  // Tolleranza estesa per penna LIM (fino a 52px, 68px in LIM-mode)
+  const maxDistance = isPen ? (isLimMode ? 68 : 52) : (isLimMode ? 46 : 32);
+
+  const candidates = Array.from(container.querySelectorAll('.dropzone'));
+  let bestDz = null;
+  let bestDist = Infinity;
+
+  for (const dz of candidates) {
+    if (activeDragData &&
+        dz.dataset.side === activeDragData.fromSide &&
+        dz.dataset.slot === activeDragData.fromSlot) {
+      continue;
+    }
+    const rect = dz.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) continue;
+
+    // Distanza euclidea dal punto alle coordinate rettangolari della dropzone
+    const dx = Math.max(rect.left - clientX, 0, clientX - rect.right);
+    const dy = Math.max(rect.top - clientY, 0, clientY - rect.bottom);
+    const dist = Math.hypot(dx, dy);
+
+    if (dist <= maxDistance && dist < bestDist) {
+      bestDist = dist;
+      bestDz = dz;
+    }
+  }
+
+  return bestDz;
+}
+
+/**
+ * Pointer events per touch screens (iPad / mobile / laptop touch) e stilo LIM.
  */
 function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) {
   container.querySelectorAll('.draggable-token').forEach((token) => {
     token.addEventListener('pointerdown', (e) => {
-      lastPointerType = e.pointerType || 'mouse';
+      lastPointerType = e.pointerType || 'touch';
       if (e.pointerType === 'mouse') return; // mouse usa drag/drop nativo HTML5
+
+      // Rilevamento avanzato penna LIM / Apple Pencil / stylus
+      if (e.pointerType === 'pen') {
+        container.classList.add('lim-stylus-mode');
+        if (typeof document !== 'undefined') document.body.classList.add('stylus-detected');
+      }
 
       // Impedisce che il touch su una singola variabile si propaghi al gruppo genitore (.math-term-group)
       e.stopPropagation();
@@ -1026,8 +1090,8 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
         touchHasMoved = true;
       }
 
-      const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
-      const dropzone = elemBelow ? elemBelow.closest('.dropzone') : null;
+      // Risoluzione calibrata della dropzone
+      const dropzone = findCalibratedDropzone(container, e.clientX, e.clientY, e.pointerType, activeDragData);
 
       container.querySelectorAll('.dropzone').forEach((dz) => {
         dz.classList.remove('dropzone-hover');
@@ -1057,10 +1121,9 @@ function setupTouchDragFallback(container, { onApplyMove, getCurrentEquation }) 
       const isCurrentToken = touchDraggedElem === token;
       const dragData = activeDragData ? { ...activeDragData } : null;
       const hadMoved = touchHasMoved;
-      const elemBelow = (typeof document !== 'undefined' && Number.isFinite(e.clientX) && Number.isFinite(e.clientY))
-        ? document.elementFromPoint(e.clientX, e.clientY)
-        : null;
-      const dropzone = elemBelow ? elemBelow.closest('.dropzone') : null;
+
+      // Risoluzione calibrata al rilascio dello stilo/dito
+      const dropzone = findCalibratedDropzone(container, e.clientX, e.clientY, e.pointerType, dragData);
 
       // Ripristina sempre lo stato visivo e rimuove gli highlight delle dropzone
       cleanupTouchDrag(container);

@@ -99,28 +99,209 @@ body.dark-theme {
 }
 
 /* ------------------------------------------------------------------------- */
-/* 3. Alto Contrasto                                                          */
+/* 3. Alto Contrasto WCAG AAA                                                 */
+/* ------------------------------------------------------------------------- */
+body.high-contrast,
+:root[data-contrast="high"] body {
+  --bg: #000000;
+  --bg-panel: #0a0a0a;
+  --bg-card: #000000;
+  --bg-soft: #141414;
+  --bg-hover: #2e2e2e;
+  --ink: #ffffff;
+  --ink-soft: #f4f4f4;
+  --ink-muted: #e4e4e4;
+  --line: #888888;
+  --line-strong: #d0d0d0;
+  --primary: #70b8ff;
+  --primary-dark: #a6d2ff;
+  --primary-soft: #142a42;
+  --success: #78f0a0;
+  --success-soft: #10311f;
+  --warning: #ffff00;
+  --warning-soft: #333300;
+  --danger: #ff9494;
+  --danger-soft: #3a1414;
+}
+
+/* ------------------------------------------------------------------------- */
+/* 3b. WCAG AAA High Contrast Overrides                                      */
 /* ------------------------------------------------------------------------- */
 body.high-contrast {
-  --bg: #000000;
-  --bg-panel: #0d0d0d;
-  --bg-card: #000000;
-  --bg-soft: #16181d;
-  --bg-hover: #333333;
-  --ink: #ffffff;
-  --ink-soft: #eaeaea;
-  --ink-muted: #c8c8c8;
-  --line: #777777;
-  --line-strong: #aaaaaa;
-  --primary: #66b3ff;
-  --primary-dark: #99ccff;
-  --primary-soft: #10314f;
-  --success: #6ee7a0;
-  --success-soft: #10311f;
-  --warning: #ffd166;
-  --warning-soft: #3a2f10;
-  --danger: #ff8080;
-  --danger-soft: #3a1414;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+body.high-contrast .panel,
+body.high-contrast .equation-display-card,
+body.high-contrast .modal,
+body.high-contrast .numerical-calc-card,
+body.high-contrast .completion-banner {
+  border: 2px solid #ffffff !important;
+  background-color: #000000 !important;
+}
+
+body.high-contrast .btn,
+body.high-contrast .btn-secondary,
+body.high-contrast .btn-mini,
+body.high-contrast .mode-btn,
+body.high-contrast .keypad-op,
+body.high-contrast .keypad-operand {
+  border: 2px solid #ffffff !important;
+  color: #ffffff !important;
+  background-color: #121212 !important;
+  font-weight: 600;
+}
+
+body.high-contrast .btn-primary,
+body.high-contrast .mode-btn.active,
+body.high-contrast .btn[aria-pressed="true"],
+body.high-contrast .btn-mini[aria-pressed="true"] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #ffffff !important;
+  font-weight: 700;
+}
+
+body.high-contrast :where(button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid #ffff00 !important;
+  outline-offset: 3px !important;
+}
+
+body.high-contrast .math-node {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+body.high-contrast .node-var.node-target {
+  color: #ffff00 !important;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+
+body.high-contrast .math-node.selected {
+  outline: 3px solid #ffff00 !important;
+  background-color: #262600 !important;
+  color: #ffffff !important;
+}
+
+body.high-contrast .frac-bar,
+body.high-contrast .dynamic-frac-bar {
+  background-color: #ffffff !important;
+  height: 3px !important;
+}
+
+body.high-contrast .dropzone {
+  border: 2px dashed #ffff00 !important;
+  color: #ffffff !important;
+}
+
+body.high-contrast .dropzone-hover {
+  background-color: #262600 !important;
+  border: 3px solid #ffff00 !important;
+}
+
+body.high-contrast input,
+body.high-contrast select,
+body.high-contrast textarea {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border: 2px solid #ffffff !important;
+}
+
+body.high-contrast .brand-badge,
+body.high-contrast .panel-badge,
+body.high-contrast .drag-hint-badge,
+body.high-contrast .status-badge {
+  background-color: #000000 !important;
+  border: 1.5px solid #ffffff !important;
+  color: #ffffff !important;
+}
+
+/* ------------------------------------------------------------------------- */
+/* 3c. Screen Reader & Accessibility Utilities                               */
+/* ------------------------------------------------------------------------- */
+.sr-only,
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* ------------------------------------------------------------------------- */
+/* 3d. Modalità LIM (Lavagna Interattiva) & Calibrazione Penna/Stilo         */
+/* ------------------------------------------------------------------------- */
+body.lim-mode,
+.lim-stylus-mode {
+  --lim-touch-scale: 1.15;
+}
+
+body.lim-mode .app-grid {
+  gap: 1.5rem;
+}
+
+body.lim-mode #equation-display {
+  padding: 1.5rem 1rem;
+}
+
+body.lim-mode #equation-display .draggable-token,
+.lim-stylus-mode #equation-display .draggable-token {
+  min-height: 48px;
+  min-width: 44px;
+  padding: 0.35rem 0.6rem;
+  font-size: 1.15em;
+  border-radius: var(--radius-sm);
+  touch-action: none;
+}
+
+body.lim-mode .dropzone,
+.lim-stylus-mode .dropzone {
+  min-height: 54px;
+  padding: 0.5rem 0.8rem;
+  border-width: 2.5px;
+}
+
+body.lim-mode .dropzone.dropzone-hover,
+.lim-stylus-mode .dropzone.dropzone-hover {
+  outline: 3px solid var(--primary);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.45);
+  transform: scale(1.02);
+}
+
+body.lim-mode .btn-mini,
+body.lim-mode .keypad-op,
+body.lim-mode .keypad-operand {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 1rem;
+}
+
+.lim-stylus-mode .equation-display-card {
+  box-shadow: 0 0 0 2px var(--primary-dark), 0 10px 25px -5px rgba(56, 189, 248, 0.25);
+}
+
+.btn-speak-math {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--bg-soft);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.btn-speak-math:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.btn-speak-math[aria-pressed="true"] {
+  background: var(--primary);
+  color: #fff;
 }
 
 /* ------------------------------------------------------------------------- */
