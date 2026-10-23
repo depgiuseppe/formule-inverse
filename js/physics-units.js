@@ -43,6 +43,8 @@ export const PHYSICAL_QUANTITIES = {
   M: { name: 'Massa maggiore', unit: 'kg', sample: 50 },
   m1: { name: 'Massa 1', unit: 'kg', sample: 2 },
   m2: { name: 'Massa 2', unit: 'kg', sample: 8 },
+  M1: { name: 'Massa corpo 1', unit: 'kg', sample: 1.989e30 },
+  M2: { name: 'Massa corpo 2', unit: 'kg', sample: 5.972e24 },
   F: { name: 'Forza', unit: 'N', sample: 40 },
   Fp: { name: 'Forza peso', unit: 'N', sample: 49.05 },
   Fe: { name: 'Forza elastica', unit: 'N', sample: 30 },
@@ -229,6 +231,43 @@ export const PHYSICAL_QUANTITIES = {
   eps: { name: 'Costante dielettrica', unit: 'F/m', sample: 1.77e-11 },
   mu0: { name: 'Permeabilità magnetica del vuoto', unit: 'T·m/A', sample: 1.256e-6 },
   rho0: { name: 'Resistività a 0°C', unit: 'Ω·m', sample: 1.68e-8 },
+
+  // --- Astrofisica e Gravitazione Avanzata ---
+  H0: { name: 'Costante di Hubble', unit: 'km/(s·Mpc)', sample: 70 },
+  Rs: { name: 'Raggio di Schwarzschild', unit: 'm', sample: 2950 },
+  sigma: { name: 'Costante di Stefan-Boltzmann', unit: 'W/(m²·K⁴)', sample: 5.67e-8 },
+  lam_max: { name: "Lunghezza d'onda di picco", unit: 'm', sample: 5e-7 },
+  lam0: { name: "Lunghezza d'onda a riposo", unit: 'm', sample: 5e-7 },
+  L_edd: { name: 'Luminosità limite di Eddington', unit: 'W', sample: 1e38 },
+  kappa: { name: 'Opacità della materia', unit: 'm²/kg', sample: 0.04 },
+  v_area: { name: 'Velocità areale', unit: 'm²/s', sample: 1e15 },
+
+  // --- Ottica Ondulatoria ---
+  Delta_y: { name: 'Interfrangia (distanza tra frange)', unit: 'm', sample: 0.002 },
+  D: { name: 'Diametro apertura circolare', unit: 'm', sample: 0.1 },
+  I0: { name: 'Intensità incidente', unit: 'W/m²', sample: 1000 },
+  thetaB: { name: 'Angolo di Brewster', unit: 'rad', sample: 0.9828 },
+
+  // --- Chimica Generale (Gas, Soluzioni, Acido-Base, Elettrochimica) ---
+  Pi: { name: 'Pressione parziale / Pressione osmotica', unit: 'Pa', sample: 101325 },
+  xi: { name: 'Frazione molare', unit: 'adimensionale', sample: 0.2 },
+  P_tot: { name: 'Pressione totale miscela', unit: 'Pa', sample: 101325 },
+  pH: { name: 'pH della soluzione', unit: 'adimensionale', sample: 7.0 },
+  pOH: { name: 'pOH della soluzione', unit: 'adimensionale', sample: 7.0 },
+  Kw: { name: "Prodotto ionico dell'acqua", unit: 'mol²/L²', sample: 1e-14 },
+  H: { name: 'Concentrazione [H⁺]', unit: 'mol/L', sample: 1e-7 },
+  OH: { name: 'Concentrazione [OH⁻]', unit: 'mol/L', sample: 1e-7 },
+  Ka: { name: 'Costante di dissociazione acida', unit: 'mol/L', sample: 1.8e-5 },
+  Kb: { name: 'Costante di dissociazione basica', unit: 'mol/L', sample: 1.8e-5 },
+  HA: { name: 'Concentrazione acido indissociato [HA]', unit: 'mol/L', sample: 0.1 },
+  BH: { name: 'Concentrazione acido coniugato [BH⁺]', unit: 'mol/L', sample: 0.1 },
+  pKa: { name: 'Costante pKa', unit: 'adimensionale', sample: 4.75 },
+  Delta_G: { name: 'Variazione di energia libera di Gibbs', unit: 'J', sample: 212000 },
+  MM: { name: 'Massa molare', unit: 'g/mol', sample: 18.0 },
+  m_mol: { name: 'Molalità', unit: 'mol/kg', sample: 0.5 },
+  m_solv: { name: 'Massa del solvente', unit: 'kg', sample: 1.0 },
+  P0: { name: 'Tensione di vapore solvente puro', unit: 'Pa', sample: 3170 },
+  P1: { name: 'Tensione di vapore soluzione', unit: 'Pa', sample: 3100 },
 };
 
 /**
@@ -323,6 +362,108 @@ export function getQuantityInfo(symbol, formulaEntry = null) {
   if (symbol === 'I') {
     if (topic.includes('suono') || topic.includes('onde') || topic.includes('acust')) {
       return { name: 'Intensità sonora', unit: 'W/m²', sample: 0.001 };
+    }
+  }
+
+  // --- Chimica Generale Overrides ---
+  if (topic.includes('chimica')) {
+    if (symbol === 'F') {
+      return { name: 'Costante di Faraday', unit: 'C/mol', sample: 96485 };
+    }
+    if (symbol === 'R') {
+      return { name: 'Costante universale dei gas', unit: 'J/(mol·K)', sample: 8.314 };
+    }
+    if (symbol === 'Q') {
+      return { name: 'Quoziente di reazione', unit: 'adimensionale', sample: 0.01 };
+    }
+    if (symbol === 'z') {
+      return { name: 'Numero di elettroni scambiati', unit: 'adimensionale', sample: 2 };
+    }
+    if (symbol === 'B') {
+      return { name: 'Concentrazione base debole [B]', unit: 'mol/L', sample: 0.1 };
+    }
+    if (symbol === 'x1') {
+      return { name: 'Frazione molare solvente', unit: 'adimensionale', sample: 0.95 };
+    }
+    if (symbol === 'A') {
+      return { name: 'Concentrazione base coniugata [A⁻]', unit: 'mol/L', sample: 0.1 };
+    }
+    if (symbol === 'M') {
+      return { name: 'Molarità / Concentrazione molare', unit: 'mol/L', sample: 1.0 };
+    }
+    if (symbol === 'M1') {
+      return { name: 'Molarità iniziale', unit: 'mol/L', sample: 1.0 };
+    }
+    if (symbol === 'M2') {
+      return { name: 'Molarità finale', unit: 'mol/L', sample: 0.2 };
+    }
+    if (symbol === 'V') {
+      return { name: 'Volume della soluzione o del gas', unit: 'L', sample: 1.0 };
+    }
+    if (symbol === 'V1') {
+      return { name: 'Volume iniziale', unit: 'L', sample: 0.05 };
+    }
+    if (symbol === 'V2') {
+      return { name: 'Volume finale', unit: 'L', sample: 0.25 };
+    }
+    if (symbol === 'a') {
+      return { name: 'Parametro attrattivo di Van der Waals', unit: 'Pa·m⁶/mol²', sample: 0.136 };
+    }
+    if (symbol === 'b') {
+      return { name: 'Covolume di Van der Waals', unit: 'm³/mol', sample: 0.000039 };
+    }
+    if (symbol === 'E0') {
+      return { name: 'Potenziale standard di riduzione', unit: 'V', sample: 1.1 };
+    }
+    if (symbol === 'E') {
+      return { name: 'Potenziale elettrochimico reale', unit: 'V', sample: 1.05 };
+    }
+    if (symbol === 'i') {
+      return { name: "Fattore di van 't Hoff", unit: 'adimensionale', sample: 1.0 };
+    }
+  }
+
+  // --- Astrofisica e Gravitazione Overrides ---
+  if (topic.includes('astrofisica') || topic.includes('gravita')) {
+    if (symbol === 'c') {
+      return { name: 'Velocità della luce nel vuoto', unit: 'm/s', sample: 2.998e8 };
+    }
+    if (symbol === 'a') {
+      return { name: "Semiasse maggiore dell'orbita", unit: 'm', sample: 1.496e11 };
+    }
+    if (symbol === 'L') {
+      return { name: 'Luminosità stellare / Momento angolare', unit: 'W', sample: 3.828e26 };
+    }
+    if (symbol === 'b') {
+      return { name: 'Costante dello spostamento di Wien', unit: 'm·K', sample: 2.898e-3 };
+    }
+    if (symbol === 'R') {
+      return { name: 'Raggio stellare', unit: 'm', sample: 6.963e8 };
+    }
+    if (symbol === 'z') {
+      return { name: 'Parametro di redshift cosmologico', unit: 'adimensionale', sample: 0.05 };
+    }
+  }
+
+  // --- Ottica Ondulatoria Overrides ---
+  if (topic.includes('ottica')) {
+    if (symbol === 'a') {
+      return { name: 'Larghezza della fenditura', unit: 'm', sample: 0.0001 };
+    }
+    if (symbol === 'd') {
+      return { name: 'Passo del reticolo / Distanza fenditure', unit: 'm', sample: 0.0002 };
+    }
+    if (symbol === 'L') {
+      return { name: 'Distanza fenditure-schermo', unit: 'm', sample: 1.5 };
+    }
+    if (symbol === 'm') {
+      return { name: 'Ordine di interferenza / diffrazione', unit: 'adimensionale', sample: 1 };
+    }
+    if (symbol === 'I') {
+      return { name: 'Intensità luminosa trasmessa', unit: 'W/m²', sample: 500 };
+    }
+    if (symbol === 'I0') {
+      return { name: 'Intensità incidente', unit: 'W/m²', sample: 1000 };
     }
   }
 
