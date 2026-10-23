@@ -15,7 +15,7 @@ export const FORMULAS_FISICA = [
   },
   {
     id: 's-vt-half-at2', topic: 'cinematica', name: 'legge oraria (moto accelerato)',
-    formula: 'x = x0 + v0*t + 1/2*a*t^2', isolate: ['x', 'x0', 'v0', 'a', 't'], difficulty: 4,
+    formula: 'x = x0 + v0*t + 1/2*a*t^2', isolate: ['x', 'x0', 'v0', 'a'], difficulty: 4,
     conditions: [],
     hypotheses: 'Moto rettilineo uniformemente accelerato.',
   },
@@ -120,7 +120,7 @@ export const FORMULAS_FISICA = [
   },
   {
     id: 'theta-legge-oraria', topic: 'cinematica', name: 'legge oraria angolare',
-    formula: 'theta = theta0 + omega0*t + 1/2*alpha*t^2', isolate: ['theta', 'theta0', 'omega0', 'alpha', 't'], difficulty: 5,
+    formula: 'theta = theta0 + omega0*t + 1/2*alpha*t^2', isolate: ['theta', 'theta0', 'omega0', 'alpha'], difficulty: 5,
     conditions: [],
     hypotheses: 'Moto circolare uniformemente accelerato.',
   },
