@@ -1885,8 +1885,8 @@ function applyCommonDenominatorRule() {
 
   let chosenSide = null;
   if (state.selectedId) {
-    const selInfo = analyseElementId(state.selectedId);
-    if (selInfo && selInfo.side) chosenSide = selInfo.side;
+    if (state.selectedId.startsWith('left')) chosenSide = 'left';
+    else if (state.selectedId.startsWith('right')) chosenSide = 'right';
   }
 
   const res = reduceEquationToCommonDenominator(eq, chosenSide);

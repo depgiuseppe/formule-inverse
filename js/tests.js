@@ -1666,6 +1666,42 @@ export function runAllTests() {
     return true;
   }));
 
+  // =========================================================================
+  // Test Semplificazione Potenze e Minimo Comune Multiplo (Numero + Frazione)
+  // =========================================================================
+
+  results.push(test('Prodotto: fusione di fattori uguali in potenza c·c -> c^2', () => {
+    const e = canonical(eq('c*c*(u1 + v) = c*c*u'));
+    const pretty = toPretty(e, 0);
+    return pretty.includes('c^2·(u1 + v)') && pretty.includes('c^2')
+      ? true
+      : `atteso c^2, ottenuto: ${pretty}`;
+  }));
+
+  results.push(test('Croce: semplificazione di un fattore c con c^2 al denominatore (c/c^2 -> 1/c)', () => {
+    const e = eq('u = (c*v)/c^2');
+    const res = crossCancel(e, 'right/num/Mul0', 'right/den');
+    if (!res.ok) return 'semplificazione fallita: ' + res.error;
+    const pretty = toPretty(res.newEq, 0);
+    return pretty === 'u = v/c' ? true : `atteso u = v/c, ottenuto: ${pretty}`;
+  }));
+
+  results.push(test('m.c.m.: somma tra numero e frazione al denominatore 1 + (u1·v)/c^2', () => {
+    const e = eq('u = (u1 + v)/(1 + (u1*v)/c^2)');
+    const step1 = reduceEquationToCommonDenominator(e, 'right');
+    if (!step1.ok) return 'passo 1 m.c.m. fallito: ' + step1.error;
+    const p1 = toPretty(step1.newEq, 0);
+    if (p1 !== 'u = (u1 + v)/((c^2 + u1·v)/c^2)') {
+      return `atteso denominatore (c^2 + u1·v)/c^2, ottenuto: ${p1}`;
+    }
+    const step2 = reduceEquationToCommonDenominator(step1.newEq, 'right');
+    if (!step2.ok) return 'passo 2 m.c.m. fallito: ' + step2.error;
+    const p2 = toPretty(step2.newEq, 0);
+    return p2 === 'u = c^2·(u1 + v)/(c^2 + u1·v)'
+      ? true
+      : `atteso c^2·(u1 + v)/(c^2 + u1·v), ottenuto: ${p2}`;
+  }));
+
   return results;
 }
 

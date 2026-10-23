@@ -768,6 +768,38 @@ function ratToNode(r) {
   return Div(Num(r.n), Num(r.d));
 }
 
+// Raggruppa fattori con la stessa base sommando gli esponenti (es. c·c => c², c·c² => c³)
+function combineIdenticalFactors(factors) {
+  if (factors.length <= 1) return factors;
+  const groups = [];
+  for (const f of factors) {
+    const u = unwrap(f);
+    let base = u;
+    let exp = 1;
+    if (u.type === 'Pow' && u.exp && u.exp.type === 'Num' && Number.isInteger(u.exp.value) && u.exp.value > 0) {
+      base = unwrap(u.base);
+      exp = u.exp.value;
+    }
+    const key = toPretty(base, 0);
+    const existing = groups.find((g) => g.key === key && equivalentExpr(g.base, base));
+    if (existing) {
+      existing.exp += exp;
+    } else {
+      groups.push({ key, base, exp });
+    }
+  }
+  const result = [];
+  for (const g of groups) {
+    if (g.exp === 1) {
+      result.push(g.base);
+    } else {
+      result.push(Pow(g.base, Num(g.exp)));
+    }
+  }
+  result.sort(compareNodes);
+  return result;
+}
+
 function canon(node) {
   // I Group sono solo annotazioni di parentesi: li attraversiamo sempre,
   // anche quando compaiono annidati come figli di altri nodi.
@@ -842,22 +874,22 @@ function canon(node) {
         numFactors.push(p);
       }
       if (acc.n === 0) return Num(0); // un fattore costante 0 annulla il prodotto
-      numFactors.sort(compareNodes);
-      denFactors.sort(compareNodes);
+      const finalNumFactors = combineIdenticalFactors(numFactors);
+      const finalDenFactors = combineIdenticalFactors(denFactors);
 
       const negative = acc.n < 0;
       const abs = { n: Math.abs(acc.n), d: acc.d };
       const out = [];
       if (!(abs.n === 1 && abs.d === 1)) out.push(ratToNode(abs));
-      out.push(...numFactors);
+      out.push(...finalNumFactors);
 
-      if (out.length === 0 && denFactors.length === 0) return Num(1);
+      if (out.length === 0 && finalDenFactors.length === 0) return Num(1);
       const numPart = out.length === 0
         ? Num(1)
         : (out.length === 1 ? out[0] : flattenAssoc('Mul', out));
-      const product = denFactors.length === 0
+      const product = finalDenFactors.length === 0
         ? numPart
-        : Div(numPart, denFactors.length === 1 ? denFactors[0] : flattenAssoc('Mul', denFactors));
+        : Div(numPart, finalDenFactors.length === 1 ? finalDenFactors[0] : flattenAssoc('Mul', finalDenFactors));
       return negative ? Neg(product) : product;
     }
 

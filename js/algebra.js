@@ -374,12 +374,35 @@ export function availableActions(eq, element, target) {
     });
   }
 
+  // --- Se l'elemento o il membro contiene somme di frazioni/numeri riducibili con m.c.m. ---
+  if (canReduceToSingleFraction(element.node) || canReduceToSingleFraction(member)) {
+    const sideName = side === 'left' ? 'primo' : 'secondo';
+    actions.push({
+      id: 'common-denom',
+      label: `Calcola il minimo comune multiplo (m.c.m.) al ${sideName} membro`,
+      description: 'Somma frazioni e numeri allo stesso denominatore comune (m.c.m.).',
+      ruleKey: 'commonDenom',
+      build: () => ({ side }),
+    });
+  }
+
   return actions;
 }
 
 // Azioni sempre disponibili a livello di equazione (non legate a un elemento).
 export function globalActions(eq, target) {
   const actions = [];
+
+  // Minimo comune multiplo (m.c.m.) se almeno un membro contiene somme di frazioni o frazioni composte
+  if (canReduceToSingleFraction(eq.left) || canReduceToSingleFraction(eq.right)) {
+    actions.push({
+      id: 'common-denom',
+      label: 'Calcola il minimo comune multiplo (m.c.m.)',
+      description: 'Somma frazioni e numeri allo stesso denominatore comune (m.c.m.).',
+      ruleKey: 'commonDenom',
+      build: () => ({}),
+    });
+  }
 
   // Scambio dei membri
   actions.push({

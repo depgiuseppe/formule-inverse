@@ -377,6 +377,33 @@ export function canReduceToSingleFraction(node) {
   return false;
 }
 
+// Riduzione a passaggi didattici: se c'è una somma/differenza di frazioni e numeri
+// dentro un numeratore o denominatore, prima risolve quella somma (m.c.m.),
+// e solo al passo successivo risolve l'eventuale frazione di frazione.
+export function reduceStepDidactic(node) {
+  if (!node) return node;
+  const u = unwrap(node);
+
+  if (u.type === 'Add' || u.type === 'Sub') {
+    return reduceAdditiveTermsToCommonDenominator(u);
+  }
+
+  if (u.type === 'Div') {
+    const denU = unwrap(u.den);
+    const numU = unwrap(u.num);
+    const denHasSumFrac = (denU.type === 'Add' || denU.type === 'Sub') && getAdditiveTerms(denU).some(t => termAsFraction(t.node).hasDen);
+    const numHasSumFrac = (numU.type === 'Add' || numU.type === 'Sub') && getAdditiveTerms(numU).some(t => termAsFraction(t.node).hasDen);
+
+    if (denHasSumFrac || numHasSumFrac) {
+      const newNum = numHasSumFrac ? reduceAdditiveTermsToCommonDenominator(numU) : u.num;
+      const newDen = denHasSumFrac ? reduceAdditiveTermsToCommonDenominator(denU) : u.den;
+      return Div(newNum, newDen);
+    }
+  }
+
+  return reduceToSingleFraction(node);
+}
+
 // Applica la trasformazione all'intera equazione
 export function reduceEquationToCommonDenominator(eq, chosenSide = null) {
   if (!eq || eq.type !== 'Eq') {
@@ -399,19 +426,19 @@ export function reduceEquationToCommonDenominator(eq, chosenSide = null) {
   const steps = [];
 
   if (chosenSide === 'left' && leftCan) {
-    newLeft = reduceToSingleFraction(eq.left);
+    newLeft = reduceStepDidactic(eq.left);
     steps.push(`Riduco a denominatore comune (m.c.m.) al primo membro: ${toPretty(eq.left, 0)} → ${toPretty(newLeft, 0)}.`);
   } else if (chosenSide === 'right' && rightCan) {
-    newRight = reduceToSingleFraction(eq.right);
+    newRight = reduceStepDidactic(eq.right);
     steps.push(`Riduco a denominatore comune (m.c.m.) al secondo membro: ${toPretty(eq.right, 0)} → ${toPretty(newRight, 0)}.`);
   } else {
     // Riduci entrambi i membri che ne hanno bisogno
     if (leftCan) {
-      newLeft = reduceToSingleFraction(eq.left);
+      newLeft = reduceStepDidactic(eq.left);
       steps.push(`Riduco a denominatore comune (m.c.m.) al primo membro: ${toPretty(eq.left, 0)} → ${toPretty(newLeft, 0)}.`);
     }
     if (rightCan) {
-      newRight = reduceToSingleFraction(eq.right);
+      newRight = reduceStepDidactic(eq.right);
       steps.push(`Riduco a denominatore comune (m.c.m.) al secondo membro: ${toPretty(eq.right, 0)} → ${toPretty(newRight, 0)}.`);
     }
   }

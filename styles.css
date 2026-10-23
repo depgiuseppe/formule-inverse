@@ -2780,8 +2780,9 @@ sup.node-exp {
 
 .draggable-token:hover {
   cursor: grab !important;
-  background: var(--primary-soft) !important;
-  border-color: var(--primary-light) !important;
+  background: #dbeafe !important;
+  border-color: #2563eb !important;
+  color: #0f172a !important;
   transform: translateY(-2px) scale(1.08);
   box-shadow: 0 4px 14px rgba(99, 102, 241, 0.28);
 }
@@ -2789,9 +2790,11 @@ sup.node-exp {
 .draggable-token:active,
 .draggable-token.is-being-dragged {
   cursor: grabbing !important;
-  opacity: 0.45;
-  transform: scale(0.95);
-  border-color: var(--primary);
+  opacity: 0.9 !important;
+  background: #bfdbfe !important;
+  border-color: #2563eb !important;
+  color: #0f172a !important;
+  transform: scale(0.98);
 }
 
 /* Badge fluttuante per touch drag disattivato definitivamente (HAG-2) */
@@ -2800,88 +2803,158 @@ sup.node-exp {
   pointer-events: none !important;
 }
 
-/* Termini composti (es. d*g*h o m*v) */
-.math-term-group {
-  display: inline-flex;
-  align-items: center;
-  border: 1.5px dashed var(--line-strong);
-  border-radius: var(--radius-sm);
-  padding: 2px 5px;
-  margin: 0 2px;
-  background: rgba(248, 250, 252, 0.7);
-  transition: all 0.2s ease;
-  position: relative;
-  cursor: grab !important;
-}
-body.dark-theme .math-term-group,
-body.dark-theme .node-group-parens.draggable-token,
-body.dark-theme .math-factor-group {
-  background: rgba(30, 41, 59, 0.7);
-}
-body.high-contrast .math-term-group,
-body.high-contrast .node-group-parens.draggable-token,
-body.high-contrast .math-factor-group {
-  background: #16181d;
-}
-.math-term-group:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  box-shadow: 0 0 0 1px var(--accent), 0 3px 8px rgba(124, 58, 237, 0.15);
-  transform: translateY(-1px);
-}
-.term-group-tag {
-  font-size: 0.68rem;
-  margin-right: 4px;
-  opacity: 0.6;
-  user-select: none;
-  cursor: grab;
-}
-.math-term-group:hover .term-group-tag {
-  opacity: 1;
-}
-
-/* Fattori e blocchi composti (es. (v + vo) o denominatori di frazione) */
+/* Termini composti (es. d*g*h o m*v) e blocchi con parentesi */
+.math-term-group,
 .node-group-parens.draggable-token,
 .math-factor-group {
   display: inline-flex;
   align-items: center;
-  border: 1.5px dashed var(--line-strong);
+  border: 1.5px dashed #94a3b8 !important;
   border-radius: var(--radius-sm);
-  padding: 1px 4px;
+  padding: 2px 5px;
   margin: 0 2px;
-  background: rgba(248, 250, 252, 0.7);
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
   transition: all 0.2s ease;
   position: relative;
   cursor: grab !important;
 }
+
+.math-term-group *,
+.node-group-parens.draggable-token *,
+.math-factor-group * {
+  color: inherit;
+}
+
+.math-term-group:hover,
 .node-group-parens.draggable-token:hover,
 .math-factor-group:hover {
-  border-color: var(--primary);
-  background: var(--primary-soft);
-  box-shadow: 0 0 0 1px var(--primary), 0 3px 8px rgba(37, 99, 235, 0.18);
+  border-color: #2563eb !important;
+  background: #dbeafe !important;
+  color: #0f172a !important;
+  box-shadow: 0 0 0 1px #2563eb, 0 3px 8px rgba(37, 99, 235, 0.2) !important;
   transform: translateY(-1px);
 }
+
+.term-group-tag {
+  font-size: 0.68rem;
+  margin-right: 4px;
+  opacity: 0.7;
+  user-select: none;
+  cursor: grab;
+}
+
+.math-term-group:hover .term-group-tag {
+  opacity: 1;
+}
+
 .node-group-parens.draggable-token:hover .group-paren {
-  color: var(--primary);
+  color: #2563eb !important;
   font-weight: 700;
 }
+
 .node-group-parens.draggable-token * {
   pointer-events: none;
 }
 
 /* Lettere singole all'interno del termine composto */
 .math-term-group .draggable-token:not(.math-term-group) {
-  background: var(--bg-card);
-  border: 1px solid var(--line);
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
   border-radius: 4px;
   padding: 1px 4px;
   margin: 0 1px;
 }
+
 .math-term-group .draggable-token:not(.math-term-group):hover {
-  background: var(--primary-soft) !important;
-  border-color: var(--primary) !important;
+  background: #dbeafe !important;
+  border-color: #2563eb !important;
+  color: #0f172a !important;
   transform: scale(1.1);
   z-index: 10;
+}
+
+/* Stili specifici Dark Mode per gruppi, hover e trascinamento (prevenzione bianco su bianco) */
+body.dark-theme .math-term-group,
+body.dark-theme .node-group-parens.draggable-token,
+body.dark-theme .math-factor-group {
+  background: rgba(26, 35, 54, 0.95) !important;
+  border-color: #475569 !important;
+  color: #f8fafc !important;
+}
+
+body.dark-theme .math-term-group *,
+body.dark-theme .node-group-parens.draggable-token *,
+body.dark-theme .math-factor-group * {
+  color: inherit;
+}
+
+body.dark-theme .math-term-group:hover,
+body.dark-theme .node-group-parens.draggable-token:hover,
+body.dark-theme .math-factor-group:hover {
+  border-color: #60a5fa !important;
+  background: rgba(30, 58, 138, 0.5) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 1px #3b82f6, 0 4px 14px rgba(59, 130, 246, 0.3) !important;
+}
+
+body.dark-theme .node-group-parens.draggable-token:hover .group-paren {
+  color: #60a5fa !important;
+}
+
+body.dark-theme .draggable-token:hover {
+  background: rgba(37, 99, 235, 0.32) !important;
+  border-color: #60a5fa !important;
+  color: #ffffff !important;
+}
+
+body.dark-theme .draggable-token:active,
+body.dark-theme .draggable-token.is-being-dragged {
+  background: rgba(30, 58, 138, 0.75) !important;
+  border-color: #93c5fd !important;
+  color: #ffffff !important;
+  opacity: 0.92 !important;
+}
+
+body.dark-theme .math-term-group .draggable-token:not(.math-term-group) {
+  background: #1e293b !important;
+  border: 1px solid #334155 !important;
+  color: #f8fafc !important;
+}
+
+body.dark-theme .math-term-group .draggable-token:not(.math-term-group):hover {
+  background: rgba(37, 99, 235, 0.45) !important;
+  border-color: #60a5fa !important;
+  color: #ffffff !important;
+}
+
+/* Modalità Alto Contrasto WCAG AAA */
+body.high-contrast .math-term-group,
+body.high-contrast .node-group-parens.draggable-token,
+body.high-contrast .math-factor-group {
+  background: #000000 !important;
+  border: 2px dashed #ffffff !important;
+  color: #ffffff !important;
+}
+
+body.high-contrast .math-term-group *,
+body.high-contrast .node-group-parens.draggable-token * {
+  color: #ffffff !important;
+}
+
+body.high-contrast .draggable-token:hover {
+  background: #000000 !important;
+  border: 2px solid #ffff00 !important;
+  color: #ffff00 !important;
+}
+
+/* La variabile obiettivo preserva sempre il colore di contrasto distintivo */
+.node-target,
+.node-target *,
+.draggable-token.node-target,
+.draggable-token.node-target * {
+  color: var(--warning, #f59e0b) !important;
 }
 
 /* Token rifiutato: torna al posto con animazione */

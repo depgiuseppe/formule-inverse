@@ -767,6 +767,36 @@
     if (r.d === 1) return Num(r.n);
     return Div(Num(r.n), Num(r.d));
   }
+  function combineIdenticalFactors(factors) {
+    if (factors.length <= 1) return factors;
+    const groups = [];
+    for (const f of factors) {
+      const u = unwrap(f);
+      let base = u;
+      let exp = 1;
+      if (u.type === "Pow" && u.exp && u.exp.type === "Num" && Number.isInteger(u.exp.value) && u.exp.value > 0) {
+        base = unwrap(u.base);
+        exp = u.exp.value;
+      }
+      const key = toPretty(base, 0);
+      const existing = groups.find((g) => g.key === key && equivalentExpr(g.base, base));
+      if (existing) {
+        existing.exp += exp;
+      } else {
+        groups.push({ key, base, exp });
+      }
+    }
+    const result = [];
+    for (const g of groups) {
+      if (g.exp === 1) {
+        result.push(g.base);
+      } else {
+        result.push(Pow(g.base, Num(g.exp)));
+      }
+    }
+    result.sort(compareNodes);
+    return result;
+  }
   function canon(node) {
     node = unwrap(node);
     switch (node.type) {
@@ -832,16 +862,16 @@
           numFactors.push(p);
         }
         if (acc.n === 0) return Num(0);
-        numFactors.sort(compareNodes);
-        denFactors.sort(compareNodes);
+        const finalNumFactors = combineIdenticalFactors(numFactors);
+        const finalDenFactors = combineIdenticalFactors(denFactors);
         const negative = acc.n < 0;
         const abs = { n: Math.abs(acc.n), d: acc.d };
         const out = [];
         if (!(abs.n === 1 && abs.d === 1)) out.push(ratToNode(abs));
-        out.push(...numFactors);
-        if (out.length === 0 && denFactors.length === 0) return Num(1);
+        out.push(...finalNumFactors);
+        if (out.length === 0 && finalDenFactors.length === 0) return Num(1);
         const numPart = out.length === 0 ? Num(1) : out.length === 1 ? out[0] : flattenAssoc("Mul", out);
-        const product = denFactors.length === 0 ? numPart : Div(numPart, denFactors.length === 1 ? denFactors[0] : flattenAssoc("Mul", denFactors));
+        const product = finalDenFactors.length === 0 ? numPart : Div(numPart, finalDenFactors.length === 1 ? finalDenFactors[0] : flattenAssoc("Mul", finalDenFactors));
         return negative ? Neg(product) : product;
       }
       case "Div": {
@@ -1665,6 +1695,25 @@
     }
     return false;
   }
+  function reduceStepDidactic(node) {
+    if (!node) return node;
+    const u = unwrap(node);
+    if (u.type === "Add" || u.type === "Sub") {
+      return reduceAdditiveTermsToCommonDenominator(u);
+    }
+    if (u.type === "Div") {
+      const denU = unwrap(u.den);
+      const numU = unwrap(u.num);
+      const denHasSumFrac = (denU.type === "Add" || denU.type === "Sub") && getAdditiveTerms(denU).some((t) => termAsFraction(t.node).hasDen);
+      const numHasSumFrac = (numU.type === "Add" || numU.type === "Sub") && getAdditiveTerms(numU).some((t) => termAsFraction(t.node).hasDen);
+      if (denHasSumFrac || numHasSumFrac) {
+        const newNum = numHasSumFrac ? reduceAdditiveTermsToCommonDenominator(numU) : u.num;
+        const newDen = denHasSumFrac ? reduceAdditiveTermsToCommonDenominator(denU) : u.den;
+        return Div(newNum, newDen);
+      }
+    }
+    return reduceToSingleFraction(node);
+  }
   function reduceEquationToCommonDenominator(eq, chosenSide = null) {
     if (!eq || eq.type !== "Eq") {
       return { ok: false, error: "Nessuna equazione valida fornita." };
@@ -1682,18 +1731,18 @@
     let newRight = eq.right;
     const steps = [];
     if (chosenSide === "left" && leftCan) {
-      newLeft = reduceToSingleFraction(eq.left);
+      newLeft = reduceStepDidactic(eq.left);
       steps.push(`Riduco a denominatore comune (m.c.m.) al primo membro: ${toPretty(eq.left, 0)} \u2192 ${toPretty(newLeft, 0)}.`);
     } else if (chosenSide === "right" && rightCan) {
-      newRight = reduceToSingleFraction(eq.right);
+      newRight = reduceStepDidactic(eq.right);
       steps.push(`Riduco a denominatore comune (m.c.m.) al secondo membro: ${toPretty(eq.right, 0)} \u2192 ${toPretty(newRight, 0)}.`);
     } else {
       if (leftCan) {
-        newLeft = reduceToSingleFraction(eq.left);
+        newLeft = reduceStepDidactic(eq.left);
         steps.push(`Riduco a denominatore comune (m.c.m.) al primo membro: ${toPretty(eq.left, 0)} \u2192 ${toPretty(newLeft, 0)}.`);
       }
       if (rightCan) {
-        newRight = reduceToSingleFraction(eq.right);
+        newRight = reduceStepDidactic(eq.right);
         steps.push(`Riduco a denominatore comune (m.c.m.) al secondo membro: ${toPretty(eq.right, 0)} \u2192 ${toPretty(newRight, 0)}.`);
       }
     }
@@ -2858,10 +2907,29 @@
         build: () => ({ side, common: memberCommon, commonText: cText })
       });
     }
+    if (canReduceToSingleFraction(element.node) || canReduceToSingleFraction(member)) {
+      const sideName = side === "left" ? "primo" : "secondo";
+      actions.push({
+        id: "common-denom",
+        label: `Calcola il minimo comune multiplo (m.c.m.) al ${sideName} membro`,
+        description: "Somma frazioni e numeri allo stesso denominatore comune (m.c.m.).",
+        ruleKey: "commonDenom",
+        build: () => ({ side })
+      });
+    }
     return actions;
   }
   function globalActions(eq, target) {
     const actions = [];
+    if (canReduceToSingleFraction(eq.left) || canReduceToSingleFraction(eq.right)) {
+      actions.push({
+        id: "common-denom",
+        label: "Calcola il minimo comune multiplo (m.c.m.)",
+        description: "Somma frazioni e numeri allo stesso denominatore comune (m.c.m.).",
+        ruleKey: "commonDenom",
+        build: () => ({})
+      });
+    }
     actions.push({
       id: "swap",
       label: "Scambia i membri (propriet\xE0 simmetrica)",
@@ -3870,11 +3938,34 @@
     if (!nodeA || !nodeB) {
       return { ok: false, error: "Elemento non trovato nell'equazione." };
     }
-    if (!equivalentExpr(nodeA, nodeB)) {
+    let matchDirect = equivalentExpr(nodeA, nodeB);
+    let powerReduction = null;
+    if (!matchDirect) {
+      const uA = unwrap(nodeA);
+      const uB = unwrap(nodeB);
+      if (uB.type === "Pow" && uB.exp && uB.exp.type === "Num" && Number.isInteger(uB.exp.value) && uB.exp.value > 1 && equivalentExpr(nodeA, uB.base)) {
+        matchDirect = true;
+        powerReduction = {
+          powerEntry: b,
+          baseEntry: a,
+          baseNode: uB.base,
+          newExp: uB.exp.value - 1
+        };
+      } else if (uA.type === "Pow" && uA.exp && uA.exp.type === "Num" && Number.isInteger(uA.exp.value) && uA.exp.value > 1 && equivalentExpr(nodeB, uA.base)) {
+        matchDirect = true;
+        powerReduction = {
+          powerEntry: a,
+          baseEntry: b,
+          baseNode: uA.base,
+          newExp: uA.exp.value - 1
+        };
+      }
+    }
+    if (!matchDirect) {
       return {
         ok: false,
         error: `I due elementi non sono uguali, quindi non si semplificano: ${toPretty(nodeA, 0)} \u2260 ${toPretty(nodeB, 0)}.`,
-        hint: "Si semplificano solo fattori identici, per esempio la stessa lettera o lo stesso numero."
+        hint: "Si semplificano solo fattori identici (o potenze della stessa base, es. c con c\xB2)."
       };
     }
     const slotA = a.slot;
@@ -3889,10 +3980,19 @@
     const numEntry = slotA === "num" ? a : b;
     const denEntry = slotA === "den" ? a : b;
     let simplifiedNode = null;
-    const afterNum = removeAt(member, numEntry.segments);
-    if (afterNum.ok) {
-      const afterBoth = removeAt(afterNum.node, denEntry.segments);
-      if (afterBoth.ok) simplifiedNode = afterBoth.node;
+    if (powerReduction) {
+      const replacement = powerReduction.newExp === 1 ? powerReduction.baseNode : Pow(powerReduction.baseNode, Num(powerReduction.newExp));
+      const afterBase = removeAt(member, powerReduction.baseEntry.segments);
+      if (afterBase.ok) {
+        simplifiedNode = rebuildAlongPath(afterBase.node, powerReduction.powerEntry.segments, replacement);
+      }
+    }
+    if (!simplifiedNode) {
+      const afterNum2 = removeAt(member, numEntry.segments);
+      if (afterNum2.ok) {
+        const afterBoth = removeAt(afterNum2.node, denEntry.segments);
+        if (afterBoth.ok) simplifiedNode = afterBoth.node;
+      }
     }
     if (!simplifiedNode) {
       const afterDen2 = removeAt(member, denEntry.segments);
@@ -12675,8 +12775,8 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     const eq = state.currentEq;
     let chosenSide = null;
     if (state.selectedId) {
-      const selInfo = analyseElementId(state.selectedId);
-      if (selInfo && selInfo.side) chosenSide = selInfo.side;
+      if (state.selectedId.startsWith("left")) chosenSide = "left";
+      else if (state.selectedId.startsWith("right")) chosenSide = "right";
     }
     const res = reduceEquationToCommonDenominator(eq, chosenSide);
     if (!res.ok) {

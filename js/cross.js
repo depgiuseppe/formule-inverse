@@ -379,11 +379,36 @@ export function crossCancel(eq, idA, idB) {
     return { ok: false, error: 'Elemento non trovato nell\'equazione.' };
   }
 
-  if (!equivalentExpr(nodeA, nodeB)) {
+  let matchDirect = equivalentExpr(nodeA, nodeB);
+  let powerReduction = null;
+
+  if (!matchDirect) {
+    const uA = unwrap(nodeA);
+    const uB = unwrap(nodeB);
+    if (uB.type === 'Pow' && uB.exp && uB.exp.type === 'Num' && Number.isInteger(uB.exp.value) && uB.exp.value > 1 && equivalentExpr(nodeA, uB.base)) {
+      matchDirect = true;
+      powerReduction = {
+        powerEntry: b,
+        baseEntry: a,
+        baseNode: uB.base,
+        newExp: uB.exp.value - 1,
+      };
+    } else if (uA.type === 'Pow' && uA.exp && uA.exp.type === 'Num' && Number.isInteger(uA.exp.value) && uA.exp.value > 1 && equivalentExpr(nodeB, uA.base)) {
+      matchDirect = true;
+      powerReduction = {
+        powerEntry: a,
+        baseEntry: b,
+        baseNode: uA.base,
+        newExp: uA.exp.value - 1,
+      };
+    }
+  }
+
+  if (!matchDirect) {
     return {
       ok: false,
       error: `I due elementi non sono uguali, quindi non si semplificano: ${toPretty(nodeA, 0)} ≠ ${toPretty(nodeB, 0)}.`,
-      hint: 'Si semplificano solo fattori identici, per esempio la stessa lettera o lo stesso numero.',
+      hint: 'Si semplificano solo fattori identici (o potenze della stessa base, es. c con c²).',
     };
   }
 
@@ -402,10 +427,26 @@ export function crossCancel(eq, idA, idB) {
   const denEntry = slotA === 'den' ? a : b;
 
   let simplifiedNode = null;
-  const afterNum = removeAt(member, numEntry.segments);
-  if (afterNum.ok) {
-    const afterBoth = removeAt(afterNum.node, denEntry.segments);
-    if (afterBoth.ok) simplifiedNode = afterBoth.node;
+
+  if (powerReduction) {
+    const replacement = powerReduction.newExp === 1
+      ? powerReduction.baseNode
+      : Pow(powerReduction.baseNode, Num(powerReduction.newExp));
+    
+    // Rimuovi prima il fattore base
+    const afterBase = removeAt(member, powerReduction.baseEntry.segments);
+    if (afterBase.ok) {
+      // E aggiorna la potenza con l'esponente ridotto
+      simplifiedNode = rebuildAlongPath(afterBase.node, powerReduction.powerEntry.segments, replacement);
+    }
+  }
+
+  if (!simplifiedNode) {
+    const afterNum = removeAt(member, numEntry.segments);
+    if (afterNum.ok) {
+      const afterBoth = removeAt(afterNum.node, denEntry.segments);
+      if (afterBoth.ok) simplifiedNode = afterBoth.node;
+    }
   }
   if (!simplifiedNode) {
     const afterDen = removeAt(member, denEntry.segments);
