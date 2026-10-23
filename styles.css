@@ -187,8 +187,12 @@ body.high-contrast .math-node.selected {
 
 body.high-contrast .frac-bar,
 body.high-contrast .dynamic-frac-bar {
-  background-color: #ffffff !important;
-  height: 3px !important;
+  border-top: 3px solid #ffffff !important;
+  border-bottom: none !important;
+  background: transparent !important;
+  height: 0 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
 }
 
 body.high-contrast .dropzone {
@@ -2020,9 +2024,12 @@ body.dark-theme .math-node.node-target {
   transform: scale(1.12);
 }
 .frac-bar {
+  display: block;
   width: 100%;
-  height: 2px;
-  background: currentColor;
+  height: 0;
+  border-top: 2px solid currentColor;
+  border-bottom: none;
+  background: transparent;
   margin: 2px 0;
   border-radius: 1px;
 }
@@ -4461,6 +4468,35 @@ body {
   color: #0f172a;
 }
 
+.worksheet-html-frame .print-page {
+  max-width: 100%;
+  margin: 0 auto;
+  background: #ffffff;
+  padding: 10px;
+  box-shadow: none;
+  border-radius: 4px;
+}
+
+.worksheet-html-frame .frac-bar {
+  display: block;
+  width: 100%;
+  height: 0 !important;
+  min-height: 0 !important;
+  border-top: 1.5px solid #000000 !important;
+  border-bottom: none !important;
+  background: transparent !important;
+  margin: 2px 0;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.worksheet-html-frame .radical-body,
+.worksheet-html-frame .radicand {
+  border-top: 1.5px solid #000000 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
 .worksheet-latex-area {
   width: 100%;
   height: 320px;
@@ -5017,3 +5053,47 @@ body {
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ------------------------------------------------------------------------- */
+/* Stili di stampa (@media print)                                            */
+/* ------------------------------------------------------------------------- */
+@media print {
+  .frac-bar {
+    display: block !important;
+    width: 100% !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    border-top: 1.5px solid currentColor !important;
+    border-bottom: none !important;
+    background: transparent !important;
+    margin: 2px 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .dynamic-frac-bar {
+    display: block !important;
+    width: 100% !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    border-top: 1.5px solid currentColor !important;
+    border-bottom: none !important;
+    background: transparent !important;
+    margin: 2px 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .radical-body,
+  .radicand {
+    border-top: 1.5px solid currentColor !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .radical-surd {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+

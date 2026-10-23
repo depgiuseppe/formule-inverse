@@ -10124,13 +10124,58 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
   .math-eq { display: inline-flex; align-items: center; font-family: var(--font-math); }
   .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 .25rem; }
   .frac-num, .frac-den { padding: .1rem .35rem; }
-  .frac-bar { width: 100%; height: 2px; background: currentColor; margin: 2px 0; }
+  .frac-bar {
+    display: block;
+    width: 100%;
+    height: 0 !important;
+    min-height: 0 !important;
+    border-top: 1.5px solid #000000 !important;
+    border-bottom: none !important;
+    background: transparent !important;
+    margin: 2px 0;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   .node-pow { display: inline-flex; align-items: baseline; }
   .pow-exp { font-size: .75em; vertical-align: super; line-height: 0; }
   .sub { font-size: .75em; vertical-align: sub; line-height: 0; }
+  .math-radical {
+    display: inline-flex;
+    align-items: stretch;
+    vertical-align: middle;
+    position: relative;
+    margin: 0 2px;
+  }
+  .radical-surd {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: .85em;
+    height: 100%;
+    overflow: visible;
+    color: currentColor;
+    display: block;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .radical-body {
+    display: inline-flex;
+    align-items: center;
+    border-top: 1.5px solid #000000 !important;
+    padding: 0.15rem 0.35rem 0.05rem 0.25rem;
+    margin-left: .8em;
+    font-family: var(--font-math);
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   .radical { display: inline-flex; align-items: stretch; margin: 0 2px; }
   .radical-sign { font-size: 1.3em; margin-right: 1px; }
-  .radicand { border-top: 2px solid currentColor; padding: 2px 4px 0 2px; }
+  .radicand {
+    border-top: 1.5px solid #000000 !important;
+    padding: 2px 4px 0 2px;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   .op-plus, .op-minus, .op-times, .op-div, .eq-sign { margin: 0 .25rem; }
 
   /* Regole di stampa ottimizzate per foglio A4 */
@@ -10147,7 +10192,30 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     .no-print, .no-print-toolbar { display: none !important; }
     .exercise-item { page-break-inside: avoid !important; break-inside: avoid !important; }
     .solutions-page { page-break-before: always !important; break-before: page !important; }
-    .workspace-box.workspace-grid {
+    .workspace-box.workspace-grid,
+    .workspace-box.workspace-lines {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .frac-bar {
+      display: block !important;
+      width: 100% !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      border-top: 1.5px solid #000000 !important;
+      border-bottom: none !important;
+      background: transparent !important;
+      margin: 2px 0 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .radical-body,
+    .radicand {
+      border-top: 1.5px solid #000000 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .radical-surd {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
@@ -10164,6 +10232,48 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     <button class="tb-btn tb-btn-secondary" onclick="window.close()">\u2715 Chiudi</button>
   </div>
 </div>
+`;
+    } else {
+      html += `<style>
+  .print-page .frac-bar {
+    display: block;
+    width: 100%;
+    height: 0 !important;
+    min-height: 0 !important;
+    border-top: 1.5px solid #000000 !important;
+    border-bottom: none !important;
+    background: transparent !important;
+    margin: 2px 0;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print-page .radical-body,
+  .print-page .radicand {
+    border-top: 1.5px solid #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  @media print {
+    .print-page .frac-bar {
+      display: block !important;
+      width: 100% !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      border-top: 1.5px solid #000000 !important;
+      border-bottom: none !important;
+      background: transparent !important;
+      margin: 2px 0 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .print-page .radical-body,
+    .print-page .radicand {
+      border-top: 1.5px solid #000000 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+  }
+</style>
 `;
     }
     html += `<div class="print-page">

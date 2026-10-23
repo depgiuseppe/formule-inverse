@@ -1456,7 +1456,7 @@ export function runAllTests() {
     return true;
   }));
 
-  results.push(test('Esportatore: generateHtmlWorksheet genera HTML autosufficiente con supporto stampa A4', () => {
+  results.push(test('Esportatore: generateHtmlWorksheet genera HTML autosufficiente con supporto stampa A4 e frazioni print-proof', () => {
     const exercises = buildWorksheetExercises({ count: 2 });
     const html = generateHtmlWorksheet(exercises, {
       title: 'Scheda Esercizi Stampa',
@@ -1468,6 +1468,15 @@ export function runAllTests() {
     if (!html.includes('workspace-grid')) return 'Manca classe quadretti';
     if (!html.includes('solutions-page')) return 'Manca pagina soluzioni';
     if (!html.includes('math-eq')) return 'Manca rendering semantico formule';
+    // Verifica stabilità stampa linee frazione (.frac-bar resistente alla disattivazione di Background Graphics)
+    if (!html.includes('border-top: 1.5px solid #000000 !important')) return 'Manca border-top per .frac-bar';
+    if (!html.includes('background: transparent !important')) return 'Manca background transparent per .frac-bar';
+    if (!html.includes('print-color-adjust: exact')) return 'Manca print-color-adjust: exact';
+
+    // Verifica anteprima non standalone (usata nel modal)
+    const previewHtml = generateHtmlWorksheet(exercises, {}, false);
+    if (!previewHtml.includes('.frac-bar')) return 'Mancano stili .frac-bar nell\'anteprima';
+    if (!previewHtml.includes('border-top: 1.5px solid #000000 !important')) return 'Manca border-top per .frac-bar nell\'anteprima';
     return true;
   }));
 
