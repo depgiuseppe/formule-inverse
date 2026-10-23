@@ -450,6 +450,7 @@ const LATEX_VAR_MAP = {
   c1: 'c_1', c2: 'c_2', dl: '\\Delta l', ip: 'i_p',
   theta: '\\theta', alpha: '\\alpha', beta: '\\beta', gamma: '\\gamma', delta: '\\delta',
   omega: '\\omega', phi: '\\phi', sigma: '\\sigma', tau: '\\tau', nu: '\\nu',
+  kappa: '\\kappa', xi: '\\xi', chi: '\\chi',
   Delta: '\\Delta', Lambda: '\\Lambda', Omega: '\\Omega', Sigma: '\\Sigma', Phi: '\\Phi',
   eps0: '\\varepsilon_0', mu0: '\\mu_0',
 };
@@ -476,6 +477,12 @@ export function toLatex(node, parentPrec = 0) {
         Ec1: 'E_{c1}', Ec2: 'E_{c2}',
         Ep1: 'E_{p1}', Ep2: 'E_{p2}',
         v0x: 'v_{0x}', v0y: 'v_{0y}',
+        H0: 'H_0', Rs: 'R_s', lam0: '\\lambda_0', lam_max: '\\lambda_{\\text{max}}',
+        L_edd: 'L_{\\text{edd}}', v_area: 'v_{\\text{area}}', thetaB: '\\theta_B',
+        Delta_y: '\\Delta y', Delta_G: '\\Delta G', Delta_H: '\\Delta H', Delta_S: '\\Delta S',
+        P_tot: 'P_{\\text{tot}}', m_mol: 'm_{\\text{mol}}', m_solv: 'm_{\\text{solv}}',
+        pH: '\\text{pH}', pOH: '\\text{pOH}', pKa: '\\text{p}K_a',
+        Ka: 'K_a', Kb: 'K_b', Kw: 'K_w', Pi: '\\Pi',
       };
       if (knownSubsLatex[node.name]) return knownSubsLatex[node.name];
 

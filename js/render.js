@@ -408,6 +408,7 @@ const GREEK_VARS = {
   pi: 'π', rho: 'ρ', eta: 'η', lam: 'λ', eps: 'ε',
   mu: 'μ', theta: 'θ', alpha: 'α', beta: 'β', gamma: 'γ',
   delta: 'δ', omega: 'ω', phi: 'φ', sigma: 'σ', tau: 'τ', nu: 'ν',
+  kappa: 'κ', xi: 'ξ', chi: 'χ',
   Delta: 'Δ', Lambda: 'Λ', Omega: 'Ω', Sigma: 'Σ', Phi: 'Φ',
 };
 
@@ -424,6 +425,12 @@ const SPECIAL_PRETTY_VARS = {
   Vmax: 'V_max', Veff: 'V_eff', Ieff: 'I_eff',
   rho_corpo: 'ρ_corpo', rho_fluido: 'ρ_fluido',
   V_imm: 'V_imm', V_tot: 'V_tot',
+  H0: 'H₀', Rs: 'R_s', lam0: 'λ₀', lam_max: 'λ_max',
+  L_edd: 'L_edd', v_area: 'v_area', thetaB: 'θ_B',
+  Delta_y: 'Δy', Delta_G: 'ΔG', Delta_H: 'ΔH', Delta_S: 'ΔS',
+  P_tot: 'P_tot', m_mol: 'm_mol', m_solv: 'm_solv',
+  pH: 'pH', pOH: 'pOH', pKa: 'pKₐ',
+  Ka: 'Kₐ', Kb: 'Kᵦ', Kw: 'K_w', Pi: 'Π',
 };
 
 // Genera l'HTML tipografico per le variabili con pedici (sub) e simboli greci corretti.

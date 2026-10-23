@@ -32,6 +32,8 @@ export const TOPICS = [
   'ottica',
   'relatività',
   'fisica moderna',
+  'astrofisica',
+  'chimica',
   'geometria',
   'proporzionalità',
   'algebra',
@@ -303,7 +305,7 @@ const SEARCH_SYNONYMS = {
   coulomb: ['coulomb', 'elettrostatica', 'carica elettrica'],
   joule: ['joule', 'effetto joule', 'calore'],
   torricelli: ['torricelli', 'efflusso', 'caduta libera'],
-  keplero: ['keplero', 'orbita', 'periodo orbitale', 'pianeti'],
+  keplero: ['keplero', 'kepler', 'orbita', 'periodo orbitale', 'pianeti', 'vis-viva', 'velocita areale', 'semiasse'],
   snell: ['snell', 'rifrazione', 'ottica', 'indice di rifrazione'],
   bernoulli: ['bernoulli', 'idrodinamica', 'fluido in moto'],
   pascal: ['pascal', 'torchio idraulico', 'pistone'],
@@ -313,6 +315,15 @@ const SEARCH_SYNONYMS = {
   carnot: ['carnot', 'rendimento', 'macchina termica'],
   onda: ['onda', 'onde', 'propagazione', 'lunghezza d onda', 'frequenza', 'periodo', 'suono'],
   onde: ['onda', 'onde', 'propagazione', 'lunghezza d onda', 'frequenza', 'periodo', 'suono'],
+  hubble: ['hubble', 'recessione', 'espansione', 'galassia', 'galassie', 'redshift', 'costante di hubble'],
+  astrofisica: ['astrofisica', 'astronomia', 'stella', 'stelle', 'buco nero', 'schwarzschild', 'eddington', 'wien', 'stefan boltzmann'],
+  diffrazione: ['diffrazione', 'reticolo', 'singola fenditura', 'rayleigh', 'frange', 'disco di airy'],
+  interferenza: ['interferenza', 'young', 'doppia fenditura', 'lamine sottili', 'frangia', 'frange'],
+  chimica: ['chimica', 'moli', 'molarita', 'gas ideali', 'van der waals', 'ph', 'poh', 'nernst', 'soluzione', 'tampone'],
+  nernst: ['nernst', 'elettrodo', 'potenziale standard', 'elettrochimica', 'pila', 'redox', 'faraday'],
+  ph: ['ph', 'poh', 'acido', 'base', 'dissociazione', 'ka', 'kb', 'kw', 'henderson', 'hasselbalch', 'tampone'],
+  molarita: ['molarita', 'concentrazione', 'diluizione', 'molalita', 'soluzione', 'soluto', 'solvente'],
+  gas: ['gas', 'gas perfetti', 'gas ideali', 'gas reali', 'van der waals', 'dalton', 'graham', 'effusione'],
 };
 
 const STOP_WORDS = new Set([

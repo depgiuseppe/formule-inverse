@@ -440,6 +440,9 @@
     sigma: "\\sigma",
     tau: "\\tau",
     nu: "\\nu",
+    kappa: "\\kappa",
+    xi: "\\xi",
+    chi: "\\chi",
     Delta: "\\Delta",
     Lambda: "\\Lambda",
     Omega: "\\Omega",
@@ -481,7 +484,28 @@
           Ep1: "E_{p1}",
           Ep2: "E_{p2}",
           v0x: "v_{0x}",
-          v0y: "v_{0y}"
+          v0y: "v_{0y}",
+          H0: "H_0",
+          Rs: "R_s",
+          lam0: "\\lambda_0",
+          lam_max: "\\lambda_{\\text{max}}",
+          L_edd: "L_{\\text{edd}}",
+          v_area: "v_{\\text{area}}",
+          thetaB: "\\theta_B",
+          Delta_y: "\\Delta y",
+          Delta_G: "\\Delta G",
+          Delta_H: "\\Delta H",
+          Delta_S: "\\Delta S",
+          P_tot: "P_{\\text{tot}}",
+          m_mol: "m_{\\text{mol}}",
+          m_solv: "m_{\\text{solv}}",
+          pH: "\\text{pH}",
+          pOH: "\\text{pOH}",
+          pKa: "\\text{p}K_a",
+          Ka: "K_a",
+          Kb: "K_b",
+          Kw: "K_w",
+          Pi: "\\Pi"
         };
         if (knownSubsLatex[node.name]) return knownSubsLatex[node.name];
         if (node.name.startsWith("d") && node.name.length > 1 && !["d", "dt"].includes(node.name)) {
@@ -5389,6 +5413,398 @@
       isolate: ["En", "E1", "n"],
       difficulty: 4,
       conditions: ["n \u2260 0"]
+    },
+    // ============================ ASTROFISICA E LEGGI DI KEPLERO ============================
+    {
+      id: "legge-hubble",
+      topic: "astrofisica",
+      name: "legge di Hubble (espansione cosmica)",
+      formula: "v = H0*d",
+      isolate: ["v", "H0", "d"],
+      difficulty: 2,
+      conditions: ["d > 0"],
+      hypotheses: "Universo omogeneo e isotropo su larga scala; H0 \xE8 la costante di Hubble.",
+      latex: "v = H_0 \\cdot d"
+    },
+    {
+      id: "raggio-schwarzschild",
+      topic: "astrofisica",
+      name: "raggio di Schwarzschild (buco nero statico)",
+      formula: "Rs = (2*G*M)/c^2",
+      isolate: ["Rs", "G", "M", "c"],
+      difficulty: 4,
+      conditions: ["c \u2260 0"],
+      hypotheses: "Relativit\xE0 generale; buco nero a simmetria sferica non rotante.",
+      latex: "R_s = \\frac{2 \\cdot G \\cdot M}{c^2}"
+    },
+    {
+      id: "luminosita-stellare",
+      topic: "astrofisica",
+      name: "luminosit\xE0 stellare (Stefan-Boltzmann)",
+      formula: "L = 4*pi*R^2*sigma*T^4",
+      isolate: ["L", "R", "sigma", "T"],
+      difficulty: 4,
+      conditions: ["R > 0", "T > 0"],
+      hypotheses: "Stella considerata corpo nero sferico di raggio R e temperatura superficiale T.",
+      latex: "L = 4 \\cdot \\pi \\cdot R^2 \\cdot \\sigma \\cdot T^4"
+    },
+    {
+      id: "legge-wien",
+      topic: "astrofisica",
+      name: "legge dello spostamento di Wien",
+      formula: "lam_max*T = b",
+      isolate: ["lam_max", "T", "b"],
+      difficulty: 2,
+      conditions: ["T > 0"],
+      hypotheses: "Emissione di corpo nero; b \xE8 la costante dello spostamento di Wien.",
+      latex: "\\lambda_{\\text{max}} \\cdot T = b"
+    },
+    {
+      id: "redshift-astronomico",
+      topic: "astrofisica",
+      name: "parametro di redshift cosmologico (z)",
+      formula: "z = (lam - lam0)/lam0",
+      isolate: ["z", "lam", "lam0"],
+      difficulty: 3,
+      conditions: ["lam0 > 0"],
+      hypotheses: "lam \xE8 la lunghezza d'onda osservata, lam0 quella emessa a riposo dalla sorgente.",
+      latex: "z = \\frac{\\lambda - \\lambda_0}{\\lambda_0}"
+    },
+    {
+      id: "luminosita-eddington",
+      topic: "astrofisica",
+      name: "luminosit\xE0 limite di Eddington",
+      formula: "L_edd = (4*pi*G*M*c)/kappa",
+      isolate: ["L_edd", "G", "M", "c", "kappa"],
+      difficulty: 4,
+      conditions: ["kappa \u2260 0"],
+      hypotheses: "Equilibrio idrostatico tra spinta di radiazione e attrazione gravitazionale.",
+      latex: "L_{\\text{edd}} = \\frac{4 \\cdot \\pi \\cdot G \\cdot M \\cdot c}{\\kappa}"
+    },
+    {
+      id: "energia-orbitale-keplero",
+      topic: "astrofisica",
+      name: "energia orbitale (orbita ellittica)",
+      formula: "E = -(G*M*m)/(2*a)",
+      isolate: ["E", "G", "M", "m", "a"],
+      difficulty: 4,
+      conditions: ["a > 0"],
+      hypotheses: "Moto in campo gravitazionale centrale newtoniano con semiasse maggiore a.",
+      latex: "E = -\\frac{G \\cdot M \\cdot m}{2 \\cdot a}"
+    },
+    {
+      id: "keplero-3-masse",
+      topic: "astrofisica",
+      name: "terza legge di Keplero generalizzata (due corpi)",
+      formula: "T^2 = (4*pi^2*a^3)/(G*(M1 + M2))",
+      isolate: ["T", "a", "G", "M1", "M2"],
+      difficulty: 5,
+      conditions: ["G*(M1 + M2) \u2260 0"],
+      hypotheses: "Due masse M1 e M2 in moto orbitale attorno al baricentro comune.",
+      latex: "T^2 = \\frac{4 \\cdot \\pi^2 \\cdot a^3}{G \\cdot (M_1 + M_2)}"
+    },
+    {
+      id: "equazione-vis-viva",
+      topic: "astrofisica",
+      name: "equazione vis-viva (velocit\xE0 orbitale)",
+      formula: "v^2 = G*M*(2/r - 1/a)",
+      isolate: ["v", "G", "M", "r", "a"],
+      difficulty: 5,
+      conditions: ["r > 0", "a > 0"],
+      hypotheses: "Conservazione dell'energia in orbita ellittica kepleriana attorno alla massa centrale M.",
+      latex: "v^2 = G \\cdot M \\cdot \\left(\\frac{2}{r} - \\frac{1}{a}\\right)"
+    },
+    {
+      id: "velocita-areale-keplero",
+      topic: "astrofisica",
+      name: "velocit\xE0 areale (seconda legge di Keplero)",
+      formula: "v_area = L/(2*m)",
+      isolate: ["v_area", "L", "m"],
+      difficulty: 3,
+      conditions: ["m \u2260 0"],
+      hypotheses: "Moto sotto forza centrale con conservazione del momento angolare L.",
+      latex: "v_{\\text{area}} = \\frac{L}{2 \\cdot m}"
+    },
+    // ============================ OTTICA ONDULATORIA ============================
+    {
+      id: "young-frange",
+      topic: "ottica",
+      name: "interfrangia di Young (doppia fenditura)",
+      formula: "Delta_y = (lam*L)/d",
+      isolate: ["Delta_y", "lam", "L", "d"],
+      difficulty: 3,
+      conditions: ["d \u2260 0"],
+      hypotheses: "Interferenza a due fenditure con distanza schermo L molto maggiore del passo d.",
+      latex: "\\Delta y = \\frac{\\lambda \\cdot L}{d}"
+    },
+    {
+      id: "diffrazione-singola-fenditura",
+      topic: "ottica",
+      name: "diffrazione da singola fenditura (minimi)",
+      formula: "a*sin(theta) = m*lam",
+      isolate: ["a", "theta", "m", "lam"],
+      difficulty: 4,
+      conditions: ["a > 0"],
+      hypotheses: "Minimi di diffrazione da fenditura lineare di larghezza a; m intero non nullo.",
+      latex: "a \\cdot \\sin(\\theta) = m \\cdot \\lambda"
+    },
+    {
+      id: "reticolo-diffrazione",
+      topic: "ottica",
+      name: "reticolo di diffrazione (massimi principali)",
+      formula: "d*sin(theta) = m*lam",
+      isolate: ["d", "theta", "m", "lam"],
+      difficulty: 4,
+      conditions: ["d > 0"],
+      hypotheses: "Passo del reticolo d; m \xE8 l'ordine del massimo di interferenza.",
+      latex: "d \\cdot \\sin(\\theta) = m \\cdot \\lambda"
+    },
+    {
+      id: "criterio-rayleigh",
+      topic: "ottica",
+      name: "criterio di Rayleigh (risoluzione angolare)",
+      formula: "theta = (1.22*lam)/D",
+      isolate: ["theta", "lam", "D"],
+      difficulty: 3,
+      conditions: ["D > 0"],
+      hypotheses: "Diffrazione da apertura circolare di diametro D (disco di Airy).",
+      latex: "\\theta = \\frac{1.22 \\cdot \\lambda}{D}"
+    },
+    {
+      id: "legge-malus",
+      topic: "ottica",
+      name: "legge di Malus (polarizzazione)",
+      formula: "I = I0*cos(theta)^2",
+      isolate: ["I", "I0", "theta"],
+      difficulty: 4,
+      conditions: [],
+      hypotheses: "Luce polarizzata linearmente incidente con intensit\xE0 I0 su filtro analizzatore inclinato di theta.",
+      latex: "I = I_0 \\cdot \\cos^2(\\theta)"
+    },
+    {
+      id: "legge-brewster",
+      topic: "ottica",
+      name: "angolo di Brewster (polarizzazione per riflessione)",
+      formula: "tan(thetaB) = n2/n1",
+      isolate: ["thetaB", "n2", "n1"],
+      difficulty: 4,
+      conditions: ["n1 \u2260 0"],
+      hypotheses: "Raggio riflesso totalmente polarizzato ortogonalmente al piano di incidenza.",
+      latex: "\\tan(\\theta_B) = \\frac{n_2}{n_1}"
+    },
+    {
+      id: "lamine-sottili-interferenza",
+      topic: "ottica",
+      name: "interferenza su lamine sottili (cammino ottico)",
+      formula: "2*n*d = m*lam",
+      isolate: ["n", "d", "m", "lam"],
+      difficulty: 3,
+      conditions: ["n \u2265 1"],
+      hypotheses: "Riflessione quasi normale su pellicola di spessore d e indice di rifrazione n.",
+      latex: "2 \\cdot n \\cdot d = m \\cdot \\lambda"
+    },
+    // ============================ CHIMICA GENERALE ============================
+    // --- Gas Ideali e Reali ---
+    {
+      id: "gas-van-der-waals",
+      topic: "chimica",
+      name: "equazione di Van der Waals (gas reali)",
+      formula: "(p + (a*n^2)/V^2)*(V - n*b) = n*R*T",
+      isolate: ["p", "V", "n", "R", "T", "a", "b"],
+      difficulty: 5,
+      conditions: ["V > n*b", "V \u2260 0"],
+      hypotheses: "Gas reale con attrazione molecolare (parametro a) e volume proprio (covolume b).",
+      latex: "\\left(p + \\frac{a \\cdot n^2}{V^2}\\right) \\cdot (V - n \\cdot b) = n \\cdot R \\cdot T"
+    },
+    {
+      id: "densita-gas-ideali",
+      topic: "chimica",
+      name: "densit\xE0 di un gas ideale",
+      formula: "rho = (p*M)/(R*T)",
+      isolate: ["rho", "p", "M", "R", "T"],
+      difficulty: 3,
+      conditions: ["R \u2260 0", "T > 0"],
+      hypotheses: "M \xE8 la massa molare del gas, p la pressione e T la temperatura assoluta.",
+      latex: "\\rho = \\frac{p \\cdot M}{R \\cdot T}"
+    },
+    {
+      id: "legge-graham",
+      topic: "chimica",
+      name: "legge di Graham (velocit\xE0 di effusione)",
+      formula: "v1/v2 = sqrt(M2/M1)",
+      isolate: ["v1", "v2", "M1", "M2"],
+      difficulty: 4,
+      conditions: ["v2 \u2260 0", "M1 > 0"],
+      hypotheses: "Rapporto di effusione tra due gas con masse molari M1 e M2 a pari T e p.",
+      latex: "\\frac{v_1}{v_2} = \\sqrt{\\frac{M_2}{M_1}}"
+    },
+    {
+      id: "legge-dalton",
+      topic: "chimica",
+      name: "legge di Dalton (pressione parziale)",
+      formula: "Pi = xi*P_tot",
+      isolate: ["Pi", "xi", "P_tot"],
+      difficulty: 2,
+      conditions: ["P_tot > 0"],
+      hypotheses: "xi \xE8 la frazione molare del componente i-esimo in una miscela ideale di gas.",
+      latex: "P_i = \\chi_i \\cdot P_{\\text{tot}}"
+    },
+    // --- Equilibri Acido-Base e pH ---
+    {
+      id: "ph-poh-relazione",
+      topic: "chimica",
+      name: "relazione tra pH e pOH",
+      formula: "pH + pOH = 14",
+      isolate: ["pH", "pOH"],
+      difficulty: 2,
+      conditions: [],
+      hypotheses: "Soluzione acquosa a 25\xB0C (298.15 K), dove Kw = 1.0e-14 e pKw = 14.",
+      latex: "\\text{pH} + \\text{pOH} = 14"
+    },
+    {
+      id: "prodotto-ionico-acqua",
+      topic: "chimica",
+      name: "prodotto ionico dell'acqua (Kw)",
+      formula: "Kw = H*OH",
+      isolate: ["Kw", "H", "OH"],
+      difficulty: 2,
+      conditions: ["H > 0", "OH > 0"],
+      hypotheses: "H e OH rappresentano le concentrazioni molari [H+] e [OH-].",
+      latex: "K_w = [\\text{H}^+] \\cdot [\\text{OH}^-]"
+    },
+    {
+      id: "costante-dissociazione-acida",
+      topic: "chimica",
+      name: "costante di dissociazione acida (Ka)",
+      formula: "Ka = (H*A)/HA",
+      isolate: ["Ka", "H", "A", "HA"],
+      difficulty: 3,
+      conditions: ["HA > 0"],
+      hypotheses: "Equilibrio acido debole HA <=> H+ + A-; A rappresenta la base coniugata.",
+      latex: "K_a = \\frac{[\\text{H}^+] \\cdot [\\text{A}^-]}{[\\text{HA}]}"
+    },
+    {
+      id: "costante-dissociazione-basica",
+      topic: "chimica",
+      name: "costante di dissociazione basica (Kb)",
+      formula: "Kb = (OH*BH)/B",
+      isolate: ["Kb", "OH", "BH", "B"],
+      difficulty: 3,
+      conditions: ["B > 0"],
+      hypotheses: "Equilibrio base debole B + H2O <=> BH+ + OH-; BH \xE8 l'acido coniugato.",
+      latex: "K_b = \\frac{[\\text{OH}^-] \\cdot [\\text{BH}^+]}{[\\text{B}]}"
+    },
+    {
+      id: "henderson-hasselbalch",
+      topic: "chimica",
+      name: "equazione di Henderson-Hasselbalch (tampone acido)",
+      formula: "pH = pKa + ln(A/HA)/ln(10)",
+      isolate: ["pH", "pKa", "A", "HA"],
+      difficulty: 4,
+      conditions: ["HA > 0", "A > 0"],
+      hypotheses: "Soluzione tampone formata da acido debole HA e base coniugata A-.",
+      latex: "\\text{pH} = \\text{p}K_a + \\frac{\\ln([\\text{A}^-]/[\\text{HA}])}{\\ln(10)}"
+    },
+    // --- Elettrochimica ed Equazione di Nernst ---
+    {
+      id: "nernst-generale",
+      topic: "chimica",
+      name: "equazione di Nernst (potenziale di cella)",
+      formula: "E = E0 - ((R*T)/(z*F))*ln(Q)",
+      isolate: ["E", "E0", "R", "T", "z", "F", "Q"],
+      difficulty: 5,
+      conditions: ["z \u2260 0", "F \u2260 0", "Q > 0"],
+      hypotheses: "Potenziale di riduzione reale con quoziente di reazione Q e z elettroni scambiati.",
+      latex: "E = E_0 - \\frac{R \\cdot T}{z \\cdot F} \\cdot \\ln(Q)"
+    },
+    {
+      id: "nernst-298k",
+      topic: "chimica",
+      name: "equazione di Nernst a 25\xB0C (298 K)",
+      formula: "E = E0 - (0.0257/z)*ln(Q)",
+      isolate: ["E", "E0", "z", "Q"],
+      difficulty: 4,
+      conditions: ["z \u2260 0", "Q > 0"],
+      hypotheses: "Condizioni standard a 298.15 K con fattore RT/F = 0.0257 V.",
+      latex: "E = E_0 - \\frac{0.0257}{z} \\cdot \\ln(Q)"
+    },
+    {
+      id: "gibbs-fem",
+      topic: "chimica",
+      name: "relazione tra energia libera di Gibbs e f.e.m.",
+      formula: "Delta_G = -z*F*E",
+      isolate: ["Delta_G", "z", "F", "E"],
+      difficulty: 3,
+      conditions: ["z \u2260 0", "F \u2260 0"],
+      hypotheses: "Lavoro elettrico reversibile in cella elettrochimica; F \xE8 la costante di Faraday.",
+      latex: "\\Delta G = -z \\cdot F \\cdot E"
+    },
+    // --- Molarità, Soluzioni e Proprietà Colligative ---
+    {
+      id: "molarita",
+      topic: "chimica",
+      name: "molarit\xE0 (concentrazione molare)",
+      formula: "M = n/V",
+      isolate: ["M", "n", "V"],
+      difficulty: 2,
+      conditions: ["V > 0"],
+      hypotheses: "n \xE8 il numero di moli di soluto, V il volume della soluzione in litri (o m\xB3).",
+      latex: "M = \\frac{n}{V}"
+    },
+    {
+      id: "moli-massa-molare",
+      topic: "chimica",
+      name: "relazione tra moli e massa molare",
+      formula: "n = m/MM",
+      isolate: ["n", "m", "MM"],
+      difficulty: 2,
+      conditions: ["MM > 0"],
+      hypotheses: "m \xE8 la massa del soluto, MM la sua massa molare.",
+      latex: "n = \\frac{m}{MM}"
+    },
+    {
+      id: "diluizione-soluzione",
+      topic: "chimica",
+      name: "legge di diluizione delle soluzioni",
+      formula: "M1*V1 = M2*V2",
+      isolate: ["M1", "V1", "M2", "V2"],
+      difficulty: 3,
+      conditions: ["M2 \u2260 0", "V2 \u2260 0"],
+      hypotheses: "Aggiunta di solo solvente: la quantit\xE0 di soluto disciolto si conserva.",
+      latex: "M_1 \\cdot V_1 = M_2 \\cdot V_2"
+    },
+    {
+      id: "molalita",
+      topic: "chimica",
+      name: "molalit\xE0 della soluzione",
+      formula: "m_mol = n/m_solv",
+      isolate: ["m_mol", "n", "m_solv"],
+      difficulty: 2,
+      conditions: ["m_solv > 0"],
+      hypotheses: "m_solv \xE8 la massa del solo solvente (in kg).",
+      latex: "m_{\\text{mol}} = \\frac{n}{m_{\\text{solv}}}"
+    },
+    {
+      id: "pressione-osmotica",
+      topic: "chimica",
+      name: "pressione osmotica (van 't Hoff)",
+      formula: "Pi = i*M*R*T",
+      isolate: ["Pi", "i", "M", "R", "T"],
+      difficulty: 3,
+      conditions: ["T > 0"],
+      hypotheses: "Soluzione diluita; i \xE8 il coefficiente di van 't Hoff (fattore di ionizzazione).",
+      latex: "\\Pi = i \\cdot M \\cdot R \\cdot T"
+    },
+    {
+      id: "legge-raoult",
+      topic: "chimica",
+      name: "legge di Raoult (tensione di vapore)",
+      formula: "P1 = x1*P0",
+      isolate: ["P1", "x1", "P0"],
+      difficulty: 2,
+      conditions: ["0 \u2264 x1 \u2264 1"],
+      hypotheses: "Soluzione ideale con soluto non volatile; P0 \xE8 la tensione di vapore del solvente puro.",
+      latex: "P_1 = x_1 \\cdot P_0"
     }
   ];
 
@@ -5412,6 +5828,8 @@
     "ottica",
     "relativit\xE0",
     "fisica moderna",
+    "astrofisica",
+    "chimica",
     "geometria",
     "proporzionalit\xE0",
     "algebra"
@@ -5828,7 +6246,7 @@
     coulomb: ["coulomb", "elettrostatica", "carica elettrica"],
     joule: ["joule", "effetto joule", "calore"],
     torricelli: ["torricelli", "efflusso", "caduta libera"],
-    keplero: ["keplero", "orbita", "periodo orbitale", "pianeti"],
+    keplero: ["keplero", "kepler", "orbita", "periodo orbitale", "pianeti", "vis-viva", "velocita areale", "semiasse"],
     snell: ["snell", "rifrazione", "ottica", "indice di rifrazione"],
     bernoulli: ["bernoulli", "idrodinamica", "fluido in moto"],
     pascal: ["pascal", "torchio idraulico", "pistone"],
@@ -5837,7 +6255,16 @@
     ampere: ["ampere", "biot savart", "campo magnetico"],
     carnot: ["carnot", "rendimento", "macchina termica"],
     onda: ["onda", "onde", "propagazione", "lunghezza d onda", "frequenza", "periodo", "suono"],
-    onde: ["onda", "onde", "propagazione", "lunghezza d onda", "frequenza", "periodo", "suono"]
+    onde: ["onda", "onde", "propagazione", "lunghezza d onda", "frequenza", "periodo", "suono"],
+    hubble: ["hubble", "recessione", "espansione", "galassia", "galassie", "redshift", "costante di hubble"],
+    astrofisica: ["astrofisica", "astronomia", "stella", "stelle", "buco nero", "schwarzschild", "eddington", "wien", "stefan boltzmann"],
+    diffrazione: ["diffrazione", "reticolo", "singola fenditura", "rayleigh", "frange", "disco di airy"],
+    interferenza: ["interferenza", "young", "doppia fenditura", "lamine sottili", "frangia", "frange"],
+    chimica: ["chimica", "moli", "molarita", "gas ideali", "van der waals", "ph", "poh", "nernst", "soluzione", "tampone"],
+    nernst: ["nernst", "elettrodo", "potenziale standard", "elettrochimica", "pila", "redox", "faraday"],
+    ph: ["ph", "poh", "acido", "base", "dissociazione", "ka", "kb", "kw", "henderson", "hasselbalch", "tampone"],
+    molarita: ["molarita", "concentrazione", "diluizione", "molalita", "soluzione", "soluto", "solvente"],
+    gas: ["gas", "gas perfetti", "gas ideali", "gas reali", "van der waals", "dalton", "graham", "effusione"]
   };
   var STOP_WORDS = /* @__PURE__ */ new Set([
     "di",
@@ -6471,6 +6898,9 @@
     sigma: "\u03C3",
     tau: "\u03C4",
     nu: "\u03BD",
+    kappa: "\u03BA",
+    xi: "\u03BE",
+    chi: "\u03C7",
     Delta: "\u0394",
     Lambda: "\u039B",
     Omega: "\u03A9",
@@ -6508,7 +6938,28 @@
     rho_corpo: "\u03C1_corpo",
     rho_fluido: "\u03C1_fluido",
     V_imm: "V_imm",
-    V_tot: "V_tot"
+    V_tot: "V_tot",
+    H0: "H\u2080",
+    Rs: "R_s",
+    lam0: "\u03BB\u2080",
+    lam_max: "\u03BB_max",
+    L_edd: "L_edd",
+    v_area: "v_area",
+    thetaB: "\u03B8_B",
+    Delta_y: "\u0394y",
+    Delta_G: "\u0394G",
+    Delta_H: "\u0394H",
+    Delta_S: "\u0394S",
+    P_tot: "P_tot",
+    m_mol: "m_mol",
+    m_solv: "m_solv",
+    pH: "pH",
+    pOH: "pOH",
+    pKa: "pK\u2090",
+    Ka: "K\u2090",
+    Kb: "K\u1D66",
+    Kw: "K_w",
+    Pi: "\u03A0"
   };
   function renderVarHtml(name) {
     if (!name) return "";
@@ -7545,6 +7996,8 @@
     M: { name: "Massa maggiore", unit: "kg", sample: 50 },
     m1: { name: "Massa 1", unit: "kg", sample: 2 },
     m2: { name: "Massa 2", unit: "kg", sample: 8 },
+    M1: { name: "Massa corpo 1", unit: "kg", sample: 1989e27 },
+    M2: { name: "Massa corpo 2", unit: "kg", sample: 5972e21 },
     F: { name: "Forza", unit: "N", sample: 40 },
     Fp: { name: "Forza peso", unit: "N", sample: 49.05 },
     Fe: { name: "Forza elastica", unit: "N", sample: 30 },
@@ -7724,7 +8177,41 @@
     eps0: { name: "Costante dielettrica del vuoto", unit: "F/m", sample: 8854e-15 },
     eps: { name: "Costante dielettrica", unit: "F/m", sample: 177e-13 },
     mu0: { name: "Permeabilit\xE0 magnetica del vuoto", unit: "T\xB7m/A", sample: 1256e-9 },
-    rho0: { name: "Resistivit\xE0 a 0\xB0C", unit: "\u03A9\xB7m", sample: 168e-10 }
+    rho0: { name: "Resistivit\xE0 a 0\xB0C", unit: "\u03A9\xB7m", sample: 168e-10 },
+    // --- Astrofisica e Gravitazione Avanzata ---
+    H0: { name: "Costante di Hubble", unit: "km/(s\xB7Mpc)", sample: 70 },
+    Rs: { name: "Raggio di Schwarzschild", unit: "m", sample: 2950 },
+    sigma: { name: "Costante di Stefan-Boltzmann", unit: "W/(m\xB2\xB7K\u2074)", sample: 567e-10 },
+    lam_max: { name: "Lunghezza d'onda di picco", unit: "m", sample: 5e-7 },
+    lam0: { name: "Lunghezza d'onda a riposo", unit: "m", sample: 5e-7 },
+    L_edd: { name: "Luminosit\xE0 limite di Eddington", unit: "W", sample: 1e38 },
+    kappa: { name: "Opacit\xE0 della materia", unit: "m\xB2/kg", sample: 0.04 },
+    v_area: { name: "Velocit\xE0 areale", unit: "m\xB2/s", sample: 1e15 },
+    // --- Ottica Ondulatoria ---
+    Delta_y: { name: "Interfrangia (distanza tra frange)", unit: "m", sample: 2e-3 },
+    D: { name: "Diametro apertura circolare", unit: "m", sample: 0.1 },
+    I0: { name: "Intensit\xE0 incidente", unit: "W/m\xB2", sample: 1e3 },
+    thetaB: { name: "Angolo di Brewster", unit: "rad", sample: 0.9828 },
+    // --- Chimica Generale (Gas, Soluzioni, Acido-Base, Elettrochimica) ---
+    Pi: { name: "Pressione parziale / Pressione osmotica", unit: "Pa", sample: 101325 },
+    xi: { name: "Frazione molare", unit: "adimensionale", sample: 0.2 },
+    P_tot: { name: "Pressione totale miscela", unit: "Pa", sample: 101325 },
+    pH: { name: "pH della soluzione", unit: "adimensionale", sample: 7 },
+    pOH: { name: "pOH della soluzione", unit: "adimensionale", sample: 7 },
+    Kw: { name: "Prodotto ionico dell'acqua", unit: "mol\xB2/L\xB2", sample: 1e-14 },
+    H: { name: "Concentrazione [H\u207A]", unit: "mol/L", sample: 1e-7 },
+    OH: { name: "Concentrazione [OH\u207B]", unit: "mol/L", sample: 1e-7 },
+    Ka: { name: "Costante di dissociazione acida", unit: "mol/L", sample: 18e-6 },
+    Kb: { name: "Costante di dissociazione basica", unit: "mol/L", sample: 18e-6 },
+    HA: { name: "Concentrazione acido indissociato [HA]", unit: "mol/L", sample: 0.1 },
+    BH: { name: "Concentrazione acido coniugato [BH\u207A]", unit: "mol/L", sample: 0.1 },
+    pKa: { name: "Costante pKa", unit: "adimensionale", sample: 4.75 },
+    Delta_G: { name: "Variazione di energia libera di Gibbs", unit: "J", sample: 212e3 },
+    MM: { name: "Massa molare", unit: "g/mol", sample: 18 },
+    m_mol: { name: "Molalit\xE0", unit: "mol/kg", sample: 0.5 },
+    m_solv: { name: "Massa del solvente", unit: "kg", sample: 1 },
+    P0: { name: "Tensione di vapore solvente puro", unit: "Pa", sample: 3170 },
+    P1: { name: "Tensione di vapore soluzione", unit: "Pa", sample: 3100 }
   };
   function getQuantityInfo(symbol, formulaEntry = null) {
     if (symbol === "\xB1") {
@@ -7801,6 +8288,102 @@
     if (symbol === "I") {
       if (topic.includes("suono") || topic.includes("onde") || topic.includes("acust")) {
         return { name: "Intensit\xE0 sonora", unit: "W/m\xB2", sample: 1e-3 };
+      }
+    }
+    if (topic.includes("chimica")) {
+      if (symbol === "F") {
+        return { name: "Costante di Faraday", unit: "C/mol", sample: 96485 };
+      }
+      if (symbol === "R") {
+        return { name: "Costante universale dei gas", unit: "J/(mol\xB7K)", sample: 8.314 };
+      }
+      if (symbol === "Q") {
+        return { name: "Quoziente di reazione", unit: "adimensionale", sample: 0.01 };
+      }
+      if (symbol === "z") {
+        return { name: "Numero di elettroni scambiati", unit: "adimensionale", sample: 2 };
+      }
+      if (symbol === "B") {
+        return { name: "Concentrazione base debole [B]", unit: "mol/L", sample: 0.1 };
+      }
+      if (symbol === "x1") {
+        return { name: "Frazione molare solvente", unit: "adimensionale", sample: 0.95 };
+      }
+      if (symbol === "A") {
+        return { name: "Concentrazione base coniugata [A\u207B]", unit: "mol/L", sample: 0.1 };
+      }
+      if (symbol === "M") {
+        return { name: "Molarit\xE0 / Concentrazione molare", unit: "mol/L", sample: 1 };
+      }
+      if (symbol === "M1") {
+        return { name: "Molarit\xE0 iniziale", unit: "mol/L", sample: 1 };
+      }
+      if (symbol === "M2") {
+        return { name: "Molarit\xE0 finale", unit: "mol/L", sample: 0.2 };
+      }
+      if (symbol === "V") {
+        return { name: "Volume della soluzione o del gas", unit: "L", sample: 1 };
+      }
+      if (symbol === "V1") {
+        return { name: "Volume iniziale", unit: "L", sample: 0.05 };
+      }
+      if (symbol === "V2") {
+        return { name: "Volume finale", unit: "L", sample: 0.25 };
+      }
+      if (symbol === "a") {
+        return { name: "Parametro attrattivo di Van der Waals", unit: "Pa\xB7m\u2076/mol\xB2", sample: 0.136 };
+      }
+      if (symbol === "b") {
+        return { name: "Covolume di Van der Waals", unit: "m\xB3/mol", sample: 39e-6 };
+      }
+      if (symbol === "E0") {
+        return { name: "Potenziale standard di riduzione", unit: "V", sample: 1.1 };
+      }
+      if (symbol === "E") {
+        return { name: "Potenziale elettrochimico reale", unit: "V", sample: 1.05 };
+      }
+      if (symbol === "i") {
+        return { name: "Fattore di van 't Hoff", unit: "adimensionale", sample: 1 };
+      }
+    }
+    if (topic.includes("astrofisica") || topic.includes("gravita")) {
+      if (symbol === "c") {
+        return { name: "Velocit\xE0 della luce nel vuoto", unit: "m/s", sample: 2998e5 };
+      }
+      if (symbol === "a") {
+        return { name: "Semiasse maggiore dell'orbita", unit: "m", sample: 1496e8 };
+      }
+      if (symbol === "L") {
+        return { name: "Luminosit\xE0 stellare / Momento angolare", unit: "W", sample: 3828e23 };
+      }
+      if (symbol === "b") {
+        return { name: "Costante dello spostamento di Wien", unit: "m\xB7K", sample: 2898e-6 };
+      }
+      if (symbol === "R") {
+        return { name: "Raggio stellare", unit: "m", sample: 6963e5 };
+      }
+      if (symbol === "z") {
+        return { name: "Parametro di redshift cosmologico", unit: "adimensionale", sample: 0.05 };
+      }
+    }
+    if (topic.includes("ottica")) {
+      if (symbol === "a") {
+        return { name: "Larghezza della fenditura", unit: "m", sample: 1e-4 };
+      }
+      if (symbol === "d") {
+        return { name: "Passo del reticolo / Distanza fenditure", unit: "m", sample: 2e-4 };
+      }
+      if (symbol === "L") {
+        return { name: "Distanza fenditure-schermo", unit: "m", sample: 1.5 };
+      }
+      if (symbol === "m") {
+        return { name: "Ordine di interferenza / diffrazione", unit: "adimensionale", sample: 1 };
+      }
+      if (symbol === "I") {
+        return { name: "Intensit\xE0 luminosa trasmessa", unit: "W/m\xB2", sample: 500 };
+      }
+      if (symbol === "I0") {
+        return { name: "Intensit\xE0 incidente", unit: "W/m\xB2", sample: 1e3 };
       }
     }
     if (PHYSICAL_QUANTITIES[symbol]) {
