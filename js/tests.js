@@ -27,7 +27,7 @@ import {
 } from './worksheet-export.js';
 import {
   EXPLANATIONS, INVALID_EXPLANATIONS, STUDENT_MISCONCEPTIONS,
-  diagnoseStudentMisconception, buildRulePanel
+  diagnoseStudentMisconception, buildRulePanel, getExplanation, getMisconception
 } from './explanations.js';
 import {
   DIFFICULTY_LEVELS, classifyFormulaDifficulty, getQuizFormulas,
@@ -1882,6 +1882,197 @@ export function runAllTests() {
     const pretty = toPretty(res.equation, 0);
     if (pretty.includes('22')) return `rilevata concatenazione 22 in esponente: ${pretty}`;
     if (!equivalentEq(res.equation, eq('y^2 = v^4'))) return `atteso y^2 = v^4, ottenuto: ${pretty}`;
+    return true;
+  }));
+
+  // --- Approfondimento Didattica, Misconceptions ed Estensione Test (Ticket AFI-9 / worker-afi-9c) ---
+  results.push(test('Pedagogia: diagnoseStudentMisconception riconosce errore di concatenazione potenze (v^22 vs v^4)', () => {
+    const diag = diagnoseStudentMisconception('Attenzione: elevare una potenza a potenza moltiplica gli esponenti, non concatenare le cifre come v^22 invece di v^4.');
+    if (diag.category !== 'power-concatenation') return `categoria errata: ${diag.category}`;
+    if (!diag.badge.includes('(aᵐ)ⁿ = aᵐ·ⁿ')) return `badge non appropriato: ${diag.badge}`;
+    if (!diag.counterexample.includes('2²² = 4.194.304')) return `manca controesempio numerico: ${diag.counterexample}`;
+    if (!diag.ruleReminder.includes('(aᵐ)ⁿ = a^(m·n)')) return `manca promemoria regola: ${diag.ruleReminder}`;
+    return true;
+  }));
+
+  results.push(test('Pedagogia: diagnoseStudentMisconception riconosce segno ± all\'interno di radice reale e convenzione valore positivo fisica', () => {
+    const diag = diagnoseStudentMisconception('Non si può lasciare il segno ± dentro una radice reale √(±x): nel campo reale la radice di un numero negativo non esiste.');
+    if (diag.category !== 'pm-inside-radical') return `categoria errata: ${diag.category}`;
+    if (!diag.badge.includes('Radicali Reali e Segno ±')) return `badge non appropriato: ${diag.badge}`;
+    if (!diag.counterexample.includes('√(−9)')) return `manca spiegazione radice negativa: ${diag.counterexample}`;
+    if (!diag.ruleReminder.includes('Ramo positivo (+)')) return `manca riferimento al ramo positivo: ${diag.advice}`;
+    return true;
+  }));
+
+  results.push(test('Pedagogia: diagnoseStudentMisconception riconosce confusione su esponenti razionali (a^(1/2) vs a/2)', () => {
+    const diag = diagnoseStudentMisconception('Confusione su esponenti razionali: a^(1/2) è la radice quadrata e non la metà di a.');
+    if (diag.category !== 'rational-exponents-confusion') return `categoria errata: ${diag.category}`;
+    if (!diag.badge.includes('Esponenti Razionali')) return `badge errato: ${diag.badge}`;
+    if (!diag.counterexample.includes('16^(1/2) = √16 = 4')) return `manca controesempio: ${diag.counterexample}`;
+    if (!diag.ruleReminder.includes('a^(1/4)')) return `manca promemoria radici annidate: ${diag.ruleReminder}`;
+    return true;
+  }));
+
+  results.push(test('Didattica: Pannello spiegazione della regola positiveBranch e rational-exponents', () => {
+    const panel = buildRulePanel('positive-branch', {
+      beforeText: 'v = ±sqrt(2*g*h)',
+      afterText: 'v = sqrt(2*g*h)',
+      steps: ['Scelta del ramo positivo'],
+    });
+    if (!panel.title.includes('valore positivo')) return `titolo pannello non corretto: ${panel.title}`;
+    if (!panel.html.includes('grandezze fisiche')) return `spiegazione fisica assente nel pannello: ${panel.html}`;
+
+    const ratEx = getExplanation('rational-exponents');
+    if (!ratEx || !ratEx.nome.includes('Esponenti razionali')) return 'spiegazione rational-exponents mancante';
+    if (!ratEx.intuitiva.includes('1/4')) return `spiegazione intuitiva non chiara: ${ratEx.intuitiva}`;
+    if (!ratEx.attenzione.some((a) => a.toLowerCase().includes('non confondere'))) return 'manca avvertenza contro divisione';
+    return true;
+  }));
+
+  results.push(test('Stress Test Potenze: annidamento a 3 livelli ((v^2)^3)^2 -> v^12 e (v^3)^3 -> v^9 senza concatenazione', () => {
+    const nested3 = Pow(Pow(Pow(Var('v'), Num(2)), Num(3)), Num(2));
+    const canon3 = canonical(nested3);
+    const pretty3 = toPretty(canon3, 0);
+    if (pretty3 !== 'v^12') return `atteso v^12, ottenuto: ${pretty3}`;
+    if (pretty3.includes('232') || pretty3.includes('23') || pretty3.includes('32')) {
+      return `rilevata concatenazione numerica negli esponenti: ${pretty3}`;
+    }
+
+    const nestedCube = Pow(Pow(Var('v'), Num(3)), Num(3));
+    const canonCube = canonical(nestedCube);
+    const prettyCube = toPretty(canonCube, 0);
+    if (prettyCube !== 'v^9') return `atteso v^9 per (v^3)^3, ottenuto: ${prettyCube}`;
+    return true;
+  }));
+
+  results.push(test('Stress Test Potenze: potenza di frazione composta ((a/b)^2)^2 -> (a^4)/(b^4)', () => {
+    const fracPowOfPow = Pow(Pow(Div(Var('a'), Var('b')), Num(2)), Num(2));
+    const startEq = Eq(Var('y'), fracPowOfPow);
+    const res = applyRule(RULES.distribute, startEq, { side: 'right' });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    const pretty = toPretty(res.equation, 0);
+    if (pretty.includes('22')) return `rilevata concatenazione 22: ${pretty}`;
+    if (!equivalentEq(res.equation, eq('y = (a^4)/(b^4)'))) {
+      return `atteso y = (a^4)/(b^4), ottenuto: ${pretty}`;
+    }
+    return true;
+  }));
+
+  results.push(test('Stress Test Radici doppie e multiple: cascata sqrt(sqrt(sqrt(x))) -> x^(1/8) e 4 livelli -> x^(1/16)', () => {
+    const r3 = canonical(Sqrt(Sqrt(Sqrt(Var('x')))));
+    const pretty3 = toPretty(r3, 0);
+    const latex3 = toLatex(r3, 0);
+    if (pretty3 !== 'x^(1/8)') return `atteso x^(1/8), ottenuto: ${pretty3}`;
+    if (!latex3.includes('\\frac{1}{8}')) return `atteso \\frac{1}{8} in LaTeX, ottenuto: ${latex3}`;
+
+    const r4 = canonical(Sqrt(Sqrt(Sqrt(Sqrt(Var('x'))))));
+    const pretty4 = toPretty(r4, 0);
+    const latex4 = toLatex(r4, 0);
+    if (pretty4 !== 'x^(1/16)') return `atteso x^(1/16), ottenuto: ${pretty4}`;
+    if (!latex4.includes('\\frac{1}{16}')) return `atteso \\frac{1}{16} in LaTeX, ottenuto: ${latex4}`;
+    return true;
+  }));
+
+  results.push(test('Stress Test Esponenti razionali con potenze intere: (x^(1/2))^4 -> x^2 e (x^(1/4))^2 -> x^(1/2)', () => {
+    const halfPow4 = canonical(Pow(Pow(Var('x'), Div(Num(1), Num(2))), Num(4)));
+    if (toPretty(halfPow4, 0) !== 'x^2') return `atteso x^2 per (x^(1/2))^4, ottenuto: ${toPretty(halfPow4, 0)}`;
+
+    const quartPow2 = canonical(Pow(Pow(Var('x'), Div(Num(1), Num(4))), Num(2)));
+    const prettyQuart = toPretty(quartPow2, 0);
+    if (prettyQuart !== 'x^(1/2)') return `atteso x^(1/2) ridotto ai minimi termini per (x^(1/4))^2, ottenuto: ${prettyQuart}`;
+
+    const eqDist = Eq(Var('y'), Pow(Pow(Var('x'), Div(Num(1), Num(4))), Num(2)));
+    const resDist = applyRule(RULES.distribute, eqDist, { side: 'right' });
+    if (!resDist.ok) return 'distribute rifiutata: ' + resDist.error;
+    if (toPretty(resDist.equation, 0) !== 'y = x^(1/2)') {
+      return `atteso y = x^(1/2) da distribute, ottenuto: ${toPretty(resDist.equation, 0)}`;
+    }
+    return true;
+  }));
+
+  results.push(test('Stress Test Semplificazione radice di potenze composte pari: sqrt(x^8) -> x^4, sqrt(sqrt(x^8)) -> x^2, sqrt(sqrt(sqrt(x^8))) -> x', () => {
+    const r1 = canonical(Sqrt(Pow(Var('x'), Num(8))));
+    if (toPretty(r1, 0) !== 'x^4') return `atteso x^4 per sqrt(x^8), ottenuto: ${toPretty(r1, 0)}`;
+
+    const r2 = canonical(Sqrt(Sqrt(Pow(Var('x'), Num(8)))));
+    if (toPretty(r2, 0) !== 'x^2') return `atteso x^2 per sqrt(sqrt(x^8)), ottenuto: ${toPretty(r2, 0)}`;
+
+    const r3 = canonical(Sqrt(Sqrt(Sqrt(Pow(Var('x'), Num(8))))));
+    if (toPretty(r3, 0) !== 'x') return `atteso x per sqrt(sqrt(sqrt(x^8))), ottenuto: ${toPretty(r3, 0)}`;
+    return true;
+  }));
+
+  results.push(test('Stress Test Potenza di radice annidata: (sqrt(sqrt(x)))^4 -> x e (sqrt(sqrt(x)))^2 -> x^(1/2)', () => {
+    const rootNested = Sqrt(Sqrt(Var('x')));
+    const p4 = canonical(Pow(rootNested, Num(4)));
+    if (toPretty(p4, 0) !== 'x') return `atteso x per (sqrt(sqrt(x)))^4, ottenuto: ${toPretty(p4, 0)}`;
+
+    const p2 = canonical(Pow(rootNested, Num(2)));
+    if (toPretty(p2, 0) !== 'x^(1/2)') return `atteso x^(1/2) per (sqrt(sqrt(x)))^2, ottenuto: ${toPretty(p2, 0)}`;
+    return true;
+  }));
+
+  results.push(test('Stress Test Radicali e rimozione ±: sanitizzazione di radicando con ± singolo e annidato sqrt(±x) -> sqrt(x) e sqrt(±sqrt(±x)) -> x^(1/4)', () => {
+    const singleBad = Sqrt(Add(Var('±'), Var('x')));
+    const cleanedSingle = canonical(singleBad);
+    const prettySingle = toPretty(cleanedSingle, 0);
+    if (prettySingle.includes('±')) return `trovato segno ± residuo dentro sqrt: ${prettySingle}`;
+    if (prettySingle !== '√(x)') return `atteso √(x), ottenuto: ${prettySingle}`;
+
+    const doubleBad = Sqrt(Add(Var('±'), Sqrt(Add(Var('±'), Var('x')))));
+    const cleanedDouble = canonical(doubleBad);
+    const prettyDouble = toPretty(cleanedDouble, 0);
+    if (prettyDouble.includes('±')) return `trovato segno ± residuo dentro radicale annidato: ${prettyDouble}`;
+    if (prettyDouble !== 'x^(1/4)') return `atteso x^(1/4) per doppio radicale sanificato, ottenuto: ${prettyDouble}`;
+    return true;
+  }));
+
+  results.push(test('Regola fisica positiveBranch su formula cinematica reale: v = ±sqrt(2*g*h) -> v = sqrt(2*g*h)', () => {
+    const eqTorricelli = Eq(Var('v'), Add(Var('±'), Sqrt(Mul(Num(2), Var('g'), Var('h')))));
+    const res = applyRule(RULES.positiveBranch, eqTorricelli, { side: 'right' });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    const pretty = toPretty(res.equation, 0);
+    if (pretty.includes('±')) return `il segno ± deve essere rimosso: ${pretty}`;
+    if (!equivalentEq(res.equation, eq('v = sqrt(2*g*h)'))) {
+      return `atteso v = sqrt(2*g*h), ottenuto: ${pretty}`;
+    }
+    return true;
+  }));
+
+  results.push(test('Regola fisica positiveBranch su membro sinistro ±v = sqrt(a) e rifiuto se nessun ± è presente', () => {
+    const eqLeft = Eq(Add(Var('±'), Var('v')), Sqrt(Var('a')));
+    const resLeft = applyRule(RULES.positiveBranch, eqLeft, { side: 'left' });
+    if (!resLeft.ok) return 'rifiutata su membro sinistro: ' + resLeft.error;
+    if (toPretty(resLeft.equation, 0) !== 'v = √(a)') {
+      return `atteso v = √(a), ottenuto: ${toPretty(resLeft.equation, 0)}`;
+    }
+
+    const eqNoPm = eq('v = sqrt(2*g*h)');
+    const resNoPm = applyRule(RULES.positiveBranch, eqNoPm, { side: 'right' });
+    if (resNoPm.ok) return 'la regola doveva essere rifiutata in assenza del segno ±';
+    if (!resNoPm.error.includes('Nessun segno ± da risolvere')) {
+      return `messaggio di errore inatteso: ${resNoPm.error}`;
+    }
+    return true;
+  }));
+
+  results.push(test('Tastierino matematico: sequenza ripetuta di pow(2) su v -> v^2 -> v^4 -> v^8 senza concatenazione numerica', () => {
+    let currentEq = eq('y = v');
+    const step1 = applyKeypadOperation(currentEq, 'pow', Num(2), '2', 'v');
+    if (!step1.ok) return 'passo 1 fallito: ' + step1.error;
+    if (toPretty(step1.equation, 0) !== 'y^2 = v^2') return `passo 1 atteso y^2 = v^2, ottenuto: ${toPretty(step1.equation, 0)}`;
+
+    const step2 = applyKeypadOperation(step1.equation, 'pow', Num(2), '2', 'v');
+    if (!step2.ok) return 'passo 2 fallito: ' + step2.error;
+    const pretty2 = toPretty(step2.equation, 0);
+    if (pretty2.includes('22')) return `passo 2 rilevata concatenazione 22: ${pretty2}`;
+    if (!equivalentEq(step2.equation, eq('y^4 = v^4'))) return `passo 2 atteso y^4 = v^4, ottenuto: ${pretty2}`;
+
+    const step3 = applyKeypadOperation(step2.equation, 'pow', Num(2), '2', 'v');
+    if (!step3.ok) return 'passo 3 fallito: ' + step3.error;
+    const pretty3 = toPretty(step3.equation, 0);
+    if (pretty3.includes('42')) return `passo 3 rilevata concatenazione 42: ${pretty3}`;
+    if (!equivalentEq(step3.equation, eq('y^8 = v^8'))) return `passo 3 atteso y^8 = v^8, ottenuto: ${pretty3}`;
     return true;
   }));
 

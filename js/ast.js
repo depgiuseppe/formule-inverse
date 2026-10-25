@@ -615,11 +615,11 @@ export function unwrapNeutrals(node) {
   return u;
 }
 
-// Verifica se un nodo ha la forma ± X
+// Verifica se un nodo ha la forma ± X (o contiene il termine ± in una somma)
 export function hasPmSign(node) {
   node = unwrap(node);
   if (!node) return false;
-  if (node.type === 'Add' && node.args.length === 2) {
+  if (node.type === 'Add') {
     return node.args.some((a) => unwrap(a).type === 'Var' && unwrap(a).name === '±');
   }
   return false;
@@ -630,8 +630,10 @@ export function stripPm(node) {
   node = unwrap(node);
   if (!node) return node;
   if (hasPmSign(node)) {
-    const nonPm = node.args.find((a) => !(unwrap(a).type === 'Var' && unwrap(a).name === '±'));
-    return unwrap(nonPm);
+    const nonPm = node.args.filter((a) => !(unwrap(a).type === 'Var' && unwrap(a).name === '±'));
+    if (nonPm.length === 0) return Num(0);
+    if (nonPm.length === 1) return unwrap(nonPm[0]);
+    return Add(...nonPm);
   }
   return node;
 }
@@ -737,13 +739,13 @@ export function canonical(node) {
 // Aritmetica razionale esatta: evita di trasformare 1/2 in 0.5.
 // Le costanti numeriche restano frazioni finché non sono interi.
 // ---------------------------------------------------------------------------
-function gcd(a, b) {
+export function gcd(a, b) {
   a = Math.abs(a); b = Math.abs(b);
   while (b) { const t = a % b; a = b; b = t; }
   return a || 1;
 }
 
-function ratNorm(r) {
+export function ratNorm(r) {
   let { n, d } = r;
   if (d < 0) { n = -n; d = -d; }
   const g = gcd(n, d);
@@ -751,12 +753,22 @@ function ratNorm(r) {
 }
 
 // Riconosce un valore razionale esatto in un sottoalbero.
-// Ritorna { n, d } oppure null. Accetta interi, negazioni e frazioni di interi.
-function asRational(node) {
+// Ritorna { n, d } oppure null. Accetta interi, frazioni di interi, negazioni e decimali razionali.
+export function asRational(node) {
   node = unwrap(node);
+  if (!node) return null;
   switch (node.type) {
-    case 'Num':
-      return Number.isInteger(node.value) ? { n: node.value, d: 1 } : null;
+    case 'Num': {
+      if (Number.isInteger(node.value)) return { n: node.value, d: 1 };
+      // Riconoscimento di frazioni decimali semplici (es. 0.5 -> 1/2, 1/3, 0.25 -> 1/4, 1/6)
+      for (let d = 2; d <= 24; d++) {
+        const n = Math.round(node.value * d);
+        if (Math.abs(node.value - n / d) < 1e-7) {
+          return ratNorm({ n, d });
+        }
+      }
+      return null;
+    }
     case 'Neg': {
       const r = asRational(node.arg);
       return r ? { n: -r.n, d: r.d } : null;
@@ -772,53 +784,123 @@ function asRational(node) {
   }
 }
 
-function ratAdd(a, b) {
+export function ratAdd(a, b) {
   return ratNorm({ n: a.n * b.d + b.n * a.d, d: a.d * b.d });
 }
 
-function ratMul(a, b) {
+export function ratMul(a, b) {
   return ratNorm({ n: a.n * b.n, d: a.d * b.d });
 }
 
-function ratDiv(a, b) {
+export function ratDiv(a, b) {
   if (b.n === 0) return a;
   return ratNorm({ n: a.n * b.d, d: a.d * b.n });
 }
 
 // Converte un razionale in nodo: null se è zero, Num se intero, Div(1,2) se frazione.
-function ratToNode(r) {
+export function ratToNode(r) {
   if (!r || r.n === 0) return null;
   if (r.d === 1) return Num(r.n);
   return Div(Num(r.n), Num(r.d));
 }
 
-// Raggruppa fattori con la stessa base sommando gli esponenti (es. c·c => c², c·c² => c³)
+// Determina se un esponente è sicuramente pari (es. 2, 4, 2k, o razionale con n pari e d=1)
+export function isEvenExp(node) {
+  node = unwrap(node);
+  if (!node) return false;
+  if (isNum(node)) {
+    return Number.isInteger(node.value) && node.value % 2 === 0;
+  }
+  const r = asRational(node);
+  if (r && r.d === 1 && r.n % 2 === 0) return true;
+  if (node.type === 'Mul') {
+    return node.args.some(isEvenExp);
+  }
+  return false;
+}
+
+// Determina se un esponente è sicuramente dispari
+export function isOddExp(node) {
+  node = unwrap(node);
+  if (!node) return false;
+  if (isNum(node)) {
+    return Number.isInteger(node.value) && Math.abs(node.value % 2) === 1;
+  }
+  const r = asRational(node);
+  if (r && r.d === 1 && Math.abs(r.n % 2) === 1) return true;
+  return false;
+}
+
+// Estrae la base e l'esponente di un termine/fattore:
+// x -> { base: x, exp: 1, isPow: false }
+// x^m -> { base: x, exp: m, isPow: true }
+// sqrt(x) -> { base: x, exp: 1/2, isPow: true }
+export function extractBaseAndExp(node) {
+  const u = unwrap(node);
+  if (!u) return { base: node, exp: Num(1), isPow: false };
+  if (u.type === 'Pow') {
+    return { base: unwrap(u.base), exp: unwrap(u.exp), isPow: true };
+  }
+  if (u.type === 'Sqrt') {
+    return { base: unwrap(u.arg), exp: Div(Num(1), Num(2)), isPow: true };
+  }
+  return { base: u, exp: Num(1), isPow: false };
+}
+
+// Raggruppa fattori con la stessa base sommando gli esponenti:
+// a^m * a^n = a^(m+n) (interi, frazioni ed esponenti simbolici)
 function combineIdenticalFactors(factors) {
   if (factors.length <= 1) return factors;
   const groups = [];
   for (const f of factors) {
     const u = unwrap(f);
     let base = u;
-    let exp = 1;
-    if (u.type === 'Pow' && u.exp && u.exp.type === 'Num' && Number.isInteger(u.exp.value) && u.exp.value > 0) {
+    let exp = Num(1);
+    let isSqrt = false;
+    if (u.type === 'Pow') {
       base = unwrap(u.base);
-      exp = u.exp.value;
+      exp = canon(unwrap(u.exp));
+    } else if (u.type === 'Sqrt') {
+      base = unwrap(u.arg);
+      exp = Div(Num(1), Num(2));
+      isSqrt = true;
     }
-    const key = toPretty(base, 0);
+    const key = toPretty(canon(base), 0);
     const existing = groups.find((g) => g.key === key && equivalentExpr(g.base, base));
     if (existing) {
-      existing.exp += exp;
+      const r1 = asRational(existing.exp);
+      const r2 = asRational(exp);
+      if (r1 && r2) {
+        const rSum = ratAdd(r1, r2);
+        existing.exp = ratToNode(rSum) || Num(0);
+      } else {
+        existing.exp = canon(Add(existing.exp, exp));
+      }
+      existing.count++;
+      existing.isSqrt = false;
     } else {
-      groups.push({ key, base, exp });
+      groups.push({ key, base, exp, isSqrt, count: 1 });
     }
   }
   const result = [];
   for (const g of groups) {
-    if (g.exp === 1) {
-      result.push(g.base);
-    } else {
-      result.push(Pow(g.base, Num(g.exp)));
+    if (isNum(g.exp) && g.exp.value === 0) {
+      continue;
     }
+    if (isNum(g.exp) && g.exp.value === 1) {
+      result.push(canon(g.base));
+      continue;
+    }
+    if (g.isSqrt && g.count === 1) {
+      result.push(Sqrt(canon(g.base)));
+      continue;
+    }
+    const rExp = asRational(g.exp);
+    if (rExp && rExp.n === 1 && rExp.d === 2) {
+      result.push(Sqrt(canon(g.base)));
+      continue;
+    }
+    result.push(canon(Pow(g.base, g.exp)));
   }
   result.sort(compareNodes);
   return result;
@@ -986,35 +1068,32 @@ function canon(node) {
           return canon(Pow(innerBase, Num(combined)));
         }
         if (innerExp.type === 'Div' && isNum(innerExp.num) && isNum(innerExp.den) && isNum(exp)) {
-          const numVal = innerExp.num.value * exp.value;
-          const denVal = innerExp.den.value;
-          if (numVal % denVal === 0) {
-            const intVal = numVal / denVal;
-            if (intVal === 1) return canon(innerBase);
-            return canon(Pow(innerBase, Num(intVal)));
+          const norm = ratNorm({ n: innerExp.num.value * exp.value, d: innerExp.den.value });
+          if (norm.d === 1) {
+            if (norm.n === 1) return canon(innerBase);
+            if (norm.n === 0) return Num(1);
+            return canon(Pow(innerBase, Num(norm.n)));
           }
-          return canon(Pow(innerBase, Div(Num(numVal), Num(denVal))));
+          return canon(Pow(innerBase, Div(Num(norm.n), Num(norm.d))));
         }
         if (isNum(innerExp) && exp.type === 'Div' && isNum(exp.num) && isNum(exp.den)) {
-          const numVal = innerExp.value * exp.num.value;
-          const denVal = exp.den.value;
-          if (numVal % denVal === 0) {
-            const intVal = numVal / denVal;
-            if (intVal === 1) return canon(innerBase);
-            return canon(Pow(innerBase, Num(intVal)));
+          const norm = ratNorm({ n: innerExp.value * exp.num.value, d: exp.den.value });
+          if (norm.d === 1) {
+            if (norm.n === 1) return canon(innerBase);
+            if (norm.n === 0) return Num(1);
+            return canon(Pow(innerBase, Num(norm.n)));
           }
-          return canon(Pow(innerBase, Div(Num(numVal), Num(denVal))));
+          return canon(Pow(innerBase, Div(Num(norm.n), Num(norm.d))));
         }
         if (innerExp.type === 'Div' && isNum(innerExp.num) && isNum(innerExp.den) &&
             exp.type === 'Div' && isNum(exp.num) && isNum(exp.den)) {
-          const numVal = innerExp.num.value * exp.num.value;
-          const denVal = innerExp.den.value * exp.den.value;
-          if (numVal % denVal === 0) {
-            const intVal = numVal / denVal;
-            if (intVal === 1) return canon(innerBase);
-            return canon(Pow(innerBase, Num(intVal)));
+          const norm = ratNorm({ n: innerExp.num.value * exp.num.value, d: innerExp.den.value * exp.den.value });
+          if (norm.d === 1) {
+            if (norm.n === 1) return canon(innerBase);
+            if (norm.n === 0) return Num(1);
+            return canon(Pow(innerBase, Num(norm.n)));
           }
-          return canon(Pow(innerBase, Div(Num(numVal), Num(denVal))));
+          return canon(Pow(innerBase, Div(Num(norm.n), Num(norm.d))));
         }
       }
 
@@ -1062,14 +1141,13 @@ function canon(node) {
           }
         }
         if (arg.exp.type === 'Div' && isNum(arg.exp.num) && isNum(arg.exp.den)) {
-          const numVal = arg.exp.num.value;
-          const denVal = arg.exp.den.value * 2;
-          if (numVal % denVal === 0) {
-            const intVal = numVal / denVal;
-            if (intVal === 1) return canon(arg.base);
-            return canon(Pow(arg.base, Num(intVal)));
+          const norm = ratNorm({ n: arg.exp.num.value, d: arg.exp.den.value * 2 });
+          if (norm.d === 1) {
+            if (norm.n === 1) return canon(arg.base);
+            if (norm.n === 0) return Num(1);
+            return canon(Pow(arg.base, Num(norm.n)));
           }
-          return canon(Pow(arg.base, Div(Num(numVal), Num(denVal))));
+          return canon(Pow(arg.base, Div(Num(norm.n), Num(norm.d))));
         }
       }
       return { type: 'Sqrt', arg };

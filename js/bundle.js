@@ -632,7 +632,7 @@
   function hasPmSign(node) {
     node = unwrap(node);
     if (!node) return false;
-    if (node.type === "Add" && node.args.length === 2) {
+    if (node.type === "Add") {
       return node.args.some((a) => unwrap(a).type === "Var" && unwrap(a).name === "\xB1");
     }
     return false;
@@ -641,8 +641,10 @@
     node = unwrap(node);
     if (!node) return node;
     if (hasPmSign(node)) {
-      const nonPm = node.args.find((a) => !(unwrap(a).type === "Var" && unwrap(a).name === "\xB1"));
-      return unwrap(nonPm);
+      const nonPm = node.args.filter((a) => !(unwrap(a).type === "Var" && unwrap(a).name === "\xB1"));
+      if (nonPm.length === 0) return Num(0);
+      if (nonPm.length === 1) return unwrap(nonPm[0]);
+      return Add(...nonPm);
     }
     return node;
   }
@@ -755,9 +757,18 @@
   }
   function asRational(node) {
     node = unwrap(node);
+    if (!node) return null;
     switch (node.type) {
-      case "Num":
-        return Number.isInteger(node.value) ? { n: node.value, d: 1 } : null;
+      case "Num": {
+        if (Number.isInteger(node.value)) return { n: node.value, d: 1 };
+        for (let d = 2; d <= 24; d++) {
+          const n = Math.round(node.value * d);
+          if (Math.abs(node.value - n / d) < 1e-7) {
+            return ratNorm({ n, d });
+          }
+        }
+        return null;
+      }
       case "Neg": {
         const r = asRational(node.arg);
         return r ? { n: -r.n, d: r.d } : null;
@@ -793,26 +804,52 @@
     for (const f of factors) {
       const u = unwrap(f);
       let base = u;
-      let exp = 1;
-      if (u.type === "Pow" && u.exp && u.exp.type === "Num" && Number.isInteger(u.exp.value) && u.exp.value > 0) {
+      let exp = Num(1);
+      let isSqrt = false;
+      if (u.type === "Pow") {
         base = unwrap(u.base);
-        exp = u.exp.value;
+        exp = canon(unwrap(u.exp));
+      } else if (u.type === "Sqrt") {
+        base = unwrap(u.arg);
+        exp = Div(Num(1), Num(2));
+        isSqrt = true;
       }
-      const key = toPretty(base, 0);
+      const key = toPretty(canon(base), 0);
       const existing = groups.find((g) => g.key === key && equivalentExpr(g.base, base));
       if (existing) {
-        existing.exp += exp;
+        const r1 = asRational(existing.exp);
+        const r2 = asRational(exp);
+        if (r1 && r2) {
+          const rSum = ratAdd(r1, r2);
+          existing.exp = ratToNode(rSum) || Num(0);
+        } else {
+          existing.exp = canon(Add(existing.exp, exp));
+        }
+        existing.count++;
+        existing.isSqrt = false;
       } else {
-        groups.push({ key, base, exp });
+        groups.push({ key, base, exp, isSqrt, count: 1 });
       }
     }
     const result = [];
     for (const g of groups) {
-      if (g.exp === 1) {
-        result.push(g.base);
-      } else {
-        result.push(Pow(g.base, Num(g.exp)));
+      if (isNum(g.exp) && g.exp.value === 0) {
+        continue;
       }
+      if (isNum(g.exp) && g.exp.value === 1) {
+        result.push(canon(g.base));
+        continue;
+      }
+      if (g.isSqrt && g.count === 1) {
+        result.push(Sqrt(canon(g.base)));
+        continue;
+      }
+      const rExp = asRational(g.exp);
+      if (rExp && rExp.n === 1 && rExp.d === 2) {
+        result.push(Sqrt(canon(g.base)));
+        continue;
+      }
+      result.push(canon(Pow(g.base, g.exp)));
     }
     result.sort(compareNodes);
     return result;
@@ -954,34 +991,31 @@
             return canon(Pow(innerBase, Num(combined)));
           }
           if (innerExp.type === "Div" && isNum(innerExp.num) && isNum(innerExp.den) && isNum(exp)) {
-            const numVal = innerExp.num.value * exp.value;
-            const denVal = innerExp.den.value;
-            if (numVal % denVal === 0) {
-              const intVal = numVal / denVal;
-              if (intVal === 1) return canon(innerBase);
-              return canon(Pow(innerBase, Num(intVal)));
+            const norm = ratNorm({ n: innerExp.num.value * exp.value, d: innerExp.den.value });
+            if (norm.d === 1) {
+              if (norm.n === 1) return canon(innerBase);
+              if (norm.n === 0) return Num(1);
+              return canon(Pow(innerBase, Num(norm.n)));
             }
-            return canon(Pow(innerBase, Div(Num(numVal), Num(denVal))));
+            return canon(Pow(innerBase, Div(Num(norm.n), Num(norm.d))));
           }
           if (isNum(innerExp) && exp.type === "Div" && isNum(exp.num) && isNum(exp.den)) {
-            const numVal = innerExp.value * exp.num.value;
-            const denVal = exp.den.value;
-            if (numVal % denVal === 0) {
-              const intVal = numVal / denVal;
-              if (intVal === 1) return canon(innerBase);
-              return canon(Pow(innerBase, Num(intVal)));
+            const norm = ratNorm({ n: innerExp.value * exp.num.value, d: exp.den.value });
+            if (norm.d === 1) {
+              if (norm.n === 1) return canon(innerBase);
+              if (norm.n === 0) return Num(1);
+              return canon(Pow(innerBase, Num(norm.n)));
             }
-            return canon(Pow(innerBase, Div(Num(numVal), Num(denVal))));
+            return canon(Pow(innerBase, Div(Num(norm.n), Num(norm.d))));
           }
           if (innerExp.type === "Div" && isNum(innerExp.num) && isNum(innerExp.den) && exp.type === "Div" && isNum(exp.num) && isNum(exp.den)) {
-            const numVal = innerExp.num.value * exp.num.value;
-            const denVal = innerExp.den.value * exp.den.value;
-            if (numVal % denVal === 0) {
-              const intVal = numVal / denVal;
-              if (intVal === 1) return canon(innerBase);
-              return canon(Pow(innerBase, Num(intVal)));
+            const norm = ratNorm({ n: innerExp.num.value * exp.num.value, d: innerExp.den.value * exp.den.value });
+            if (norm.d === 1) {
+              if (norm.n === 1) return canon(innerBase);
+              if (norm.n === 0) return Num(1);
+              return canon(Pow(innerBase, Num(norm.n)));
             }
-            return canon(Pow(innerBase, Div(Num(numVal), Num(denVal))));
+            return canon(Pow(innerBase, Div(Num(norm.n), Num(norm.d))));
           }
         }
         const isOneThird = isNum(exp) && Math.abs(exp.value - 1 / 3) < 1e-9 || exp.type === "Div" && isNum(exp.num) && exp.num.value === 1 && isNum(exp.den) && exp.den.value === 3;
@@ -1020,14 +1054,13 @@
             }
           }
           if (arg.exp.type === "Div" && isNum(arg.exp.num) && isNum(arg.exp.den)) {
-            const numVal = arg.exp.num.value;
-            const denVal = arg.exp.den.value * 2;
-            if (numVal % denVal === 0) {
-              const intVal = numVal / denVal;
-              if (intVal === 1) return canon(arg.base);
-              return canon(Pow(arg.base, Num(intVal)));
+            const norm = ratNorm({ n: arg.exp.num.value, d: arg.exp.den.value * 2 });
+            if (norm.d === 1) {
+              if (norm.n === 1) return canon(arg.base);
+              if (norm.n === 0) return Num(1);
+              return canon(Pow(arg.base, Num(norm.n)));
             }
-            return canon(Pow(arg.base, Div(Num(numVal), Num(denVal))));
+            return canon(Pow(arg.base, Div(Num(norm.n), Num(norm.d))));
           }
         }
         return { type: "Sqrt", arg };
@@ -2586,6 +2619,16 @@
     }
     return node;
   }
+  function gcd3(a, b) {
+    a = Math.abs(a);
+    b = Math.abs(b);
+    while (b) {
+      const t = a % b;
+      a = b;
+      b = t;
+    }
+    return a || 1;
+  }
   function distributePower(base, exp) {
     const uBase = unwrap(base);
     const uExp = unwrap(exp);
@@ -2637,13 +2680,16 @@
         return distributePower(uBase.base, Num(combined));
       }
       if (innerExp.type === "Div" && isNum(innerExp.num) && isNum(innerExp.den) && uExp.type === "Num") {
-        const numVal = innerExp.num.value * uExp.value;
-        const denVal = innerExp.den.value;
+        let numVal = innerExp.num.value * uExp.value;
+        let denVal = innerExp.den.value;
         if (numVal % denVal === 0) {
           const intVal = numVal / denVal;
           if (intVal === 1) return distribute(uBase.base);
           return distributePower(uBase.base, Num(intVal));
         }
+        const g = gcd3(numVal, denVal);
+        numVal /= g;
+        denVal /= g;
         return Pow(distribute(uBase.base), Div(Num(numVal), Num(denVal)));
       }
     }
@@ -6992,19 +7038,19 @@
       principio: "Applicazione a entrambi i membri della radice di indice pari n = 2m (definita per radicandi \u2265 0 nel campo reale), ricordando che \u207F\u221A(x\u207F) = |x| quando n \xE8 pari.",
       perche: "Poich\xE9 \u207F\u221A(x\u207F) = |x| = \xB1x per n pari, la soluzione corretta include sia il segno + sia il segno \u2212: il segno \xB1 non va eliminato.",
       attenzione: [
-        "Indice PARI: il radicando deve essere \u2265 0 (nel campo reale): condizione necessaria.",
-        "Il segno \xB1 \xE8 matematicamente necessario: non va soppresso.",
-        "Se la quantit\xE0 cercata \xE8 per sua natura positiva (lunghezza, massa, tempo, una frequenza, \u2026), scegli il segno + per eliminare l'ambiguit\xE0: la scelta va motivata in base al significato fisico."
+        "Indice PARI: il radicando deve essere \u2265 0 (nel campo reale): condizione necessaria di esistenza.",
+        "Il segno \xB1 \xE8 matematicamente necessario e si colloca SEMPRE all'esterno del radicale (x = \xB1\u221Ak). Non si pu\xF2 inserire o lasciare il segno \xB1 dentro una radice reale (\u221A(\xB1k)), poich\xE9 per il segno negativo il radicando risulterebbe negativo e la radice reale non esisterebbe.",
+        "Convenzione del valore positivo (+) in fisica: quando l'incognita rappresenta una grandezza scalare intrinsecamente non negativa (come massa m, tempo t, raggio o distanza r, modulo della velocit\xE0 |v|, periodo T), si adotta la convenzione di scartare il ramo negativo non fisico scegliendo x = +\u221Ak. Se invece la grandezza \xE8 una coordinata vettoriale con verso (es. velocit\xE0 1D lungo un asse), si preserva il doppio segno \xB1."
       ]
     },
     "positive-branch": {
       nome: "Scelta del valore positivo per grandezze fisiche intrinsecamente non negative",
       intuitiva: "In fisica, grandezze come il tempo, la massa, la distanza o il modulo della velocit\xE0 non possono essere negative: si considera solo la radice con il segno positivo (+).",
       principio: "Selezione del ramo positivo della soluzione di un'equazione pura: da x = \xB1\u221AA si deduce x = \u221AA in base al dominio fisico della grandezza.",
-      perche: "Mentre l'algebra pura ammette entrambe le radici opposte (\xB1), la formulazione di una legge fisica esclude le soluzioni non fisiche (ad esempio tempi o masse negative).",
+      perche: "Mentre l'algebra pura ammette entrambe le radici opposte (\xB1), la formulazione di una legge fisica esclude le soluzioni non fisiche (ad esempio tempi o masse negative). In fisica le grandezze scalari descrivono quantit\xE0 misurabili strettamente non negative; la soluzione negativa \xE8 un artefatto matematico privo di realt\xE0 sperimentale.",
       attenzione: [
-        "Valida solo quando la grandezza fisica cercata \xE8 definita strettamente come non negativa.",
-        "Se la grandezza ammette entrambi i versi (es. velocit\xE0 vettoriale monodimensionale lungo un asse), il segno \xB1 va mantenuto per rappresentare la direzione del moto."
+        "Valida solo quando la grandezza fisica cercata \xE8 definita strettamente come non negativa (es. massa, tempo, modulo della velocit\xE0, raggio).",
+        "Quando e perch\xE9 mantenere il segno \xB1: se la grandezza ammette entrambi i versi lungo una coordinata o asse orientato (es. componente cartesiana della velocit\xE0 v_x, quota orientata y, spostamento relativo), il segno \xB1 va mantenuto perch\xE9 il segno positivo indica moto concorde e il segno negativo moto discorde rispetto al verso scelto."
       ]
     },
     "root-odd": {
@@ -7023,8 +7069,19 @@
       principio: "Se A = B allora A^n = B^n.",
       perche: "La potenza con esponente fisso \xE8 una funzione ben definita: applicarla a entrambi i membri conserva l'uguaglianza.",
       attenzione: [
-        "Elevare a un esponente PARI non \xE8 iniettivo: pu\xF2 introdurre soluzioni estranee (ad es. da x = 3 si ottiene x\xB2 = 9, che ammette anche x = \u22123).",
-        "Le soluzioni trovate vanno quindi sempre ricontrollate."
+        "Elevare a un esponente PARI non \xE8 iniettivo: pu\xF2 introdurre soluzioni estranee (ad es. da x = 3 si ottiene x\xB2 = 9, che ammette anche x = \u22123). Le soluzioni trovate vanno quindi sempre ricontrollate.",
+        "Propriet\xE0 delle potenze: (a\u1D50)\u207F = a^(m\xB7n). Quando una potenza viene nuovamente elevata a potenza, gli esponenti si MOLTIPLICANO tra loro, non si concatenano come cifre decimali (es. (v\xB2)\xB2 = v\u2074, MAI v\xB2\xB2)."
+      ]
+    },
+    "rational-exponents": {
+      nome: "Esponenti razionali e radici annidate (a^(1/n) = \u207F\u221Aa)",
+      intuitiva: "Una radice equivale a un esponente frazionario: \u221Aa = a^(1/2) e \u221Ba = a^(1/3). Estrarre la radice di una radice equivale a moltiplicare gli esponenti frazionari: \u221A(\u221Aa) = (a^(1/2))^(1/2) = a^(1/4) = \u2074\u221Aa.",
+      principio: "Definizione di esponente razionale a^(m/n) = \u207F\u221A(a\u1D50) e propriet\xE0 della potenza di potenza (a\u1D56)\u1D60 = a^(p\xB7q).",
+      perche: "L'esponente frazionario 1/n \xE8 l'inverso moltiplicativo di n: (a^(1/n))\u207F = a^((1/n)\xB7n) = a\xB9 = a. Applicando pi\xF9 radici annidate, la composizione di potenze moltiplica le frazioni: (a^(1/2))^(1/2) = a^(1/4), riconducendo le operazioni sui radicali a semplici prodotti algebrici tra esponenti.",
+      attenzione: [
+        "Condizione di realt\xE0: nei numeri reali, per esponenti con denominatore pari (1/2, 1/4, ...), la base deve essere non negativa (a \u2265 0).",
+        "Non confondere l'esponente frazionario con una divisione: a^(1/2) = \u221Aa \u2260 a/2 (es. 16^(1/2) = 4, mentre 16/2 = 8).",
+        "Radici multiple: \u1D50\u221A(\u207F\u221Aa) = a^(1/(m\xB7n)) = \u1D50\xB7\u207F\u221Aa. Due radici quadrate consecutive corrispondono a un esponente 1/4 (e non 1/2 + 1/2 = 1)."
       ]
     },
     "distribute": {
@@ -7155,6 +7212,36 @@
       controesempio: "Se x + 3 = 7, togliendo 3 da ambo i piatti abbiamo x + 3 \u2212 3 = 7 \u2212 3, quindi x = 7 \u2212 3 = 4. Scrivere x = 7 + 3 = 10 violerebbe l'equilibrio di partenza!",
       come_risolvere: "Ricorda: ci\xF2 che \xE8 addizionato (+) a un membro passa all'altro membro sottratto (\u2212), e ci\xF2 che \xE8 sottratto (\u2212) passa addizionato (+).",
       regola_guida: "Regola del trasporto (1\xB0 principio): oltrepassando l'uguale, il termine inverte sempre il segno!"
+    },
+    "power-concatenation": {
+      id: "power-concatenation",
+      titolo: "Concatenazione errata degli esponenti anzich\xE9 moltiplicazione (Potenza di potenza)",
+      badge: "Propriet\xE0 delle Potenze: (a\u1D50)\u207F = a\u1D50\xB7\u207F",
+      principio: "Propriet\xE0 della potenza di potenza: (a\u1D50)\u207F = a^(m\xB7n) \u2260 a^(10\xB7m + n).",
+      spiegazione: "Elevando una potenza a un altro esponente, gli esponenti si MOLTIPLICANO tra loro, non si concatenano come cifre affiancate! Scambiare (v\xB2)\xB2 per v\xB2\xB2 invece di v\u2074 \xE8 un grave errore di notazione che altera esponenzialmente il valore della formula.",
+      controesempio: "Considera la base 2: (2\xB2)\xB2 = 4\xB2 = 16. Se concatenassi le cifre dell'esponente otterresti 2\xB2\xB2 = 4.194.304, un numero enormemente diverso! Il calcolo corretto moltiplica gli esponenti: 2 \xB7 2 = 4, quindi 2\u2074 = 16.",
+      come_risolvere: "Moltiplica sempre l'esponente interno per quello esterno: (v\u1D50)\u207F = v^(m \xB7 n). Per esempio: (v\xB2)\xB2 = v^(2\xB72) = v\u2074; (v\xB3)\xB2 = v\u2076; (v\u2074)\xB3 = v\xB9\xB2.",
+      regola_guida: "Potenza di potenza: (a\u1D50)\u207F = a^(m\xB7n) \u2014 gli esponenti si moltiplicano tra loro, MAI affiancarli come cifre!"
+    },
+    "pm-inside-radical": {
+      id: "pm-inside-radical",
+      titolo: "Segno \xB1 all'interno del radicando di una radice reale",
+      badge: "Radicali Reali e Segno \xB1",
+      principio: "Dominio e univocit\xE0 della radice reale: \u221AA richiede A \u2265 0 ed \xE8 definita univocamente come valore non negativo. Il simbolo \xB1 \xE8 un selettore esterno di soluzioni (x = \xB1\u221AA), non un operatore algebrico interno al radicando.",
+      spiegazione: "Non si pu\xF2 lasciare il segno \xB1 dentro una radice reale. La radice quadrata \u221AA nel campo reale \xE8 un operatore univoco che restituisce il valore positivo della radice aritmetica (con A \u2265 0). L'ambiguit\xE0 di segno nasce al di fuori della radice: x\xB2 = A implica x = +\u221AA oppure x = \u2212\u221AA. Inserire \xB1 dentro il radicando (come \u221A(\xB1A)) implicherebbe dover calcolare \u221A(\u2212A), che nel campo dei numeri reali non \xE8 definita.",
+      controesempio: "Risolvendo x\xB2 = 9 si ha x = \xB1\u221A9 = \xB13. Scrivere x = \u221A(\xB19) non ha senso matematico: per il ramo positivo avresti \u221A9 = 3, ma per il ramo negativo avresti \u221A(\u22129), che nei numeri reali non esiste! Inoltre, in fisica per grandezze come il modulo della velocit\xE0 v, il tempo t o la massa m, si scarta il ramo negativo privo di significato fisico adottando la convenzione del ramo positivo (+).",
+      come_risolvere: `Colloca sempre il segno \xB1 all'esterno del radicale (x = \xB1\u221AA). Se l'equazione descrive una grandezza fisica intrinsecamente non negativa, seleziona la regola "Ramo positivo (+)" per eliminare il ramo negativo non fisico.`,
+      regola_guida: 'Il segno \xB1 va sempre fuori dalla radice: x = \xB1\u221AA, mai \u221A(\xB1A)! Nelle leggi fisiche con grandezze scalari positive si adotta la regola "Ramo positivo (+)".'
+    },
+    "rational-exponents-confusion": {
+      id: "rational-exponents-confusion",
+      titolo: "Confusione tra radicali ed esponenti razionali (frazionari)",
+      badge: "Esponenti Razionali: a^(1/n) = \u207F\u221Aa",
+      principio: "Definizione di esponente razionale: a^(1/n) = \u207F\u221Aa e composizione di radici (a^(1/n))^(1/m) = a^(1/(n\xB7m)) = \u1D50\xB7\u207F\u221Aa.",
+      spiegazione: "Una radice corrisponde a un esponente razionale (frazionario): la radice quadrata \xE8 a^(1/2) = \u221Aa, la radice cubica \xE8 a^(1/3) = \u221Ba, e la radice di radice \xE8 \u221A(\u221Aa) = (a^(1/2))^(1/2) = a^(1/4) = \u2074\u221Aa. Un esponente razionale NON \xE8 una divisione ordinaria della base!",
+      controesempio: "a^(1/2) non significa affatto a/2! Ad esempio: 16^(1/2) = \u221A16 = 4, mentre 16/2 = 8. Analogamente, 16^(1/4) = \u221A(\u221A16) = \u221A4 = 2, mentre 16/4 = 4. Due radici quadrate annidate non si sommano (1/2 + 1/2 = 1), ma moltiplicano gli indici: 2 \xB7 2 = 4, quindi a^(1/4).",
+      come_risolvere: "Tratta i radicali con le propriet\xE0 delle potenze: l'indice della radice diventa il denominatore dell'esponente. Per radici annidate moltiplica gli esponenti frazionari: \u221A(\u221Aa) = a^(1/4).",
+      regola_guida: "\u221Aa = a^(1/2) e \u221A(\u221Aa) = a^(1/4): le radici annidate moltiplicano gli esponenti frazionari (1/2 \xB7 1/2 = 1/4)!"
     }
   };
   function getExplanation(key) {
@@ -7265,6 +7352,45 @@
         advice: hintText || "Assicurati che la quantit\xE0 per cui dividi sia diversa da zero.",
         ruleReminder: "Attenzione: non \xE8 consentito dividere per zero o per quantit\xE0 nulle!",
         principio: "Definizione di divisione in algebra reale."
+      };
+    }
+    if (errLow.includes("concaten") || errLow.includes("v^22") || errLow.includes("22") && (errLow.includes("potenz") || errLow.includes("esponent") || errLow.includes("affianc")) || errLow.includes("potenza di potenza") || hintLow.includes("concaten") || hintLow.includes("(a^m)^n") || hintLow.includes("a^(m*n)")) {
+      const m = STUDENT_MISCONCEPTIONS["power-concatenation"];
+      return {
+        category: "power-concatenation",
+        badge: m.badge,
+        title: m.titolo,
+        explanation: errorText || m.spiegazione,
+        counterexample: m.controesempio,
+        advice: hintText || m.come_risolvere,
+        ruleReminder: m.regola_guida,
+        principio: m.principio
+      };
+    }
+    if (errLow.includes("\xB1 dentro") || errLow.includes("segno \xB1 all'interno") || errLow.includes("segno \xB1 dentro") || errLow.includes("\xB1") && (errLow.includes("radicand") || errLow.includes("radice reale")) || errLow.includes("radicando reale non include \xB1") || hintLow.includes("\xB1 dentro") || hintLow.includes("ramo positivo")) {
+      const m = STUDENT_MISCONCEPTIONS["pm-inside-radical"];
+      return {
+        category: "pm-inside-radical",
+        badge: m.badge,
+        title: m.titolo,
+        explanation: errorText || m.spiegazione,
+        counterexample: m.controesempio,
+        advice: hintText || m.come_risolvere,
+        ruleReminder: m.regola_guida,
+        principio: m.principio
+      };
+    }
+    if (errLow.includes("esponente razionale") || errLow.includes("esponenti razionali") || errLow.includes("esponente frazionario") || errLow.includes("a^(1/2)") || errLow.includes("a^(1/4)") || errLow.includes("radice di radice") || errLow.includes("radice") && errLow.includes("frazion")) {
+      const m = STUDENT_MISCONCEPTIONS["rational-exponents-confusion"];
+      return {
+        category: "rational-exponents-confusion",
+        badge: m.badge,
+        title: m.titolo,
+        explanation: errorText || m.spiegazione,
+        counterexample: m.controesempio,
+        advice: hintText || m.come_risolvere,
+        ruleReminder: m.regola_guida,
+        principio: m.principio
       };
     }
     return {

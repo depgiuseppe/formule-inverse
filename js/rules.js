@@ -916,6 +916,12 @@ export function rebuildSum(terms) {
 // ---------------------------------------------------------------------------
 // Distributiva / raccoglimento ricorsivi
 // ---------------------------------------------------------------------------
+function gcd(a, b) {
+  a = Math.abs(a); b = Math.abs(b);
+  while (b) { const t = a % b; a = b; b = t; }
+  return a || 1;
+}
+
 function distributePower(base, exp) {
   const uBase = unwrap(base);
   const uExp = unwrap(exp);
@@ -984,13 +990,16 @@ function distributePower(base, exp) {
       return distributePower(uBase.base, Num(combined));
     }
     if (innerExp.type === 'Div' && isNum(innerExp.num) && isNum(innerExp.den) && uExp.type === 'Num') {
-      const numVal = innerExp.num.value * uExp.value;
-      const denVal = innerExp.den.value;
+      let numVal = innerExp.num.value * uExp.value;
+      let denVal = innerExp.den.value;
       if (numVal % denVal === 0) {
         const intVal = numVal / denVal;
         if (intVal === 1) return distribute(uBase.base);
         return distributePower(uBase.base, Num(intVal));
       }
+      const g = gcd(numVal, denVal);
+      numVal /= g;
+      denVal /= g;
       return Pow(distribute(uBase.base), Div(Num(numVal), Num(denVal)));
     }
   }

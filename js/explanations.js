@@ -133,9 +133,9 @@ export const EXPLANATIONS = {
     principio: 'Applicazione a entrambi i membri della radice di indice pari n = 2m (definita per radicandi ≥ 0 nel campo reale), ricordando che ⁿ√(xⁿ) = |x| quando n è pari.',
     perche: 'Poiché ⁿ√(xⁿ) = |x| = ±x per n pari, la soluzione corretta include sia il segno + sia il segno −: il segno ± non va eliminato.',
     attenzione: [
-      'Indice PARI: il radicando deve essere ≥ 0 (nel campo reale): condizione necessaria.',
-      'Il segno ± è matematicamente necessario: non va soppresso.',
-      'Se la quantità cercata è per sua natura positiva (lunghezza, massa, tempo, una frequenza, …), scegli il segno + per eliminare l\'ambiguità: la scelta va motivata in base al significato fisico.',
+      'Indice PARI: il radicando deve essere ≥ 0 (nel campo reale): condizione necessaria di esistenza.',
+      'Il segno ± è matematicamente necessario e si colloca SEMPRE all\'esterno del radicale (x = ±√k). Non si può inserire o lasciare il segno ± dentro una radice reale (√(±k)), poiché per il segno negativo il radicando risulterebbe negativo e la radice reale non esisterebbe.',
+      'Convenzione del valore positivo (+) in fisica: quando l\'incognita rappresenta una grandezza scalare intrinsecamente non negativa (come massa m, tempo t, raggio o distanza r, modulo della velocità |v|, periodo T), si adotta la convenzione di scartare il ramo negativo non fisico scegliendo x = +√k. Se invece la grandezza è una coordinata vettoriale con verso (es. velocità 1D lungo un asse), si preserva il doppio segno ±.',
     ],
   },
 
@@ -143,10 +143,10 @@ export const EXPLANATIONS = {
     nome: 'Scelta del valore positivo per grandezze fisiche intrinsecamente non negative',
     intuitiva: 'In fisica, grandezze come il tempo, la massa, la distanza o il modulo della velocità non possono essere negative: si considera solo la radice con il segno positivo (+).',
     principio: 'Selezione del ramo positivo della soluzione di un\'equazione pura: da x = ±√A si deduce x = √A in base al dominio fisico della grandezza.',
-    perche: 'Mentre l\'algebra pura ammette entrambe le radici opposte (±), la formulazione di una legge fisica esclude le soluzioni non fisiche (ad esempio tempi o masse negative).',
+    perche: 'Mentre l\'algebra pura ammette entrambe le radici opposte (±), la formulazione di una legge fisica esclude le soluzioni non fisiche (ad esempio tempi o masse negative). In fisica le grandezze scalari descrivono quantità misurabili strettamente non negative; la soluzione negativa è un artefatto matematico privo di realtà sperimentale.',
     attenzione: [
-      'Valida solo quando la grandezza fisica cercata è definita strettamente come non negativa.',
-      'Se la grandezza ammette entrambi i versi (es. velocità vettoriale monodimensionale lungo un asse), il segno ± va mantenuto per rappresentare la direzione del moto.',
+      'Valida solo quando la grandezza fisica cercata è definita strettamente come non negativa (es. massa, tempo, modulo della velocità, raggio).',
+      'Quando e perché mantenere il segno ±: se la grandezza ammette entrambi i versi lungo una coordinata o asse orientato (es. componente cartesiana della velocità v_x, quota orientata y, spostamento relativo), il segno ± va mantenuto perché il segno positivo indica moto concorde e il segno negativo moto discorde rispetto al verso scelto.',
     ],
   },
 
@@ -167,8 +167,20 @@ export const EXPLANATIONS = {
     principio: 'Se A = B allora A^n = B^n.',
     perche: 'La potenza con esponente fisso è una funzione ben definita: applicarla a entrambi i membri conserva l\'uguaglianza.',
     attenzione: [
-      'Elevare a un esponente PARI non è iniettivo: può introdurre soluzioni estranee (ad es. da x = 3 si ottiene x² = 9, che ammette anche x = −3).',
-      'Le soluzioni trovate vanno quindi sempre ricontrollate.',
+      'Elevare a un esponente PARI non è iniettivo: può introdurre soluzioni estranee (ad es. da x = 3 si ottiene x² = 9, che ammette anche x = −3). Le soluzioni trovate vanno quindi sempre ricontrollate.',
+      'Proprietà delle potenze: (aᵐ)ⁿ = a^(m·n). Quando una potenza viene nuovamente elevata a potenza, gli esponenti si MOLTIPLICANO tra loro, non si concatenano come cifre decimali (es. (v²)² = v⁴, MAI v²²).',
+    ],
+  },
+
+  'rational-exponents': {
+    nome: 'Esponenti razionali e radici annidate (a^(1/n) = ⁿ√a)',
+    intuitiva: 'Una radice equivale a un esponente frazionario: √a = a^(1/2) e ∛a = a^(1/3). Estrarre la radice di una radice equivale a moltiplicare gli esponenti frazionari: √(√a) = (a^(1/2))^(1/2) = a^(1/4) = ⁴√a.',
+    principio: 'Definizione di esponente razionale a^(m/n) = ⁿ√(aᵐ) e proprietà della potenza di potenza (aᵖ)ᵠ = a^(p·q).',
+    perche: 'L\'esponente frazionario 1/n è l\'inverso moltiplicativo di n: (a^(1/n))ⁿ = a^((1/n)·n) = a¹ = a. Applicando più radici annidate, la composizione di potenze moltiplica le frazioni: (a^(1/2))^(1/2) = a^(1/4), riconducendo le operazioni sui radicali a semplici prodotti algebrici tra esponenti.',
+    attenzione: [
+      'Condizione di realtà: nei numeri reali, per esponenti con denominatore pari (1/2, 1/4, ...), la base deve essere non negativa (a ≥ 0).',
+      'Non confondere l\'esponente frazionario con una divisione: a^(1/2) = √a ≠ a/2 (es. 16^(1/2) = 4, mentre 16/2 = 8).',
+      'Radici multiple: ᵐ√(ⁿ√a) = a^(1/(m·n)) = ᵐ·ⁿ√a. Due radici quadrate consecutive corrispondono a un esponente 1/4 (e non 1/2 + 1/2 = 1).',
     ],
   },
 
@@ -351,6 +363,53 @@ export const STUDENT_MISCONCEPTIONS = {
     regola_guida:
       'Regola del trasporto (1° principio): oltrepassando l\'uguale, il termine inverte sempre il segno!',
   },
+
+  'power-concatenation': {
+    id: 'power-concatenation',
+    titolo: 'Concatenazione errata degli esponenti anziché moltiplicazione (Potenza di potenza)',
+    badge: 'Proprietà delle Potenze: (aᵐ)ⁿ = aᵐ·ⁿ',
+    principio: 'Proprietà della potenza di potenza: (aᵐ)ⁿ = a^(m·n) ≠ a^(10·m + n).',
+    spiegazione:
+      'Elevando una potenza a un altro esponente, gli esponenti si MOLTIPLICANO tra loro, non si concatenano come cifre affiancate! Scambiare (v²)² per v²² invece di v⁴ è un grave errore di notazione che altera esponenzialmente il valore della formula.',
+    controesempio:
+      'Considera la base 2: (2²)² = 4² = 16. Se concatenassi le cifre dell\'esponente otterresti 2²² = 4.194.304, un numero enormemente diverso! Il calcolo corretto moltiplica gli esponenti: 2 · 2 = 4, quindi 2⁴ = 16.',
+    come_risolvere:
+      'Moltiplica sempre l\'esponente interno per quello esterno: (vᵐ)ⁿ = v^(m · n). Per esempio: (v²)² = v^(2·2) = v⁴; (v³)² = v⁶; (v⁴)³ = v¹².',
+    regola_guida:
+      'Potenza di potenza: (aᵐ)ⁿ = a^(m·n) — gli esponenti si moltiplicano tra loro, MAI affiancarli come cifre!',
+  },
+
+  'pm-inside-radical': {
+    id: 'pm-inside-radical',
+    titolo: 'Segno ± all\'interno del radicando di una radice reale',
+    badge: 'Radicali Reali e Segno ±',
+    principio:
+      'Dominio e univocità della radice reale: √A richiede A ≥ 0 ed è definita univocamente come valore non negativo. Il simbolo ± è un selettore esterno di soluzioni (x = ±√A), non un operatore algebrico interno al radicando.',
+    spiegazione:
+      'Non si può lasciare il segno ± dentro una radice reale. La radice quadrata √A nel campo reale è un operatore univoco che restituisce il valore positivo della radice aritmetica (con A ≥ 0). L\'ambiguità di segno nasce al di fuori della radice: x² = A implica x = +√A oppure x = −√A. Inserire ± dentro il radicando (come √(±A)) implicherebbe dover calcolare √(−A), che nel campo dei numeri reali non è definita.',
+    controesempio:
+      'Risolvendo x² = 9 si ha x = ±√9 = ±3. Scrivere x = √(±9) non ha senso matematico: per il ramo positivo avresti √9 = 3, ma per il ramo negativo avresti √(−9), che nei numeri reali non esiste! Inoltre, in fisica per grandezze come il modulo della velocità v, il tempo t o la massa m, si scarta il ramo negativo privo di significato fisico adottando la convenzione del ramo positivo (+).',
+    come_risolvere:
+      'Colloca sempre il segno ± all\'esterno del radicale (x = ±√A). Se l\'equazione descrive una grandezza fisica intrinsecamente non negativa, seleziona la regola "Ramo positivo (+)" per eliminare il ramo negativo non fisico.',
+    regola_guida:
+      'Il segno ± va sempre fuori dalla radice: x = ±√A, mai √(±A)! Nelle leggi fisiche con grandezze scalari positive si adotta la regola "Ramo positivo (+)".',
+  },
+
+  'rational-exponents-confusion': {
+    id: 'rational-exponents-confusion',
+    titolo: 'Confusione tra radicali ed esponenti razionali (frazionari)',
+    badge: 'Esponenti Razionali: a^(1/n) = ⁿ√a',
+    principio:
+      'Definizione di esponente razionale: a^(1/n) = ⁿ√a e composizione di radici (a^(1/n))^(1/m) = a^(1/(n·m)) = ᵐ·ⁿ√a.',
+    spiegazione:
+      'Una radice corrisponde a un esponente razionale (frazionario): la radice quadrata è a^(1/2) = √a, la radice cubica è a^(1/3) = ∛a, e la radice di radice è √(√a) = (a^(1/2))^(1/2) = a^(1/4) = ⁴√a. Un esponente razionale NON è una divisione ordinaria della base!',
+    controesempio:
+      'a^(1/2) non significa affatto a/2! Ad esempio: 16^(1/2) = √16 = 4, mentre 16/2 = 8. Analogamente, 16^(1/4) = √(√16) = √4 = 2, mentre 16/4 = 4. Due radici quadrate annidate non si sommano (1/2 + 1/2 = 1), ma moltiplicano gli indici: 2 · 2 = 4, quindi a^(1/4).',
+    come_risolvere:
+      'Tratta i radicali con le proprietà delle potenze: l\'indice della radice diventa il denominatore dell\'esponente. Per radici annidate moltiplica gli esponenti frazionari: √(√a) = a^(1/4).',
+    regola_guida:
+      '√a = a^(1/2) e √(√a) = a^(1/4): le radici annidate moltiplicano gli esponenti frazionari (1/2 · 1/2 = 1/4)!',
+  },
 };
 
 // Spiegazione per una mossa non valida: messaggi chiari, non punitivi ed educativi.
@@ -393,6 +452,12 @@ export const INVALID_EXPLANATIONS = {
     'La formula contiene un errore di sintassi o un elemento non supportato. Controlla l\'espressione inserita.',
   'zero-denominator':
     'La formula contiene un denominatore identicamente nullo: non è una formula valida.',
+  'power-concatenation':
+    'Attenzione alla proprietà delle potenze: (aᵐ)ⁿ = a^(m·n). Gli esponenti si moltiplicano (es. (v²)² = v⁴), non si concatenano mai come cifre affiancate (v²² è errato).',
+  'pm-inside-radical':
+    'Non si può lasciare il segno ± dentro una radice reale √(±A): il radicando deve essere reale e non negativo. Il segno ± va all\'esterno (x = ±√A) oppure, per grandezze fisiche positive, si adotta la convenzione del ramo positivo (+√A).',
+  'rational-exponent-not-division':
+    'Un esponente razionale non è una divisione ordinaria della base: a^(1/2) indica la radice quadrata √a (non a/2), e a^(1/4) indica la radice quarta √(√a).',
 };
 
 export function getExplanation(key) {
@@ -573,7 +638,76 @@ export function diagnoseStudentMisconception(errorText = '', hintText = '', acti
     };
   }
 
-  // 9. Fallback generico
+  // 9. Concatenazione errata degli esponenti (potenza di potenza vs cifre affiancate)
+  if (
+    errLow.includes('concaten') ||
+    errLow.includes('v^22') ||
+    (errLow.includes('22') && (errLow.includes('potenz') || errLow.includes('esponent') || errLow.includes('affianc'))) ||
+    errLow.includes('potenza di potenza') ||
+    hintLow.includes('concaten') ||
+    hintLow.includes('(a^m)^n') ||
+    hintLow.includes('a^(m*n)')
+  ) {
+    const m = STUDENT_MISCONCEPTIONS['power-concatenation'];
+    return {
+      category: 'power-concatenation',
+      badge: m.badge,
+      title: m.titolo,
+      explanation: errorText || m.spiegazione,
+      counterexample: m.controesempio,
+      advice: hintText || m.come_risolvere,
+      ruleReminder: m.regola_guida,
+      principio: m.principio,
+    };
+  }
+
+  // 10. Segno ± all'interno di una radice reale e convenzione ramo positivo
+  if (
+    errLow.includes('± dentro') ||
+    errLow.includes('segno ± all\'interno') ||
+    errLow.includes('segno ± dentro') ||
+    (errLow.includes('±') && (errLow.includes('radicand') || errLow.includes('radice reale'))) ||
+    errLow.includes('radicando reale non include ±') ||
+    hintLow.includes('± dentro') ||
+    hintLow.includes('ramo positivo')
+  ) {
+    const m = STUDENT_MISCONCEPTIONS['pm-inside-radical'];
+    return {
+      category: 'pm-inside-radical',
+      badge: m.badge,
+      title: m.titolo,
+      explanation: errorText || m.spiegazione,
+      counterexample: m.controesempio,
+      advice: hintText || m.come_risolvere,
+      ruleReminder: m.regola_guida,
+      principio: m.principio,
+    };
+  }
+
+  // 11. Confusione su esponenti razionali e radici annidate
+  if (
+    errLow.includes('esponente razionale') ||
+    errLow.includes('esponenti razionali') ||
+    errLow.includes('esponente frazionario') ||
+    errLow.includes('a^(1/2)') ||
+    errLow.includes('a^(1/4)') ||
+    errLow.includes('radice di radice') ||
+    (errLow.includes('radice') && errLow.includes('frazion'))
+  ) {
+    const m = STUDENT_MISCONCEPTIONS['rational-exponents-confusion'];
+    return {
+      category: 'rational-exponents-confusion',
+      badge: m.badge,
+      title: m.titolo,
+      explanation: errorText || m.spiegazione,
+      counterexample: m.controesempio,
+      advice: hintText || m.come_risolvere,
+      ruleReminder: m.regola_guida,
+      principio: m.principio,
+    };
+  }
+
+  // 12. Fallback generico
   return {
     category: 'general',
     badge: 'Principio di Equivalenza',
