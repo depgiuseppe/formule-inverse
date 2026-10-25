@@ -8,7 +8,7 @@
 // condizioni (÷ per una quantità ≠ 0, radice con radicando ≥ 0, …) restano
 // coerenti con il resto dell'applicazione.
 
-import { Sqrt, Pow, Num, Neg, Eq, unwrap, unwrapNeutrals, canonical, isNum, collectVars, evalConst, stripPm } from './ast.js';
+import { Sqrt, Pow, Div, Num, Neg, Eq, unwrap, unwrapNeutrals, canonical, isNum, collectVars, evalConst, stripPm } from './ast.js';
 import { parseExpression } from './parser.js';
 import { RULES, applyRule, conditionText } from './rules.js';
 import { whichSideHas } from './algebra.js';
@@ -196,8 +196,8 @@ function applyCbrtBothSides(eq, targetVar) {
   }
 
   // Caso generale: estrazione della radice cubica su entrambi i membri
-  const newLeft = leftCube || Pow(eq.left, Num(1 / 3));
-  const newRight = rightCube || Pow(eq.right, Num(1 / 3));
+  const newLeft = leftCube || Pow(eq.left, Div(Num(1), Num(3)));
+  const newRight = rightCube || Pow(eq.right, Div(Num(1), Num(3)));
   return {
     ok: true,
     equation: Eq(newLeft, newRight),

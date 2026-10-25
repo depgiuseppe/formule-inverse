@@ -15,7 +15,7 @@ import {
   Num, Var, Add, Sub, Mul, Div, Pow, Sqrt, Neg, Group, Eq,
   Sin, Cos, Tan, Ln, Asin, Acos, Atan, Exp,
   unwrap, unwrapNeutrals, canonical, isNum, isVar, equivalentExpr, evalConst, isIdenticallyZero,
-  collectVars, FUNC_INFO, hasPmSign, stripPm,
+  collectVars, FUNC_INFO, hasPmSign, stripPm, floatToFraction,
 } from './ast.js';
 import { reduceEquationToCommonDenominator, canReduceToSingleFraction } from './common-denom.js';
 import { memberIsFractionSum } from './reciprocals.js';
@@ -437,7 +437,7 @@ export const ruleSqrtBothSides = {
     }
     const n = found.exp;
     const cleanOther = stripPm(other);
-    const rootOther = n === 2 ? Sqrt(cleanOther) : Pow(cleanOther, Num(1 / n));
+    const rootOther = n === 2 ? Sqrt(cleanOther) : Pow(cleanOther, Div(Num(1), Num(n)));
     // Sul membro con la potenza pari compare il segno ± (a meno di positiveOnly)
     const rightSide = (ctx && ctx.positiveOnly) ? rootOther : Add(Pm(), rootOther);
     const newEq = side === 'left'
@@ -511,7 +511,7 @@ export const ruleRootOddBothSides = {
     const foundOther = extractOddPower(other);
     const rootOther = (foundOther && foundOther.exp === n)
       ? foundOther.base
-      : Pow(other, Num(1 / n));
+      : Pow(other, Div(Num(1), Num(n)));
     const newEq = side === 'left'
       ? Eq(found.base, rootOther)
       : Eq(rootOther, found.base);
@@ -987,11 +987,44 @@ function distributePower(base, exp) {
     if (innerExp.type === 'Num' && uExp.type === 'Num') {
       const combined = innerExp.value * uExp.value;
       if (combined === 1) return distribute(uBase.base);
+      if (!Number.isInteger(combined)) {
+        const frac = floatToFraction(combined);
+        if (frac && frac.d > 1) {
+          return Pow(distribute(uBase.base), Div(Num(frac.n), Num(frac.d)));
+        }
+      }
       return distributePower(uBase.base, Num(combined));
     }
     if (innerExp.type === 'Div' && isNum(innerExp.num) && isNum(innerExp.den) && uExp.type === 'Num') {
       let numVal = innerExp.num.value * uExp.value;
       let denVal = innerExp.den.value;
+      if (numVal % denVal === 0) {
+        const intVal = numVal / denVal;
+        if (intVal === 1) return distribute(uBase.base);
+        return distributePower(uBase.base, Num(intVal));
+      }
+      const g = gcd(numVal, denVal);
+      numVal /= g;
+      denVal /= g;
+      return Pow(distribute(uBase.base), Div(Num(numVal), Num(denVal)));
+    }
+    if (innerExp.type === 'Num' && uExp.type === 'Div' && isNum(uExp.num) && isNum(uExp.den)) {
+      let numVal = innerExp.value * uExp.num.value;
+      let denVal = uExp.den.value;
+      if (numVal % denVal === 0) {
+        const intVal = numVal / denVal;
+        if (intVal === 1) return distribute(uBase.base);
+        return distributePower(uBase.base, Num(intVal));
+      }
+      const g = gcd(numVal, denVal);
+      numVal /= g;
+      denVal /= g;
+      return Pow(distribute(uBase.base), Div(Num(numVal), Num(denVal)));
+    }
+    if (innerExp.type === 'Div' && isNum(innerExp.num) && isNum(innerExp.den) &&
+        uExp.type === 'Div' && isNum(uExp.num) && isNum(uExp.den)) {
+      let numVal = innerExp.num.value * uExp.num.value;
+      let denVal = innerExp.den.value * uExp.den.value;
       if (numVal % denVal === 0) {
         const intVal = numVal / denVal;
         if (intVal === 1) return distribute(uBase.base);

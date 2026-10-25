@@ -9,8 +9,9 @@
 // esattamente sugli elementi che l'allievo vede.
 
 import {
-  Eq, Num, Add, Sub, Neg, Mul, Div, Pow, Group,
+  Eq, Num, Add, Sub, Neg, Mul, Div, Pow, Sqrt, Group,
   unwrap, canonical, equivalentExpr, toPretty,
+  extractBaseAndExp, asRational, ratSub,
 } from './ast.js';
 import { additiveTerms, rebuildSum, cancelFractionFactor } from './rules.js';
 
@@ -383,24 +384,38 @@ export function crossCancel(eq, idA, idB) {
   let powerReduction = null;
 
   if (!matchDirect) {
-    const uA = unwrap(nodeA);
-    const uB = unwrap(nodeB);
-    if (uB.type === 'Pow' && uB.exp && uB.exp.type === 'Num' && Number.isInteger(uB.exp.value) && uB.exp.value > 1 && equivalentExpr(nodeA, uB.base)) {
-      matchDirect = true;
-      powerReduction = {
-        powerEntry: b,
-        baseEntry: a,
-        baseNode: uB.base,
-        newExp: uB.exp.value - 1,
-      };
-    } else if (uA.type === 'Pow' && uA.exp && uA.exp.type === 'Num' && Number.isInteger(uA.exp.value) && uA.exp.value > 1 && equivalentExpr(nodeB, uA.base)) {
-      matchDirect = true;
-      powerReduction = {
-        powerEntry: a,
-        baseEntry: b,
-        baseNode: uA.base,
-        newExp: uA.exp.value - 1,
-      };
+    const infoA = extractBaseAndExp(nodeA);
+    const infoB = extractBaseAndExp(nodeB);
+    if (equivalentExpr(infoA.base, infoB.base)) {
+      const rA = asRational(infoA.exp);
+      const rB = asRational(infoB.exp);
+      if (rA && rB) {
+        const rDiff = ratSub(rA, rB);
+        if (rDiff.n === 0) {
+          matchDirect = true;
+        } else if (rDiff.n > 0) {
+          matchDirect = true;
+          const newExpNode = (rDiff.d === 1)
+            ? (rDiff.n === 1 ? infoA.base : Pow(infoA.base, Num(rDiff.n)))
+            : (rDiff.n === 1 && rDiff.d === 2 ? Sqrt(infoA.base) : Pow(infoA.base, Div(Num(rDiff.n), Num(rDiff.d))));
+          powerReduction = {
+            powerEntry: a,
+            baseEntry: b,
+            replacement: newExpNode,
+          };
+        } else {
+          matchDirect = true;
+          const absDiff = { n: -rDiff.n, d: rDiff.d };
+          const newExpNode = (absDiff.d === 1)
+            ? (absDiff.n === 1 ? infoB.base : Pow(infoB.base, Num(absDiff.n)))
+            : (absDiff.n === 1 && absDiff.d === 2 ? Sqrt(infoB.base) : Pow(infoB.base, Div(Num(absDiff.n), Num(absDiff.d))));
+          powerReduction = {
+            powerEntry: b,
+            baseEntry: a,
+            replacement: newExpNode,
+          };
+        }
+      }
     }
   }
 
@@ -429,15 +444,32 @@ export function crossCancel(eq, idA, idB) {
   let simplifiedNode = null;
 
   if (powerReduction) {
-    const replacement = powerReduction.newExp === 1
-      ? powerReduction.baseNode
-      : Pow(powerReduction.baseNode, Num(powerReduction.newExp));
-    
-    // Rimuovi prima il fattore base
-    const afterBase = removeAt(member, powerReduction.baseEntry.segments);
-    if (afterBase.ok) {
-      // E aggiorna la potenza con l'esponente ridotto
-      simplifiedNode = rebuildAlongPath(afterBase.node, powerReduction.powerEntry.segments, replacement);
+    const replacement = powerReduction.replacement;
+    const baseEntry = powerReduction.baseEntry;
+    const powerEntry = powerReduction.powerEntry;
+
+    // Se baseEntry è esattamente ['den'] (l'intero denominatore della frazione membro)
+    // e powerEntry è nel numeratore:
+    if (baseEntry.segments.length === 1 && baseEntry.segments[0] === 'den' && powerEntry.segments[0] === 'num') {
+      const rest = powerEntry.segments.slice(1);
+      const uMember = unwrap(member);
+      if (uMember.type === 'Div') {
+        simplifiedNode = rest.length === 0 ? replacement : rebuildAlongPath(uMember.num, rest, replacement);
+      }
+    }
+    // Se baseEntry è esattamente ['num'] e powerEntry è nel denominatore:
+    else if (baseEntry.segments.length === 1 && baseEntry.segments[0] === 'num' && powerEntry.segments[0] === 'den') {
+      const rest = powerEntry.segments.slice(1);
+      const uMember = unwrap(member);
+      if (uMember.type === 'Div') {
+        const newDen = rest.length === 0 ? replacement : rebuildAlongPath(uMember.den, rest, replacement);
+        simplifiedNode = Div(Num(1), newDen);
+      }
+    } else {
+      const afterBase = removeAt(member, baseEntry.segments);
+      if (afterBase.ok) {
+        simplifiedNode = rebuildAlongPath(afterBase.node, powerEntry.segments, replacement);
+      }
     }
   }
 

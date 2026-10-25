@@ -173,14 +173,17 @@ export const EXPLANATIONS = {
   },
 
   'rational-exponents': {
-    nome: 'Esponenti razionali e radici annidate (a^(1/n) = ⁿ√a)',
-    intuitiva: 'Una radice equivale a un esponente frazionario: √a = a^(1/2) e ∛a = a^(1/3). Estrarre la radice di una radice equivale a moltiplicare gli esponenti frazionari: √(√a) = (a^(1/2))^(1/2) = a^(1/4) = ⁴√a.',
-    principio: 'Definizione di esponente razionale a^(m/n) = ⁿ√(aᵐ) e proprietà della potenza di potenza (aᵖ)ᵠ = a^(p·q).',
-    perche: 'L\'esponente frazionario 1/n è l\'inverso moltiplicativo di n: (a^(1/n))ⁿ = a^((1/n)·n) = a¹ = a. Applicando più radici annidate, la composizione di potenze moltiplica le frazioni: (a^(1/2))^(1/2) = a^(1/4), riconducendo le operazioni sui radicali a semplici prodotti algebrici tra esponenti.',
+    nome: 'Esponenti razionali, frazioni e radici annidate (a^(p/q) = ᑫ√(aᵖ))',
+    intuitiva: 'Una radice equivale a un esponente frazionario: √a = a^(1/2), ∛a = a^(1/3) e √(√a) = (a^(1/2))^(1/2) = a^(1/4). Le operazioni con potenze ad esponente frazionario seguono le regole dell\'aritmetica razionale esatta: somma algebrica con mcm tra denominatori nel prodotto, sottrazione nel quoziente e moltiplicazione tra numeratori e denominatori nella potenza di potenza, senza mai ricorrere a numeri decimali float.',
+    principio: 'Definizione di esponente razionale a^(p/q) = ᑫ√(aᵖ) e algebra delle potenze: a^(p/q) · a^(r/s) = a^((p/q)+(r/s)), a^(p/q) / a^(r/s) = a^((p/q)-(r/s)), e (a^(p/q))^(r/s) = a^((p·r)/(q·s)).',
+    perche: 'L\'algebra con esponenti frazionari estende in modo coerente le proprietà delle potenze intere: (a^(1/n))ⁿ = a^((1/n)·n) = a¹ = a. L\'aritmetica razionale esatta preserva la precisione simbolica: gli esponenti non si convertono mai in decimali approssimati (come 0.5 o 0.333...), ma restano frazioni ridotte ai minimi termini.',
     attenzione: [
-      'Condizione di realtà: nei numeri reali, per esponenti con denominatore pari (1/2, 1/4, ...), la base deve essere non negativa (a ≥ 0).',
-      'Non confondere l\'esponente frazionario con una divisione: a^(1/2) = √a ≠ a/2 (es. 16^(1/2) = 4, mentre 16/2 = 8).',
-      'Radici multiple: ᵐ√(ⁿ√a) = a^(1/(m·n)) = ᵐ·ⁿ√a. Due radici quadrate consecutive corrispondono a un esponente 1/4 (e non 1/2 + 1/2 = 1).',
+      'Non confondere l\'esponente frazionario con una divisione ordinaria della base: a^(1/2) = √a ≠ a/2 (es. 16^(1/2) = 4, mentre 16/2 = 8).',
+      'Prodotto di potenze con stessa base: a^(p/q) · a^(r/s) = a^((p·s + r·q)/(q·s)), calcolando il minimo comune multiplo tra i denominatori.',
+      'Quoziente di potenze con stessa base: a^(p/q) / a^(r/s) = a^((p·s - r·q)/(q·s)), sottraendo gli esponenti con frazioni esatte.',
+      'Potenza di potenza: (a^(p/q))^(r/s) = a^((p·r)/(q·s)), moltiplicando direttamente i numeratori e i denominatori e riducendo ai minimi termini.',
+      'Radici ed esponenti: ⁿ√(aᵐ) = a^(m/n), √(a^(p/q)) = a^(p/(2q)), e radici annidate moltiplicano i denominatori: √(√(a)) = a^(1/4).',
+      'Mai numeri decimali: ogni esponente non intero deve essere una frazione esatta (es. 1/2, mai 0.5; 1/3, mai 0.3333333333333333).',
     ],
   },
 
@@ -397,18 +400,18 @@ export const STUDENT_MISCONCEPTIONS = {
 
   'rational-exponents-confusion': {
     id: 'rational-exponents-confusion',
-    titolo: 'Confusione tra radicali ed esponenti razionali (frazionari)',
-    badge: 'Esponenti Razionali: a^(1/n) = ⁿ√a',
+    titolo: 'Confusione su radicali, operazioni con esponenti razionali (frazionari) ed eliminazione dei decimali',
+    badge: 'Esponenti Razionali e Frazioni: a^(p/q) = ᑫ√(aᵖ)',
     principio:
-      'Definizione di esponente razionale: a^(1/n) = ⁿ√a e composizione di radici (a^(1/n))^(1/m) = a^(1/(n·m)) = ᵐ·ⁿ√a.',
+      'Definizione di esponente razionale ed aritmetica razionale esatta degli esponenti: a^(1/n) = ⁿ√a, nel prodotto si sommano con mcm (a^(p/q)·a^(r/s) = a^((ps+rq)/qs)), nel quoziente si sottraggono, e nella potenza di potenza si moltiplicano (a^(p/q))^(r/s) = a^((pr)/(qs)). Gli esponenti non si convertono mai in decimali float.',
     spiegazione:
-      'Una radice corrisponde a un esponente razionale (frazionario): la radice quadrata è a^(1/2) = √a, la radice cubica è a^(1/3) = ∛a, e la radice di radice è √(√a) = (a^(1/2))^(1/2) = a^(1/4) = ⁴√a. Un esponente razionale NON è una divisione ordinaria della base!',
+      'Una radice corrisponde a un esponente razionale (frazionario): la radice quadrata è a^(1/2) = √a, la radice cubica è a^(1/3) = ∛a, e la radice di radice è √(√a) = (a^(1/2))^(1/2) = a^(1/4) = ⁴√a. Un esponente razionale NON è una divisione ordinaria della base! Inoltre, le potenze con esponente frazionario seguono le regole dell\'algebra esatta: somma con mcm nel prodotto, sottrazione nel quoziente e moltiplicazione tra numeratori e denominatori nella potenza di potenza, escludendo qualsiasi approssimazione decimale a virgola mobile.',
     controesempio:
-      'a^(1/2) non significa affatto a/2! Ad esempio: 16^(1/2) = √16 = 4, mentre 16/2 = 8. Analogamente, 16^(1/4) = √(√16) = √4 = 2, mentre 16/4 = 4. Due radici quadrate annidate non si sommano (1/2 + 1/2 = 1), ma moltiplicano gli indici: 2 · 2 = 4, quindi a^(1/4).',
+      'a^(1/2) non significa affatto a/2! Ad esempio: 16^(1/2) = √16 = 4, mentre 16/2 = 8. Analogamente, 16^(1/4) = √(√16) = √4 = 2, mentre 16/4 = 4. Due radici quadrate annidate moltiplicano gli indici: 2 · 2 = 4, quindi a^(1/4). Moltiplicando a^(1/2) · a^(1/3) si sommano con mcm ottenendo a^(5/6), mai decimali come 0.5 o 0.333! Elevando (a^(2/3))^(3/4) si moltiplicano numeratori e denominatori: (2·3)/(3·4) = 6/12 = 1/2, ottenendo a^(1/2) = √a.',
     come_risolvere:
-      'Tratta i radicali con le proprietà delle potenze: l\'indice della radice diventa il denominatore dell\'esponente. Per radici annidate moltiplica gli esponenti frazionari: √(√a) = a^(1/4).',
+      'Tratta i radicali con le proprietà delle potenze: l\'indice della radice diventa il denominatore dell\'esponente. Applica le regole delle frazioni agli esponenti: somma con mcm per il prodotto, differenza per il quoziente, prodotto tra frazioni per potenza di potenza, e mantieni sempre gli esponenti in forma frazionaria ridotta a^(1/4), mai in numeri decimali.',
     regola_guida:
-      '√a = a^(1/2) e √(√a) = a^(1/4): le radici annidate moltiplicano gli esponenti frazionari (1/2 · 1/2 = 1/4)!',
+      '√a = a^(1/2) e √(√a) = a^(1/4): le radici annidate moltiplicano gli esponenti frazionari (1/2 · 1/2 = 1/4)! Operazioni con frazioni esatte negli esponenti, mai decimali!',
   },
 };
 

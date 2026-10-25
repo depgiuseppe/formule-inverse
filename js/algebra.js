@@ -303,7 +303,7 @@ export function availableActions(eq, element, target) {
       label: `Eleva entrambi i membri a un esponente`,
       description: 'Eleva entrambi i membri allo stesso esponente.',
       ruleKey: 'powBoth',
-      build: () => ({ value: Num(1 / exp), valueText: '1/' + exp }),
+      build: () => ({ value: Div(Num(1), Num(exp)), valueText: '1/' + exp }),
     });
   }
 

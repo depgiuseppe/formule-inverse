@@ -346,8 +346,15 @@ export function substituteVarsInAst(node, env = {}) {
 // ---------------------------------------------------------------------------
 export function toText(node) {
   switch (node.type) {
-    case 'Num':
+    case 'Num': {
+      if (!Number.isInteger(node.value) && Number.isFinite(node.value)) {
+        const frac = asRational(node) || floatToFraction(node.value);
+        if (frac && frac.d > 1) {
+          return (frac.n < 0 ? '-' : '') + Math.abs(frac.n) + '/' + frac.d;
+        }
+      }
       return String(node.value);
+    }
     case 'Var':
       return node.name;
     case 'Add':
@@ -381,8 +388,16 @@ export function toPretty(node, parentPrec = 0) {
   // precedenza: 1 add/sub, 2 mul/div, 3 pow
   const wrap = (s, prec, needParen) => (needParen ? '(' + s + ')' : s);
   switch (node.type) {
-    case 'Num':
+    case 'Num': {
+      if (!Number.isInteger(node.value) && Number.isFinite(node.value)) {
+        const frac = asRational(node) || floatToFraction(node.value);
+        if (frac && frac.d > 1) {
+          const s = (frac.n < 0 ? '−' : '') + Math.abs(frac.n) + '/' + frac.d;
+          return wrap(s, 2, parentPrec > 2);
+        }
+      }
       return String(node.value);
+    }
     case 'Var':
       return node.name;
     case 'Add':
@@ -463,8 +478,15 @@ export function toLatex(node, parentPrec = 0) {
   if (!node) return '';
   const wrap = (s, needParen) => (needParen ? `\\left(${s}\\right)` : s);
   switch (node.type) {
-    case 'Num':
+    case 'Num': {
+      if (!Number.isInteger(node.value) && Number.isFinite(node.value)) {
+        const frac = asRational(node) || floatToFraction(node.value);
+        if (frac && frac.d > 1) {
+          return (frac.n < 0 ? '-' : '') + `\\frac{${Math.abs(frac.n)}}{${frac.d}}`;
+        }
+      }
       return String(node.value);
+    }
     case 'Var': {
       if (LATEX_VAR_MAP[node.name]) return LATEX_VAR_MAP[node.name];
       const knownSubsLatex = {
@@ -752,6 +774,56 @@ export function ratNorm(r) {
   return { n: n / g, d: d / g };
 }
 
+// Converte un numero decimale a virgola mobile nella sua rappresentazione frazionaria esatta ridotta ai minimi termini.
+export function floatToFraction(x, maxDenominator = 10000, tolerance = 1e-6) {
+  if (!Number.isFinite(x)) return null;
+  if (Number.isInteger(x)) return { n: x, d: 1 };
+  const sign = x < 0 ? -1 : 1;
+  const absX = Math.abs(x);
+
+  // Controllo rapido per denominatori comuni (2..64)
+  for (let d = 2; d <= 64; d++) {
+    const n = Math.round(absX * d);
+    if (Math.abs(absX - n / d) < 1e-6) {
+      return ratNorm({ n: sign * n, d });
+    }
+  }
+
+  // Sviluppo in frazione continua per decimali generici
+  let h1 = 1, h2 = 0;
+  let k1 = 0, k2 = 1;
+  let b = absX;
+
+  do {
+    const a = Math.floor(b);
+    let aux = h1;
+    h1 = a * h1 + h2;
+    h2 = aux;
+    aux = k1;
+    k1 = a * k1 + k2;
+    k2 = aux;
+    if (Math.abs(b - a) < 1e-9) break;
+    b = 1 / (b - a);
+  } while (Math.abs(absX - h1 / k1) > tolerance && k1 <= maxDenominator && Number.isFinite(b));
+
+  if (k1 <= maxDenominator && Math.abs(absX - h1 / k1) <= tolerance) {
+    return ratNorm({ n: sign * h1, d: k1 });
+  }
+
+  // Fallback per decimali finiti (es. 0.35 -> 7/20, 0.123 -> 123/1000)
+  const s = String(absX);
+  if (s.includes('.')) {
+    const decDigits = s.split('.')[1].length;
+    if (decDigits <= 6) {
+      const d = Math.pow(10, decDigits);
+      const n = Math.round(absX * d);
+      return ratNorm({ n: sign * n, d });
+    }
+  }
+
+  return ratNorm({ n: sign * h1, d: k1 });
+}
+
 // Riconosce un valore razionale esatto in un sottoalbero.
 // Ritorna { n, d } oppure null. Accetta interi, frazioni di interi, negazioni e decimali razionali.
 export function asRational(node) {
@@ -760,13 +832,8 @@ export function asRational(node) {
   switch (node.type) {
     case 'Num': {
       if (Number.isInteger(node.value)) return { n: node.value, d: 1 };
-      // Riconoscimento di frazioni decimali semplici (es. 0.5 -> 1/2, 1/3, 0.25 -> 1/4, 1/6)
-      for (let d = 2; d <= 24; d++) {
-        const n = Math.round(node.value * d);
-        if (Math.abs(node.value - n / d) < 1e-7) {
-          return ratNorm({ n, d });
-        }
-      }
+      const frac = floatToFraction(node.value);
+      if (frac) return frac;
       return null;
     }
     case 'Neg': {
@@ -786,6 +853,10 @@ export function asRational(node) {
 
 export function ratAdd(a, b) {
   return ratNorm({ n: a.n * b.d + b.n * a.d, d: a.d * b.d });
+}
+
+export function ratSub(a, b) {
+  return ratNorm({ n: a.n * b.d - b.n * a.d, d: a.d * b.d });
 }
 
 export function ratMul(a, b) {
@@ -911,8 +982,15 @@ function canon(node) {
   // anche quando compaiono annidati come figli di altri nodi.
   node = unwrap(node);
   switch (node.type) {
-    case 'Num':
+    case 'Num': {
+      if (!Number.isInteger(node.value) && Number.isFinite(node.value)) {
+        const r = asRational(node);
+        if (r && r.d > 1) {
+          return ratToNode(r);
+        }
+      }
       return Num(node.value);
+    }
     case 'Var':
       return Var(node.name);
 

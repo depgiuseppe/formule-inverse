@@ -8,7 +8,7 @@
 //  - il raggiungimento dell'obiettivo.
 
 import { parseEquation, parseExpression, ParseError } from './parser.js';
-import { toPretty, toLatex, equivalentEq, unwrap, unwrapNeutrals, stripNeutrals, collectVars, clone, canonical, Sin, Ln, Var, Num, evalWithEnv, substituteVarsInAst } from './ast.js';
+import { toPretty, toLatex, equivalentEq, unwrap, unwrapNeutrals, stripNeutrals, collectVars, clone, canonical, Sin, Ln, Var, Num, evalWithEnv, substituteVarsInAst, floatToFraction } from './ast.js';
 import { renderEquation, prettyVar } from './render.js';
 import { applyDragMove } from './dragdrop.js';
 import { RULES, applyRule, findCommonFactor, hasTrigConflict, canDistribute } from './rules.js';
@@ -2073,6 +2073,56 @@ export function runAllTests() {
     const pretty3 = toPretty(step3.equation, 0);
     if (pretty3.includes('42')) return `passo 3 rilevata concatenazione 42: ${pretty3}`;
     if (!equivalentEq(step3.equation, eq('y^8 = v^8'))) return `passo 3 atteso y^8 = v^8, ottenuto: ${pretty3}`;
+    return true;
+  }));
+
+  results.push(test('Numeri non interi: floatToFraction converte decimali in frazioni esatte', () => {
+    const f1 = floatToFraction(1 / 3);
+    if (!f1 || f1.n !== 1 || f1.d !== 3) return `atteso 1/3, ottenuto: ${JSON.stringify(f1)}`;
+    const f2 = floatToFraction(0.5);
+    if (!f2 || f2.n !== 1 || f2.d !== 2) return `atteso 1/2, ottenuto: ${JSON.stringify(f2)}`;
+    const f3 = floatToFraction(0.25);
+    if (!f3 || f3.n !== 1 || f3.d !== 4) return `atteso 1/4, ottenuto: ${JSON.stringify(f3)}`;
+    const f4 = floatToFraction(2.5);
+    if (!f4 || f4.n !== 5 || f4.d !== 2) return `atteso 5/2, ottenuto: ${JSON.stringify(f4)}`;
+    return true;
+  }));
+
+  results.push(test('Numeri non interi: toPretty e toLatex mostrano i numeri non interi come frazioni (mai 0.333...)', () => {
+    const numNode = Num(1 / 3);
+    const pretty = toPretty(numNode, 0);
+    if (pretty.includes('0.333') || pretty !== '1/3') return `atteso 1/3 in toPretty, ottenuto: ${pretty}`;
+    const latex = toLatex(numNode, 0);
+    if (latex.includes('0.333') || latex !== '\\frac{1}{3}') return `atteso \\frac{1}{3} in toLatex, ottenuto: ${latex}`;
+    return true;
+  }));
+
+  results.push(test('Caso screenshot utente: cbrt su v = s/t eleva a 1/3 come frazione esatta, mai 0.3333333333333333', () => {
+    const res = applyKeypadOperation(eq('v = s/t'), 'cbrt', null, null, null);
+    if (!res.ok) return 'cbrt fallito: ' + res.error;
+    const pretty = toPretty(res.equation, 0);
+    if (pretty.includes('0.333')) return `rilevato numero decimale in toPretty: ${pretty}`;
+    if (!pretty.includes('1/3')) return `atteso esponente 1/3 in toPretty: ${pretty}`;
+
+    const latex = toLatex(res.equation, 0);
+    if (latex.includes('0.333')) return `rilevato numero decimale in toLatex: ${latex}`;
+    if (!latex.includes('\\frac{1}{3}')) return `atteso \\frac{1}{3} in toLatex: ${latex}`;
+
+    const rendered = renderEquation(res.equation);
+    if (rendered.includes('0.333')) return `rilevato numero decimale nel rendering HTML: ${rendered}`;
+    if (!rendered.includes('1/3')) return `atteso 1/3 nel rendering HTML dell'esponente: ${rendered}`;
+    return true;
+  }));
+
+  results.push(test('Parser e rendering: numeri decimali inseriti (es. 0.5) vengono convertiti e mostrati come frazioni', () => {
+    const parsedExpr = parseExpression('0.5*a*t^2');
+    if (parsedExpr.type !== 'Mul') return `atteso Mul, ottenuto: ${parsedExpr.type}`;
+    const firstFactor = parsedExpr.args[0];
+    if (firstFactor.type !== 'Div') return `atteso primo fattore Div (frazione), ottenuto: ${firstFactor.type}`;
+
+    const renderedEq = renderEquation(eq('x = 0.5'));
+    if (renderedEq.includes('0.5')) return `il numero decimale 0.5 non deve apparire a schermo: ${renderedEq}`;
+    if (!renderedEq.includes('frac-num') || !renderedEq.includes('frac-den')) return `attesa struttura frac per 0.5: ${renderedEq}`;
     return true;
   }));
 

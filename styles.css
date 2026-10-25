@@ -2064,12 +2064,18 @@ sup.node-exp {
   padding: 0 !important;
   display: inline !important;
 }
-.node-pow sup.node-exp * {
+.node-pow sup.node-exp *,
+.node-pow sup.node-exp .frac-exp {
   display: inline !important;
   padding: 0 !important;
   font-size: inherit !important;
   box-shadow: none !important;
   background: transparent !important;
+}
+.node-pow sup.node-exp.frac-exp,
+.node-pow sup.node-exp .frac-exp {
+  font-size: 0.60em !important;
+  letter-spacing: -0.02em;
 }
 
 /* Radicale in stile LaTeX scalabile con SVG surd e vinculum */

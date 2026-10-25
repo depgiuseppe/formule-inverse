@@ -25,7 +25,7 @@
 import {
   Num, Var, Add, Sub, Mul, Div, Pow, Sqrt, Neg, Group, Eq,
   Sin, Cos, Tan, Ln, Asin, Acos, Atan, Exp,
-  unwrap, isIdenticallyZero,
+  unwrap, isIdenticallyZero, floatToFraction,
 } from './ast.js';
 
 // Funzioni supportate: nome (minuscolo) -> costruttore di nodo.
@@ -193,6 +193,12 @@ class Parser {
 
     if (tok.t === 'num') {
       this.next();
+      if (!Number.isInteger(tok.v)) {
+        const frac = floatToFraction(tok.v);
+        if (frac && frac.d > 1) {
+          return Div(Num(frac.n), Num(frac.d));
+        }
+      }
       return Num(tok.v);
     }
 
@@ -218,7 +224,7 @@ class Parser {
         this.expect('(');
         const inner = this.parseExpr();
         this.expect(')');
-        return Pow(inner, Num(1 / 3));
+        return Pow(inner, Div(Num(1), Num(3)));
       }
       // Funzioni supportate: sin, cos, tan, ln, asin, acos, atan, exp.
       if (FUNCTIONS[lower]) {

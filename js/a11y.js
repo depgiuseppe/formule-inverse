@@ -3,7 +3,7 @@
 // supporto calibrazione tocco/penna per Lavagne Interattive Multimediali (LIM),
 // e gestione profili WCAG AAA ad alto contrasto.
 
-import { unwrap } from './ast.js';
+import { unwrap, asRational, floatToFraction, Div, Num } from './ast.js';
 
 // Mappatura fonetica delle lettere greche per la sintesi e gli screen reader italiani
 const GREEK_NAMES_IT = {
@@ -106,6 +106,13 @@ export function verbalizeAst(node, context = {}) {
     case 'Num': {
       const val = u.value;
       if (val === -1 && context.inMul) return 'meno';
+      if (!Number.isInteger(val) && Number.isFinite(val)) {
+        const frac = asRational(u) || floatToFraction(val);
+        if (frac && frac.d > 1) {
+          const fracNode = Div(Num(frac.n), Num(frac.d));
+          return verbalizeAst(fracNode, context);
+        }
+      }
       return String(val).replace('.', ' virgola ');
     }
 

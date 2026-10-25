@@ -315,8 +315,15 @@
   }
   function toText(node) {
     switch (node.type) {
-      case "Num":
+      case "Num": {
+        if (!Number.isInteger(node.value) && Number.isFinite(node.value)) {
+          const frac = asRational(node) || floatToFraction(node.value);
+          if (frac && frac.d > 1) {
+            return (frac.n < 0 ? "-" : "") + Math.abs(frac.n) + "/" + frac.d;
+          }
+        }
         return String(node.value);
+      }
       case "Var":
         return node.name;
       case "Add":
@@ -353,8 +360,16 @@
   function toPretty(node, parentPrec = 0) {
     const wrap = (s, prec, needParen) => needParen ? "(" + s + ")" : s;
     switch (node.type) {
-      case "Num":
+      case "Num": {
+        if (!Number.isInteger(node.value) && Number.isFinite(node.value)) {
+          const frac = asRational(node) || floatToFraction(node.value);
+          if (frac && frac.d > 1) {
+            const s = (frac.n < 0 ? "\u2212" : "") + Math.abs(frac.n) + "/" + frac.d;
+            return wrap(s, 2, parentPrec > 2);
+          }
+        }
         return String(node.value);
+      }
       case "Var":
         return node.name;
       case "Add":
@@ -458,8 +473,15 @@
     if (!node) return "";
     const wrap = (s, needParen) => needParen ? `\\left(${s}\\right)` : s;
     switch (node.type) {
-      case "Num":
+      case "Num": {
+        if (!Number.isInteger(node.value) && Number.isFinite(node.value)) {
+          const frac = asRational(node) || floatToFraction(node.value);
+          if (frac && frac.d > 1) {
+            return (frac.n < 0 ? "-" : "") + `\\frac{${Math.abs(frac.n)}}{${frac.d}}`;
+          }
+        }
         return String(node.value);
+      }
       case "Var": {
         if (LATEX_VAR_MAP[node.name]) return LATEX_VAR_MAP[node.name];
         const knownSubsLatex = {
@@ -755,18 +777,53 @@
     const g = gcd(n, d);
     return { n: n / g, d: d / g };
   }
+  function floatToFraction(x, maxDenominator = 1e4, tolerance = 1e-6) {
+    if (!Number.isFinite(x)) return null;
+    if (Number.isInteger(x)) return { n: x, d: 1 };
+    const sign = x < 0 ? -1 : 1;
+    const absX = Math.abs(x);
+    for (let d = 2; d <= 64; d++) {
+      const n = Math.round(absX * d);
+      if (Math.abs(absX - n / d) < 1e-6) {
+        return ratNorm({ n: sign * n, d });
+      }
+    }
+    let h1 = 1, h2 = 0;
+    let k1 = 0, k2 = 1;
+    let b = absX;
+    do {
+      const a = Math.floor(b);
+      let aux = h1;
+      h1 = a * h1 + h2;
+      h2 = aux;
+      aux = k1;
+      k1 = a * k1 + k2;
+      k2 = aux;
+      if (Math.abs(b - a) < 1e-9) break;
+      b = 1 / (b - a);
+    } while (Math.abs(absX - h1 / k1) > tolerance && k1 <= maxDenominator && Number.isFinite(b));
+    if (k1 <= maxDenominator && Math.abs(absX - h1 / k1) <= tolerance) {
+      return ratNorm({ n: sign * h1, d: k1 });
+    }
+    const s = String(absX);
+    if (s.includes(".")) {
+      const decDigits = s.split(".")[1].length;
+      if (decDigits <= 6) {
+        const d = Math.pow(10, decDigits);
+        const n = Math.round(absX * d);
+        return ratNorm({ n: sign * n, d });
+      }
+    }
+    return ratNorm({ n: sign * h1, d: k1 });
+  }
   function asRational(node) {
     node = unwrap(node);
     if (!node) return null;
     switch (node.type) {
       case "Num": {
         if (Number.isInteger(node.value)) return { n: node.value, d: 1 };
-        for (let d = 2; d <= 24; d++) {
-          const n = Math.round(node.value * d);
-          if (Math.abs(node.value - n / d) < 1e-7) {
-            return ratNorm({ n, d });
-          }
-        }
+        const frac = floatToFraction(node.value);
+        if (frac) return frac;
         return null;
       }
       case "Neg": {
@@ -786,6 +843,9 @@
   function ratAdd(a, b) {
     return ratNorm({ n: a.n * b.d + b.n * a.d, d: a.d * b.d });
   }
+  function ratSub(a, b) {
+    return ratNorm({ n: a.n * b.d - b.n * a.d, d: a.d * b.d });
+  }
   function ratMul(a, b) {
     return ratNorm({ n: a.n * b.n, d: a.d * b.d });
   }
@@ -797,6 +857,17 @@
     if (!r || r.n === 0) return null;
     if (r.d === 1) return Num(r.n);
     return Div(Num(r.n), Num(r.d));
+  }
+  function extractBaseAndExp(node) {
+    const u = unwrap(node);
+    if (!u) return { base: node, exp: Num(1), isPow: false };
+    if (u.type === "Pow") {
+      return { base: unwrap(u.base), exp: unwrap(u.exp), isPow: true };
+    }
+    if (u.type === "Sqrt") {
+      return { base: unwrap(u.arg), exp: Div(Num(1), Num(2)), isPow: true };
+    }
+    return { base: u, exp: Num(1), isPow: false };
   }
   function combineIdenticalFactors(factors) {
     if (factors.length <= 1) return factors;
@@ -857,8 +928,15 @@
   function canon(node) {
     node = unwrap(node);
     switch (node.type) {
-      case "Num":
+      case "Num": {
+        if (!Number.isInteger(node.value) && Number.isFinite(node.value)) {
+          const r = asRational(node);
+          if (r && r.d > 1) {
+            return ratToNode(r);
+          }
+        }
         return Num(node.value);
+      }
       case "Var":
         return Var(node.name);
       case "Add": {
@@ -1370,6 +1448,12 @@
       if (!tok) throw new ParseError("Formula incompleta: atteso un elemento.");
       if (tok.t === "num") {
         this.next();
+        if (!Number.isInteger(tok.v)) {
+          const frac = floatToFraction(tok.v);
+          if (frac && frac.d > 1) {
+            return Div(Num(frac.n), Num(frac.d));
+          }
+        }
         return Num(tok.v);
       }
       if (tok.t === "(") {
@@ -1392,7 +1476,7 @@
           this.expect("(");
           const inner = this.parseExpr();
           this.expect(")");
-          return Pow(inner, Num(1 / 3));
+          return Pow(inner, Div(Num(1), Num(3)));
         }
         if (FUNCTIONS[lower]) {
           this.expect("(");
@@ -2259,7 +2343,7 @@
       }
       const n = found.exp;
       const cleanOther = stripPm(other);
-      const rootOther = n === 2 ? Sqrt(cleanOther) : Pow(cleanOther, Num(1 / n));
+      const rootOther = n === 2 ? Sqrt(cleanOther) : Pow(cleanOther, Div(Num(1), Num(n)));
       const rightSide = ctx5 && ctx5.positiveOnly ? rootOther : Add(Pm(), rootOther);
       const newEq = side === "left" ? Eq(found.base, rightSide) : Eq(rightSide, found.base);
       return {
@@ -2317,7 +2401,7 @@
       }
       const n = found.exp;
       const foundOther = extractOddPower(other);
-      const rootOther = foundOther && foundOther.exp === n ? foundOther.base : Pow(other, Num(1 / n));
+      const rootOther = foundOther && foundOther.exp === n ? foundOther.base : Pow(other, Div(Num(1), Num(n)));
       const newEq = side === "left" ? Eq(found.base, rootOther) : Eq(rootOther, found.base);
       return {
         equation: newEq,
@@ -2677,11 +2761,43 @@
       if (innerExp.type === "Num" && uExp.type === "Num") {
         const combined = innerExp.value * uExp.value;
         if (combined === 1) return distribute(uBase.base);
+        if (!Number.isInteger(combined)) {
+          const frac = floatToFraction(combined);
+          if (frac && frac.d > 1) {
+            return Pow(distribute(uBase.base), Div(Num(frac.n), Num(frac.d)));
+          }
+        }
         return distributePower(uBase.base, Num(combined));
       }
       if (innerExp.type === "Div" && isNum(innerExp.num) && isNum(innerExp.den) && uExp.type === "Num") {
         let numVal = innerExp.num.value * uExp.value;
         let denVal = innerExp.den.value;
+        if (numVal % denVal === 0) {
+          const intVal = numVal / denVal;
+          if (intVal === 1) return distribute(uBase.base);
+          return distributePower(uBase.base, Num(intVal));
+        }
+        const g = gcd3(numVal, denVal);
+        numVal /= g;
+        denVal /= g;
+        return Pow(distribute(uBase.base), Div(Num(numVal), Num(denVal)));
+      }
+      if (innerExp.type === "Num" && uExp.type === "Div" && isNum(uExp.num) && isNum(uExp.den)) {
+        let numVal = innerExp.value * uExp.num.value;
+        let denVal = uExp.den.value;
+        if (numVal % denVal === 0) {
+          const intVal = numVal / denVal;
+          if (intVal === 1) return distribute(uBase.base);
+          return distributePower(uBase.base, Num(intVal));
+        }
+        const g = gcd3(numVal, denVal);
+        numVal /= g;
+        denVal /= g;
+        return Pow(distribute(uBase.base), Div(Num(numVal), Num(denVal)));
+      }
+      if (innerExp.type === "Div" && isNum(innerExp.num) && isNum(innerExp.den) && uExp.type === "Div" && isNum(uExp.num) && isNum(uExp.den)) {
+        let numVal = innerExp.num.value * uExp.num.value;
+        let denVal = innerExp.den.value * uExp.den.value;
         if (numVal % denVal === 0) {
           const intVal = numVal / denVal;
           if (intVal === 1) return distribute(uBase.base);
@@ -3136,7 +3252,7 @@
         label: `Eleva entrambi i membri a un esponente`,
         description: "Eleva entrambi i membri allo stesso esponente.",
         ruleKey: "powBoth",
-        build: () => ({ value: Num(1 / exp), valueText: "1/" + exp })
+        build: () => ({ value: Div(Num(1), Num(exp)), valueText: "1/" + exp })
       });
     }
     const fnNode = funcNodeOf(element, side, eq);
@@ -3898,8 +4014,8 @@
         };
       }
     }
-    const newLeft = leftCube || Pow(eq.left, Num(1 / 3));
-    const newRight = rightCube || Pow(eq.right, Num(1 / 3));
+    const newLeft = leftCube || Pow(eq.left, Div(Num(1), Num(3)));
+    const newRight = rightCube || Pow(eq.right, Div(Num(1), Num(3)));
     return {
       ok: true,
       equation: Eq(newLeft, newRight),
@@ -4318,24 +4434,34 @@
     let matchDirect = equivalentExpr(nodeA, nodeB);
     let powerReduction = null;
     if (!matchDirect) {
-      const uA = unwrap(nodeA);
-      const uB = unwrap(nodeB);
-      if (uB.type === "Pow" && uB.exp && uB.exp.type === "Num" && Number.isInteger(uB.exp.value) && uB.exp.value > 1 && equivalentExpr(nodeA, uB.base)) {
-        matchDirect = true;
-        powerReduction = {
-          powerEntry: b,
-          baseEntry: a,
-          baseNode: uB.base,
-          newExp: uB.exp.value - 1
-        };
-      } else if (uA.type === "Pow" && uA.exp && uA.exp.type === "Num" && Number.isInteger(uA.exp.value) && uA.exp.value > 1 && equivalentExpr(nodeB, uA.base)) {
-        matchDirect = true;
-        powerReduction = {
-          powerEntry: a,
-          baseEntry: b,
-          baseNode: uA.base,
-          newExp: uA.exp.value - 1
-        };
+      const infoA = extractBaseAndExp(nodeA);
+      const infoB = extractBaseAndExp(nodeB);
+      if (equivalentExpr(infoA.base, infoB.base)) {
+        const rA = asRational(infoA.exp);
+        const rB = asRational(infoB.exp);
+        if (rA && rB) {
+          const rDiff = ratSub(rA, rB);
+          if (rDiff.n === 0) {
+            matchDirect = true;
+          } else if (rDiff.n > 0) {
+            matchDirect = true;
+            const newExpNode = rDiff.d === 1 ? rDiff.n === 1 ? infoA.base : Pow(infoA.base, Num(rDiff.n)) : rDiff.n === 1 && rDiff.d === 2 ? Sqrt(infoA.base) : Pow(infoA.base, Div(Num(rDiff.n), Num(rDiff.d)));
+            powerReduction = {
+              powerEntry: a,
+              baseEntry: b,
+              replacement: newExpNode
+            };
+          } else {
+            matchDirect = true;
+            const absDiff = { n: -rDiff.n, d: rDiff.d };
+            const newExpNode = absDiff.d === 1 ? absDiff.n === 1 ? infoB.base : Pow(infoB.base, Num(absDiff.n)) : absDiff.n === 1 && absDiff.d === 2 ? Sqrt(infoB.base) : Pow(infoB.base, Div(Num(absDiff.n), Num(absDiff.d)));
+            powerReduction = {
+              powerEntry: b,
+              baseEntry: a,
+              replacement: newExpNode
+            };
+          }
+        }
       }
     }
     if (!matchDirect) {
@@ -4358,10 +4484,27 @@
     const denEntry = slotA === "den" ? a : b;
     let simplifiedNode = null;
     if (powerReduction) {
-      const replacement = powerReduction.newExp === 1 ? powerReduction.baseNode : Pow(powerReduction.baseNode, Num(powerReduction.newExp));
-      const afterBase = removeAt(member, powerReduction.baseEntry.segments);
-      if (afterBase.ok) {
-        simplifiedNode = rebuildAlongPath(afterBase.node, powerReduction.powerEntry.segments, replacement);
+      const replacement = powerReduction.replacement;
+      const baseEntry = powerReduction.baseEntry;
+      const powerEntry = powerReduction.powerEntry;
+      if (baseEntry.segments.length === 1 && baseEntry.segments[0] === "den" && powerEntry.segments[0] === "num") {
+        const rest = powerEntry.segments.slice(1);
+        const uMember = unwrap(member);
+        if (uMember.type === "Div") {
+          simplifiedNode = rest.length === 0 ? replacement : rebuildAlongPath(uMember.num, rest, replacement);
+        }
+      } else if (baseEntry.segments.length === 1 && baseEntry.segments[0] === "num" && powerEntry.segments[0] === "den") {
+        const rest = powerEntry.segments.slice(1);
+        const uMember = unwrap(member);
+        if (uMember.type === "Div") {
+          const newDen = rest.length === 0 ? replacement : rebuildAlongPath(uMember.den, rest, replacement);
+          simplifiedNode = Div(Num(1), newDen);
+        }
+      } else {
+        const afterBase = removeAt(member, baseEntry.segments);
+        if (afterBase.ok) {
+          simplifiedNode = rebuildAlongPath(afterBase.node, powerEntry.segments, replacement);
+        }
       }
     }
     if (!simplifiedNode) {
@@ -7074,14 +7217,17 @@
       ]
     },
     "rational-exponents": {
-      nome: "Esponenti razionali e radici annidate (a^(1/n) = \u207F\u221Aa)",
-      intuitiva: "Una radice equivale a un esponente frazionario: \u221Aa = a^(1/2) e \u221Ba = a^(1/3). Estrarre la radice di una radice equivale a moltiplicare gli esponenti frazionari: \u221A(\u221Aa) = (a^(1/2))^(1/2) = a^(1/4) = \u2074\u221Aa.",
-      principio: "Definizione di esponente razionale a^(m/n) = \u207F\u221A(a\u1D50) e propriet\xE0 della potenza di potenza (a\u1D56)\u1D60 = a^(p\xB7q).",
-      perche: "L'esponente frazionario 1/n \xE8 l'inverso moltiplicativo di n: (a^(1/n))\u207F = a^((1/n)\xB7n) = a\xB9 = a. Applicando pi\xF9 radici annidate, la composizione di potenze moltiplica le frazioni: (a^(1/2))^(1/2) = a^(1/4), riconducendo le operazioni sui radicali a semplici prodotti algebrici tra esponenti.",
+      nome: "Esponenti razionali, frazioni e radici annidate (a^(p/q) = \u146B\u221A(a\u1D56))",
+      intuitiva: "Una radice equivale a un esponente frazionario: \u221Aa = a^(1/2), \u221Ba = a^(1/3) e \u221A(\u221Aa) = (a^(1/2))^(1/2) = a^(1/4). Le operazioni con potenze ad esponente frazionario seguono le regole dell'aritmetica razionale esatta: somma algebrica con mcm tra denominatori nel prodotto, sottrazione nel quoziente e moltiplicazione tra numeratori e denominatori nella potenza di potenza, senza mai ricorrere a numeri decimali float.",
+      principio: "Definizione di esponente razionale a^(p/q) = \u146B\u221A(a\u1D56) e algebra delle potenze: a^(p/q) \xB7 a^(r/s) = a^((p/q)+(r/s)), a^(p/q) / a^(r/s) = a^((p/q)-(r/s)), e (a^(p/q))^(r/s) = a^((p\xB7r)/(q\xB7s)).",
+      perche: "L'algebra con esponenti frazionari estende in modo coerente le propriet\xE0 delle potenze intere: (a^(1/n))\u207F = a^((1/n)\xB7n) = a\xB9 = a. L'aritmetica razionale esatta preserva la precisione simbolica: gli esponenti non si convertono mai in decimali approssimati (come 0.5 o 0.333...), ma restano frazioni ridotte ai minimi termini.",
       attenzione: [
-        "Condizione di realt\xE0: nei numeri reali, per esponenti con denominatore pari (1/2, 1/4, ...), la base deve essere non negativa (a \u2265 0).",
-        "Non confondere l'esponente frazionario con una divisione: a^(1/2) = \u221Aa \u2260 a/2 (es. 16^(1/2) = 4, mentre 16/2 = 8).",
-        "Radici multiple: \u1D50\u221A(\u207F\u221Aa) = a^(1/(m\xB7n)) = \u1D50\xB7\u207F\u221Aa. Due radici quadrate consecutive corrispondono a un esponente 1/4 (e non 1/2 + 1/2 = 1)."
+        "Non confondere l'esponente frazionario con una divisione ordinaria della base: a^(1/2) = \u221Aa \u2260 a/2 (es. 16^(1/2) = 4, mentre 16/2 = 8).",
+        "Prodotto di potenze con stessa base: a^(p/q) \xB7 a^(r/s) = a^((p\xB7s + r\xB7q)/(q\xB7s)), calcolando il minimo comune multiplo tra i denominatori.",
+        "Quoziente di potenze con stessa base: a^(p/q) / a^(r/s) = a^((p\xB7s - r\xB7q)/(q\xB7s)), sottraendo gli esponenti con frazioni esatte.",
+        "Potenza di potenza: (a^(p/q))^(r/s) = a^((p\xB7r)/(q\xB7s)), moltiplicando direttamente i numeratori e i denominatori e riducendo ai minimi termini.",
+        "Radici ed esponenti: \u207F\u221A(a\u1D50) = a^(m/n), \u221A(a^(p/q)) = a^(p/(2q)), e radici annidate moltiplicano i denominatori: \u221A(\u221A(a)) = a^(1/4).",
+        "Mai numeri decimali: ogni esponente non intero deve essere una frazione esatta (es. 1/2, mai 0.5; 1/3, mai 0.3333333333333333)."
       ]
     },
     "distribute": {
@@ -7235,13 +7381,13 @@
     },
     "rational-exponents-confusion": {
       id: "rational-exponents-confusion",
-      titolo: "Confusione tra radicali ed esponenti razionali (frazionari)",
-      badge: "Esponenti Razionali: a^(1/n) = \u207F\u221Aa",
-      principio: "Definizione di esponente razionale: a^(1/n) = \u207F\u221Aa e composizione di radici (a^(1/n))^(1/m) = a^(1/(n\xB7m)) = \u1D50\xB7\u207F\u221Aa.",
-      spiegazione: "Una radice corrisponde a un esponente razionale (frazionario): la radice quadrata \xE8 a^(1/2) = \u221Aa, la radice cubica \xE8 a^(1/3) = \u221Ba, e la radice di radice \xE8 \u221A(\u221Aa) = (a^(1/2))^(1/2) = a^(1/4) = \u2074\u221Aa. Un esponente razionale NON \xE8 una divisione ordinaria della base!",
-      controesempio: "a^(1/2) non significa affatto a/2! Ad esempio: 16^(1/2) = \u221A16 = 4, mentre 16/2 = 8. Analogamente, 16^(1/4) = \u221A(\u221A16) = \u221A4 = 2, mentre 16/4 = 4. Due radici quadrate annidate non si sommano (1/2 + 1/2 = 1), ma moltiplicano gli indici: 2 \xB7 2 = 4, quindi a^(1/4).",
-      come_risolvere: "Tratta i radicali con le propriet\xE0 delle potenze: l'indice della radice diventa il denominatore dell'esponente. Per radici annidate moltiplica gli esponenti frazionari: \u221A(\u221Aa) = a^(1/4).",
-      regola_guida: "\u221Aa = a^(1/2) e \u221A(\u221Aa) = a^(1/4): le radici annidate moltiplicano gli esponenti frazionari (1/2 \xB7 1/2 = 1/4)!"
+      titolo: "Confusione su radicali, operazioni con esponenti razionali (frazionari) ed eliminazione dei decimali",
+      badge: "Esponenti Razionali e Frazioni: a^(p/q) = \u146B\u221A(a\u1D56)",
+      principio: "Definizione di esponente razionale ed aritmetica razionale esatta degli esponenti: a^(1/n) = \u207F\u221Aa, nel prodotto si sommano con mcm (a^(p/q)\xB7a^(r/s) = a^((ps+rq)/qs)), nel quoziente si sottraggono, e nella potenza di potenza si moltiplicano (a^(p/q))^(r/s) = a^((pr)/(qs)). Gli esponenti non si convertono mai in decimali float.",
+      spiegazione: "Una radice corrisponde a un esponente razionale (frazionario): la radice quadrata \xE8 a^(1/2) = \u221Aa, la radice cubica \xE8 a^(1/3) = \u221Ba, e la radice di radice \xE8 \u221A(\u221Aa) = (a^(1/2))^(1/2) = a^(1/4) = \u2074\u221Aa. Un esponente razionale NON \xE8 una divisione ordinaria della base! Inoltre, le potenze con esponente frazionario seguono le regole dell'algebra esatta: somma con mcm nel prodotto, sottrazione nel quoziente e moltiplicazione tra numeratori e denominatori nella potenza di potenza, escludendo qualsiasi approssimazione decimale a virgola mobile.",
+      controesempio: "a^(1/2) non significa affatto a/2! Ad esempio: 16^(1/2) = \u221A16 = 4, mentre 16/2 = 8. Analogamente, 16^(1/4) = \u221A(\u221A16) = \u221A4 = 2, mentre 16/4 = 4. Due radici quadrate annidate moltiplicano gli indici: 2 \xB7 2 = 4, quindi a^(1/4). Moltiplicando a^(1/2) \xB7 a^(1/3) si sommano con mcm ottenendo a^(5/6), mai decimali come 0.5 o 0.333! Elevando (a^(2/3))^(3/4) si moltiplicano numeratori e denominatori: (2\xB73)/(3\xB74) = 6/12 = 1/2, ottenendo a^(1/2) = \u221Aa.",
+      come_risolvere: "Tratta i radicali con le propriet\xE0 delle potenze: l'indice della radice diventa il denominatore dell'esponente. Applica le regole delle frazioni agli esponenti: somma con mcm per il prodotto, differenza per il quoziente, prodotto tra frazioni per potenza di potenza, e mantieni sempre gli esponenti in forma frazionaria ridotta a^(1/4), mai in numeri decimali.",
+      regola_guida: "\u221Aa = a^(1/2) e \u221A(\u221Aa) = a^(1/4): le radici annidate moltiplicano gli esponenti frazionari (1/2 \xB7 1/2 = 1/4)! Operazioni con frazioni esatte negli esponenti, mai decimali!"
     }
   };
   function getExplanation(key) {
@@ -7479,6 +7625,13 @@
       case "Num": {
         const val = u.value;
         if (val === -1 && context.inMul) return "meno";
+        if (!Number.isInteger(val) && Number.isFinite(val)) {
+          const frac = asRational(u) || floatToFraction(val);
+          if (frac && frac.d > 1) {
+            const fracNode = Div(Num(frac.n), Num(frac.d));
+            return verbalizeAst(fracNode, context);
+          }
+        }
         return String(val).replace(".", " virgola ");
       }
       case "Var":
@@ -7722,6 +7875,23 @@
     const slot = isDen ? "den" : "num";
     switch (node.type) {
       case "Num": {
+        if (!Number.isInteger(node.value) && Number.isFinite(node.value)) {
+          const frac = asRational(node) || floatToFraction(node.value);
+          if (frac && frac.d > 1) {
+            const isDraggable2 = !!opts.interactive;
+            const absN = Math.abs(frac.n);
+            const fracSyntax = (frac.n < 0 ? "-" : "") + absN + "/" + frac.d;
+            const dragAttrs2 = isDraggable2 ? ` draggable="true" data-var-name="${escapeHtml(fracSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="Num" title="Trascina con il mouse ${escapeHtml(fracSyntax)}"` : "";
+            const dragCls2 = isDraggable2 ? " draggable-token" : "";
+            const signPrefix = frac.n < 0 ? '<span class="op">\u2212</span>' : "";
+            return span(
+              `${signPrefix}<span class="frac"><span class="frac-num">${absN}</span><span class="frac-bar"></span><span class="frac-den">${frac.d}</span></span>`,
+              "node-num" + dragCls2,
+              id,
+              dragAttrs2
+            );
+          }
+        }
         const isDraggable = !!opts.interactive;
         const dragAttrs = isDraggable ? ` draggable="true" data-var-name="${escapeHtml(String(node.value))}" data-side="${side}" data-slot="${slot}" data-node-type="Num" title="Trascina con il mouse"` : "";
         const dragCls = isDraggable ? " draggable-token" : "";
@@ -7824,7 +7994,17 @@
           const cls = "node-group-parens" + (hasFrac ? " has-frac" : "");
           baseHtml = `<span class="${cls}"><span class="group-paren">(</span>${baseHtml}<span class="group-paren">)</span></span>`;
         }
-        const expText = node.exp.type === "Num" ? escapeHtml(String(node.exp.value)) : toPretty(node.exp, 0);
+        let expText = "";
+        if (node.exp.type === "Num") {
+          if (Number.isInteger(node.exp.value)) {
+            expText = escapeHtml(String(node.exp.value));
+          } else {
+            const frac = asRational(node.exp) || floatToFraction(node.exp.value);
+            expText = frac && frac.d > 1 ? `${frac.n}/${frac.d}` : escapeHtml(String(node.exp.value));
+          }
+        } else {
+          expText = toPretty(node.exp, 0);
+        }
         return span(
           `<span class="pow-base">${baseHtml}</span><sup class="node-exp">${escapeHtml(expText)}</sup>`,
           "node-pow" + dragCls + targetCls,

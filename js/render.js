@@ -9,7 +9,7 @@
 //   - la struttura matematica (frazioni, potenze) resta visibile;
 //   - supporto a denominatori sottintesi (/1) e linee di frazione dinamiche.
 
-import { unwrap, toPretty, FUNC_PRETTY } from './ast.js';
+import { unwrap, toPretty, FUNC_PRETTY, asRational, floatToFraction } from './ast.js';
 import { verbalizeEquation, verbalizeAst } from './a11y.js';
 
 // Ritorna una stringa HTML che rappresenta l'equazione.
@@ -161,6 +161,25 @@ export function renderNode(node, id, opts) {
 
   switch (node.type) {
     case 'Num': {
+      if (!Number.isInteger(node.value) && Number.isFinite(node.value)) {
+        const frac = asRational(node) || floatToFraction(node.value);
+        if (frac && frac.d > 1) {
+          const isDraggable = !!opts.interactive;
+          const absN = Math.abs(frac.n);
+          const fracSyntax = (frac.n < 0 ? '-' : '') + absN + '/' + frac.d;
+          const dragAttrs = isDraggable
+            ? ` draggable="true" data-var-name="${escapeHtml(fracSyntax)}" data-side="${side}" data-slot="${slot}" data-node-type="Num" title="Trascina con il mouse ${escapeHtml(fracSyntax)}"`
+            : '';
+          const dragCls = isDraggable ? ' draggable-token' : '';
+          const signPrefix = frac.n < 0 ? '<span class="op">−</span>' : '';
+          return span(
+            `${signPrefix}<span class="frac"><span class="frac-num">${absN}</span><span class="frac-bar"></span><span class="frac-den">${frac.d}</span></span>`,
+            'node-num' + dragCls,
+            id,
+            dragAttrs
+          );
+        }
+      }
       const isDraggable = !!opts.interactive;
       const dragAttrs = isDraggable
         ? ` draggable="true" data-var-name="${escapeHtml(String(node.value))}" data-side="${side}" data-slot="${slot}" data-node-type="Num" title="Trascina con il mouse"`
@@ -280,7 +299,17 @@ export function renderNode(node, id, opts) {
         const cls = 'node-group-parens' + (hasFrac ? ' has-frac' : '');
         baseHtml = `<span class="${cls}"><span class="group-paren">(</span>${baseHtml}<span class="group-paren">)</span></span>`;
       }
-      const expText = node.exp.type === 'Num' ? escapeHtml(String(node.exp.value)) : toPretty(node.exp, 0);
+      let expText = '';
+      if (node.exp.type === 'Num') {
+        if (Number.isInteger(node.exp.value)) {
+          expText = escapeHtml(String(node.exp.value));
+        } else {
+          const frac = asRational(node.exp) || floatToFraction(node.exp.value);
+          expText = frac && frac.d > 1 ? `${frac.n}/${frac.d}` : escapeHtml(String(node.exp.value));
+        }
+      } else {
+        expText = toPretty(node.exp, 0);
+      }
       return span(
         `<span class="pow-base">${baseHtml}</span><sup class="node-exp">${escapeHtml(expText)}</sup>`,
         'node-pow' + dragCls + targetCls,
