@@ -1812,6 +1812,79 @@ export function runAllTests() {
       : `atteso y = v^2/c^2, ottenuto: ${toPretty(res.equation, 0)}`;
   }));
 
+  // --- Test Ticket AFI-9: Proprietà delle potenze, esponenti razionali e gestione ± ---
+  results.push(test('Proprietà delle potenze: potenza di potenza (v^2)^2 -> v^4 (risolve incongruenza v^22)', () => {
+    const powerOfPower = Pow(Pow(Var('v'), Num(2)), Num(2));
+    const canonExpr = canonical(powerOfPower);
+    const pretty = toPretty(canonExpr, 0);
+    const latex = toLatex(canonExpr, 0);
+    if (pretty !== 'v^4') return `atteso v^4, ottenuto: ${pretty}`;
+    if (latex !== 'v^{4}') return `atteso v^{4}, ottenuto: ${latex}`;
+    // Anche se non semplificato, toPretty e toLatex devono proteggere la base con parentesi
+    const rawLatex = toLatex(powerOfPower, 0);
+    if (rawLatex.includes('v^{2}^{2}')) return `formattazione ambigua non protetta da parentesi: ${rawLatex}`;
+    return true;
+  }));
+
+  results.push(test('Esponenti razionali: radice di radice sqrt(sqrt(v)) -> v^(1/4) (proprietà potenze)', () => {
+    const nestedRoot = Sqrt(Sqrt(Var('v')));
+    const canonExpr = canonical(nestedRoot);
+    const pretty = toPretty(canonExpr, 0);
+    const latex = toLatex(canonExpr, 0);
+    if (!pretty.includes('1/4')) return `atteso esponente razionale 1/4 in toPretty, ottenuto: ${pretty}`;
+    if (!latex.includes('\\frac{1}{4}')) return `atteso esponente razionale frac{1}{4} in toLatex, ottenuto: ${latex}`;
+    return true;
+  }));
+
+  results.push(test('Esponenti razionali: semplificazione di radice di potenza pari sqrt(v^4) -> v^2 e sqrt(v^2) -> v', () => {
+    const r4 = canonical(Sqrt(Pow(Var('v'), Num(4))));
+    if (toPretty(r4, 0) !== 'v^2') return `atteso v^2 per sqrt(v^4), ottenuto: ${toPretty(r4, 0)}`;
+    const r2 = canonical(Sqrt(Pow(Var('v'), Num(2))));
+    if (toPretty(r2, 0) !== 'v') return `atteso v per sqrt(v^2), ottenuto: ${toPretty(r2, 0)}`;
+    return true;
+  }));
+
+  results.push(test('Radicali e segno ±: radicando reale non include ± all\'interno sqrt(±sqrt(v)) -> v^(1/4)', () => {
+    // Caso screenshot utente: ± dentro la radice
+    const badRadical = Sqrt(Add(Var('±'), Sqrt(Var('v'))));
+    const cleaned = canonical(badRadical);
+    const pretty = toPretty(cleaned, 0);
+    if (pretty.includes('±')) return `il segno ± non deve rimanere intrappolato dentro il radicando reale: ${pretty}`;
+    if (!pretty.includes('1/4')) return `atteso esponente razionale 1/4 per radice doppia, ottenuto: ${pretty}`;
+    return true;
+  }));
+
+  results.push(test('Sviluppa parentesi e potenze: quadrato con segno ± (±sqrt(x))^2 -> x e (±v)^2 -> v^2', () => {
+    const pmSqrtSquare = Pow(Add(Var('±'), Sqrt(Var('x'))), Num(2));
+    const canon1 = canonical(pmSqrtSquare);
+    if (toPretty(canon1, 0) !== 'x') return `atteso x per (±sqrt(x))^2, ottenuto: ${toPretty(canon1, 0)}`;
+
+    const pmVarSquare = Pow(Add(Var('±'), Var('v')), Num(2));
+    const canon2 = canonical(pmVarSquare);
+    if (toPretty(canon2, 0) !== 'v^2') return `atteso v^2 per (±v)^2, ottenuto: ${toPretty(canon2, 0)}`;
+    return true;
+  }));
+
+  results.push(test('Regola fisica del valore positivo: positiveBranch da x = ±sqrt(a) ricava x = sqrt(a)', () => {
+    const eqWithPm = Eq(Var('x'), Add(Var('±'), Sqrt(Var('a'))));
+    const res = applyRule(RULES.positiveBranch, eqWithPm, { side: 'right' });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    const pretty = toPretty(res.equation, 0);
+    if (pretty.includes('±')) return `il segno ± deve essere rimosso scegliendo il valore positivo, ottenuto: ${pretty}`;
+    if (!equivalentEq(res.equation, eq('x = sqrt(a)'))) return `atteso x = sqrt(a), ottenuto: ${pretty}`;
+    return true;
+  }));
+
+  results.push(test('Tastierino ed elevazione a potenza: pow con esponente 2 su v^2 produce v^4', () => {
+    const startEq = eq('y = v^2');
+    const res = applyKeypadOperation(startEq, 'pow', Num(2), '2', 'v');
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    const pretty = toPretty(res.equation, 0);
+    if (pretty.includes('22')) return `rilevata concatenazione 22 in esponente: ${pretty}`;
+    if (!equivalentEq(res.equation, eq('y^2 = v^4'))) return `atteso y^2 = v^4, ottenuto: ${pretty}`;
+    return true;
+  }));
+
   return results;
 }
 

@@ -11,7 +11,7 @@ import {
   Num, Var, Add, Sub, Mul, Div, Pow, Sqrt, Neg, Group, Eq,
   Sin, Cos, Tan, Ln, Asin, Acos, Atan, Exp,
   unwrap, unwrapNeutrals, canonical, isNum, equivalentExpr, equivalentEq, collectVars, toPretty,
-  isIdenticallyZero, clone, FUNC_INFO,
+  isIdenticallyZero, clone, FUNC_INFO, hasPmSign, stripPm,
 } from './ast.js';
 import { RULES, applyRule, additiveTerms, cancelFractionFactor, findCommonFactorInFraction, hasTrigConflict, canDistribute, findCommonFactor, factorOut } from './rules.js';
 import { canReduceToSingleFraction } from './common-denom.js';
@@ -322,6 +322,19 @@ export function availableActions(eq, element, target) {
         build: () => ({ side, fnNode }),
       });
     }
+  }
+
+  // --- Se è presente il segno ± (o è selezionato ±): opzione per considerare solo il valore positivo (+) ---
+  const memberWithPm = side === 'left' ? eq.left : eq.right;
+  const otherMemberWithPm = side === 'left' ? eq.right : eq.left;
+  if ((node && node.type === 'Var' && node.name === '±') || hasPmSign(memberWithPm) || hasPmSign(otherMemberWithPm)) {
+    actions.push({
+      id: 'positive-branch',
+      label: 'Considera solo il valore positivo (+) [grandezza fisica]',
+      description: 'Per grandezze fisiche reali non negative (tempo, modulo della velocità, massa, distanza), elimina il segno ± tenendo solo la soluzione positiva.',
+      ruleKey: 'positiveBranch',
+      build: () => ({ side: hasPmSign(memberWithPm) ? side : otherSide }),
+    });
   }
 
   // --- Se è un denominatore o membro con fattore cancellabile: cancellazione ---

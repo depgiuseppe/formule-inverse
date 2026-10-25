@@ -390,7 +390,10 @@
         return wrap(s, 2, parentPrec > 2);
       }
       case "Pow": {
-        const s = toPretty(node.base, 3) + "^" + toPretty(node.exp, 4);
+        const uBase = unwrap(node.base);
+        const needBaseParen = ["Add", "Sub", "Mul", "Div", "Neg", "Pow"].includes(uBase.type);
+        const baseStr = needBaseParen ? `(${toPretty(node.base, 0)})` : toPretty(node.base, 3);
+        const s = baseStr + "^" + toPretty(node.exp, 4);
         return wrap(s, 3, parentPrec > 3);
       }
       case "Sqrt":
@@ -566,7 +569,7 @@
       }
       case "Pow": {
         const baseUnwrapped = unwrap(node.base);
-        const needBaseParen = ["Add", "Sub", "Mul", "Div", "Neg"].includes(baseUnwrapped.type);
+        const needBaseParen = ["Add", "Sub", "Mul", "Div", "Neg", "Pow"].includes(baseUnwrapped.type);
         const baseStr = needBaseParen ? `\\left(${toLatex(node.base, 0)}\\right)` : toLatex(node.base, 3);
         return `${baseStr}^{${toLatex(node.exp, 0)}}`;
       }
@@ -625,6 +628,23 @@
       return unwrapNeutrals(u.num);
     }
     return u;
+  }
+  function hasPmSign(node) {
+    node = unwrap(node);
+    if (!node) return false;
+    if (node.type === "Add" && node.args.length === 2) {
+      return node.args.some((a) => unwrap(a).type === "Var" && unwrap(a).name === "\xB1");
+    }
+    return false;
+  }
+  function stripPm(node) {
+    node = unwrap(node);
+    if (!node) return node;
+    if (hasPmSign(node)) {
+      const nonPm = node.args.find((a) => !(unwrap(a).type === "Var" && unwrap(a).name === "\xB1"));
+      return unwrap(nonPm);
+    }
+    return node;
   }
   function stripNeutrals(node) {
     if (!node) return node;
@@ -901,10 +921,69 @@
         return sign < 0 ? Neg(frac) : frac;
       }
       case "Pow": {
-        const base = canon(node.base);
-        const exp = canon(node.exp);
+        let base = canon(node.base);
+        let exp = canon(node.exp);
         if (isNum(exp) && exp.value === 1) return base;
+        if (isNum(exp) && exp.value === 0) return Num(1);
         if (base.type === "Sqrt" && isNum(exp) && exp.value === 2) return canon(base.arg);
+        if (base.type === "Sqrt" && isNum(exp) && exp.value % 2 === 0 && exp.value > 2) {
+          return canon(Pow(base.arg, Num(exp.value / 2)));
+        }
+        if (base.type === "Sqrt" && isNum(exp)) {
+          if (exp.value % 2 === 0) {
+            return canon(Pow(base.arg, Num(exp.value / 2)));
+          }
+          return canon(Pow(base.arg, Div(exp, Num(2))));
+        }
+        const uBasePm = unwrap(base);
+        if (uBasePm.type === "Add" && uBasePm.args.length === 2) {
+          const hasPm = uBasePm.args.some((a) => unwrap(a).type === "Var" && unwrap(a).name === "\xB1");
+          if (hasPm && isNum(exp) && exp.value % 2 === 0) {
+            const nonPm = uBasePm.args.find((a) => !(unwrap(a).type === "Var" && unwrap(a).name === "\xB1"));
+            base = canon(nonPm);
+            return canon(Pow(base, exp));
+          }
+        }
+        if (base.type === "Pow") {
+          const innerBase = base.base;
+          const innerExp = base.exp;
+          if (isNum(innerExp) && isNum(exp)) {
+            const combined = innerExp.value * exp.value;
+            if (combined === 1) return canon(innerBase);
+            if (combined === 0) return Num(1);
+            return canon(Pow(innerBase, Num(combined)));
+          }
+          if (innerExp.type === "Div" && isNum(innerExp.num) && isNum(innerExp.den) && isNum(exp)) {
+            const numVal = innerExp.num.value * exp.value;
+            const denVal = innerExp.den.value;
+            if (numVal % denVal === 0) {
+              const intVal = numVal / denVal;
+              if (intVal === 1) return canon(innerBase);
+              return canon(Pow(innerBase, Num(intVal)));
+            }
+            return canon(Pow(innerBase, Div(Num(numVal), Num(denVal))));
+          }
+          if (isNum(innerExp) && exp.type === "Div" && isNum(exp.num) && isNum(exp.den)) {
+            const numVal = innerExp.value * exp.num.value;
+            const denVal = exp.den.value;
+            if (numVal % denVal === 0) {
+              const intVal = numVal / denVal;
+              if (intVal === 1) return canon(innerBase);
+              return canon(Pow(innerBase, Num(intVal)));
+            }
+            return canon(Pow(innerBase, Div(Num(numVal), Num(denVal))));
+          }
+          if (innerExp.type === "Div" && isNum(innerExp.num) && isNum(innerExp.den) && exp.type === "Div" && isNum(exp.num) && isNum(exp.den)) {
+            const numVal = innerExp.num.value * exp.num.value;
+            const denVal = innerExp.den.value * exp.den.value;
+            if (numVal % denVal === 0) {
+              const intVal = numVal / denVal;
+              if (intVal === 1) return canon(innerBase);
+              return canon(Pow(innerBase, Num(intVal)));
+            }
+            return canon(Pow(innerBase, Div(Num(numVal), Num(denVal))));
+          }
+        }
         const isOneThird = isNum(exp) && Math.abs(exp.value - 1 / 3) < 1e-9 || exp.type === "Div" && isNum(exp.num) && exp.num.value === 1 && isNum(exp.den) && exp.den.value === 3;
         if (base.type === "Pow" && isNum(base.exp) && base.exp.value === 3 && isOneThird) {
           return canon(base.base);
@@ -918,9 +997,38 @@
         return { type: "Pow", base, exp };
       }
       case "Sqrt": {
-        const arg = canon(node.arg);
-        if (arg.type === "Pow" && isNum(arg.exp) && arg.exp.value === 2) {
-          return canon(arg.base);
+        let arg = canon(node.arg);
+        const uArg = unwrap(arg);
+        if (uArg.type === "Add" && uArg.args.length === 2) {
+          const hasPm = uArg.args.some((a) => unwrap(a).type === "Var" && unwrap(a).name === "\xB1");
+          if (hasPm) {
+            const nonPm = uArg.args.find((a) => !(unwrap(a).type === "Var" && unwrap(a).name === "\xB1"));
+            arg = canon(nonPm);
+          }
+        }
+        if (arg.type === "Sqrt") {
+          return canon(Pow(arg.arg, Div(Num(1), Num(4))));
+        }
+        if (arg.type === "Pow") {
+          if (isNum(arg.exp)) {
+            if (arg.exp.value === 2) return canon(arg.base);
+            if (arg.exp.value % 2 === 0 && arg.exp.value > 0) {
+              return canon(Pow(arg.base, Num(arg.exp.value / 2)));
+            }
+            if (Math.abs(arg.exp.value - 0.5) < 1e-9) {
+              return canon(Pow(arg.base, Div(Num(1), Num(4))));
+            }
+          }
+          if (arg.exp.type === "Div" && isNum(arg.exp.num) && isNum(arg.exp.den)) {
+            const numVal = arg.exp.num.value;
+            const denVal = arg.exp.den.value * 2;
+            if (numVal % denVal === 0) {
+              const intVal = numVal / denVal;
+              if (intVal === 1) return canon(arg.base);
+              return canon(Pow(arg.base, Num(intVal)));
+            }
+            return canon(Pow(arg.base, Div(Num(numVal), Num(denVal))));
+          }
         }
         return { type: "Sqrt", arg };
       }
@@ -2117,15 +2225,44 @@
         );
       }
       const n = found.exp;
-      const rootOther = n === 2 ? Sqrt(other) : Pow(other, Num(1 / n));
-      const newEq = side === "left" ? Eq(found.base, Add(Pm(), rootOther)) : Eq(Add(Pm(), rootOther), found.base);
+      const cleanOther = stripPm(other);
+      const rootOther = n === 2 ? Sqrt(cleanOther) : Pow(cleanOther, Num(1 / n));
+      const rightSide = ctx5 && ctx5.positiveOnly ? rootOther : Add(Pm(), rootOther);
+      const newEq = side === "left" ? Eq(found.base, rightSide) : Eq(rightSide, found.base);
       return {
         equation: newEq,
-        conditions: [conditionText(other, "\u2265 0")],
+        conditions: [conditionText(cleanOther, "\u2265 0")],
         steps: [
           `Estraggo la radice ${n === 2 ? "quadrata" : `${n}-esima`} di entrambi i membri. L'indice \xE8 pari: serve il radicando \u2265 0 e la radice di un grado pari \xE8 il valore assoluto, quindi introduco il segno \xB1.`
         ],
-        note: "Il segno \xB1 \xE8 matematicamente necessario: non va eliminato. Se la grandezza cercata \xE8 per sua natura positiva (es. una lunghezza, una massa, un tempo), scegli il segno + per togliere l'ambiguit\xE0."
+        note: "Il segno \xB1 \xE8 matematicamente necessario per un'equazione pura. Se la grandezza cercata \xE8 per sua natura positiva (es. una lunghezza, una massa, un tempo, una velocit\xE0), scegli il segno + per togliere l'ambiguit\xE0."
+      };
+    }
+  };
+  var rulePositiveBranch = {
+    id: "positive-branch",
+    name: "Considera solo il valore positivo (+)",
+    principle: "Per grandezze fisiche non negative (tempo, modulo della velocit\xE0, massa, lunghezza), si considera solo la radice positiva: x = \u221AA anzich\xE9 x = \xB1\u221AA.",
+    explanation: "positive-branch",
+    apply(eq, ctx5) {
+      const side = ctx5 && ctx5.side ? ctx5.side : hasPmSign(eq.right) ? "right" : "left";
+      const targetSide = side === "left" ? eq.left : eq.right;
+      const otherSide = side === "left" ? eq.right : eq.left;
+      if (!hasPmSign(targetSide)) {
+        throw new RuleError(
+          "Nessun segno \xB1 da risolvere sul membro selezionato.",
+          "La regola si applica a un membro con il segno \xB1."
+        );
+      }
+      const cleaned = stripPm(targetSide);
+      const newEq = side === "left" ? Eq(cleaned, otherSide) : Eq(otherSide, cleaned);
+      return {
+        equation: canonical(newEq),
+        conditions: [],
+        steps: [
+          "Considero solo la soluzione positiva (+): per grandezze fisiche reali non negative (tempo, velocit\xE0 scalare, massa, distanza) si esclude la determinazione negativa \u2212."
+        ],
+        note: "Scelta del valore positivo: il segno \xB1 viene rimosso in accordo con la natura fisica della grandezza."
       };
     }
   };
@@ -2476,6 +2613,13 @@
         return Num(Math.pow(uBase.value, uExp.value));
       }
     }
+    if (uBase.type === "Add" && uBase.args.length === 2) {
+      const hasPm = uBase.args.some((a) => unwrap(a).type === "Var" && unwrap(a).name === "\xB1");
+      if (hasPm && uExp.type === "Num" && uExp.value % 2 === 0) {
+        const nonPm = uBase.args.find((a) => !(unwrap(a).type === "Var" && unwrap(a).name === "\xB1"));
+        return distributePower(nonPm, uExp);
+      }
+    }
     if (uBase.type === "Neg") {
       if (uExp.type === "Num" && uExp.value % 2 === 0) {
         return distributePower(uBase.arg, uExp);
@@ -2485,8 +2629,23 @@
       }
       return Pow(distribute(uBase), distribute(uExp));
     }
-    if (uBase.type === "Pow" && uExp.type === "Num" && unwrap(uBase.exp).type === "Num") {
-      return Pow(uBase.base, Num(unwrap(uBase.exp).value * uExp.value));
+    if (uBase.type === "Pow") {
+      const innerExp = unwrap(uBase.exp);
+      if (innerExp.type === "Num" && uExp.type === "Num") {
+        const combined = innerExp.value * uExp.value;
+        if (combined === 1) return distribute(uBase.base);
+        return distributePower(uBase.base, Num(combined));
+      }
+      if (innerExp.type === "Div" && isNum(innerExp.num) && isNum(innerExp.den) && uExp.type === "Num") {
+        const numVal = innerExp.num.value * uExp.value;
+        const denVal = innerExp.den.value;
+        if (numVal % denVal === 0) {
+          const intVal = numVal / denVal;
+          if (intVal === 1) return distribute(uBase.base);
+          return distributePower(uBase.base, Num(intVal));
+        }
+        return Pow(distribute(uBase.base), Div(Num(numVal), Num(denVal)));
+      }
     }
     return Pow(distribute(uBase), distribute(uExp));
   }
@@ -2662,6 +2821,7 @@
     changeSign: ruleChangeSign,
     invertProportion: ruleInvertProportion,
     sqrtBoth: ruleSqrtBothSides,
+    positiveBranch: rulePositiveBranch,
     rootOddBoth: ruleRootOddBothSides,
     oddRootBoth: ruleRootOddBothSides,
     cbrtBoth: ruleRootOddBothSides,
@@ -2947,6 +3107,17 @@
           build: () => ({ side, fnNode })
         });
       }
+    }
+    const memberWithPm = side === "left" ? eq.left : eq.right;
+    const otherMemberWithPm = side === "left" ? eq.right : eq.left;
+    if (node && node.type === "Var" && node.name === "\xB1" || hasPmSign(memberWithPm) || hasPmSign(otherMemberWithPm)) {
+      actions.push({
+        id: "positive-branch",
+        label: "Considera solo il valore positivo (+) [grandezza fisica]",
+        description: "Per grandezze fisiche reali non negative (tempo, modulo della velocit\xE0, massa, distanza), elimina il segno \xB1 tenendo solo la soluzione positiva.",
+        ruleKey: "positiveBranch",
+        build: () => ({ side: hasPmSign(memberWithPm) ? side : otherSide })
+      });
     }
     const member = side === "left" ? eq.left : eq.right;
     const denCandidate = node.type === "Div" ? node.den : element.role === "denominatore" ? node : null;
@@ -3623,11 +3794,13 @@
         };
       }
     }
-    const newEq = canonical(Eq(Sqrt(eq.left), Sqrt(eq.right)));
+    const cleanLeft = stripPm(eq.left);
+    const cleanRight = stripPm(eq.right);
+    const newEq = canonical(Eq(Sqrt(cleanLeft), Sqrt(cleanRight)));
     return {
       ok: true,
       equation: newEq,
-      conditions: [conditionText(eq.left, "\u2265 0"), conditionText(eq.right, "\u2265 0")],
+      conditions: [conditionText(cleanLeft, "\u2265 0"), conditionText(cleanRight, "\u2265 0")],
       steps: ["Estraggo la radice quadrata di entrambi i membri."],
       note: "La radice di un quadrato \xE8 un valore assoluto: \u221A(x\xB2) = |x|. Perch\xE9 la radice di entrambi i membri abbia senso, entrambi devono essere \u2265 0."
     };
@@ -6824,6 +6997,16 @@
         "Se la quantit\xE0 cercata \xE8 per sua natura positiva (lunghezza, massa, tempo, una frequenza, \u2026), scegli il segno + per eliminare l'ambiguit\xE0: la scelta va motivata in base al significato fisico."
       ]
     },
+    "positive-branch": {
+      nome: "Scelta del valore positivo per grandezze fisiche intrinsecamente non negative",
+      intuitiva: "In fisica, grandezze come il tempo, la massa, la distanza o il modulo della velocit\xE0 non possono essere negative: si considera solo la radice con il segno positivo (+).",
+      principio: "Selezione del ramo positivo della soluzione di un'equazione pura: da x = \xB1\u221AA si deduce x = \u221AA in base al dominio fisico della grandezza.",
+      perche: "Mentre l'algebra pura ammette entrambe le radici opposte (\xB1), la formulazione di una legge fisica esclude le soluzioni non fisiche (ad esempio tempi o masse negative).",
+      attenzione: [
+        "Valida solo quando la grandezza fisica cercata \xE8 definita strettamente come non negativa.",
+        "Se la grandezza ammette entrambi i versi (es. velocit\xE0 vettoriale monodimensionale lungo un asse), il segno \xB1 va mantenuto per rappresentare la direzione del moto."
+      ]
+    },
     "root-odd": {
       nome: "Estrazione di una radice di indice DISPARI (es. cubica) di entrambi i membri",
       intuitiva: "Se x\xB3 = k, allora x = \u221Bk. Una radice di indice dispari \xE8 definita per OGNI valore di k, positivo o negativo, e restituisce un solo risultato.",
@@ -7510,7 +7693,7 @@
         const targetCls = isTarget2 ? " node-target" : "";
         let baseHtml = renderNode(node.base, id + "/base", { ...opts, interactive: false, isPowBase: true });
         const uBase = unwrap(node.base);
-        if (node.base.type !== "Group" && (uBase.type === "Add" || uBase.type === "Sub" || uBase.type === "Mul" || uBase.type === "Div")) {
+        if (node.base.type !== "Group" && (uBase.type === "Add" || uBase.type === "Sub" || uBase.type === "Mul" || uBase.type === "Div" || uBase.type === "Pow" || uBase.type === "Neg")) {
           const hasFrac = hasFraction(uBase);
           const cls = "node-group-parens" + (hasFrac ? " has-frac" : "");
           baseHtml = `<span class="${cls}"><span class="group-paren">(</span>${baseHtml}<span class="group-paren">)</span></span>`;
@@ -14533,7 +14716,7 @@ ${lines.join(" \\\\\n")}
     );
     renderCalculatorInputs(freeVars, solvedExpr);
   }
-  function hasPmSign(node) {
+  function hasPmSign2(node) {
     node = unwrap(node);
     if (!node) return false;
     if (node.type === "Add" && node.args.length === 2) {
@@ -14548,7 +14731,7 @@ ${lines.join(" \\\\\n")}
     if (freeVars.length === 0) {
       const evalRes = evalWithEnv(solvedExpr, {});
       const formatted = evalRes.ok ? formatResultNumber(evalRes.value) : "\u2014";
-      const withPm = hasPmSign(solvedExpr);
+      const withPm = hasPmSign2(solvedExpr);
       const displayVal = evalRes.ok && withPm ? `\xB1 ${formatted}` : formatted;
       if (dom5.calcFinalNumber) dom5.calcFinalNumber.textContent = displayVal;
       if (dom5.calcStepFormula) dom5.calcStepFormula.textContent = `${prettyVar(state5.targetVar)} = ${displayVal}`;
@@ -14616,7 +14799,7 @@ ${lines.join(" \\\\\n")}
     const evalRes = evalWithEnv(solvedExpr, env);
     if (evalRes.ok) {
       const formatted = formatResultNumber(evalRes.value);
-      const withPm = hasPmSign(solvedExpr);
+      const withPm = hasPmSign2(solvedExpr);
       const displayVal = withPm ? `\xB1 ${formatted}` : formatted;
       if (dom5.calcFinalNumber) dom5.calcFinalNumber.textContent = displayVal;
       if (dom5.calcErrorNotice) dom5.calcErrorNotice.hidden = true;

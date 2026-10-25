@@ -15,7 +15,7 @@ import {
   Num, Var, Add, Sub, Mul, Div, Pow, Sqrt, Neg, Group, Eq,
   Sin, Cos, Tan, Ln, Asin, Acos, Atan, Exp,
   unwrap, unwrapNeutrals, canonical, isNum, isVar, equivalentExpr, evalConst, isIdenticallyZero,
-  collectVars, FUNC_INFO,
+  collectVars, FUNC_INFO, hasPmSign, stripPm,
 } from './ast.js';
 import { reduceEquationToCommonDenominator, canReduceToSingleFraction } from './common-denom.js';
 import { memberIsFractionSum } from './reciprocals.js';
@@ -436,20 +436,51 @@ export const ruleSqrtBothSides = {
       );
     }
     const n = found.exp;
-    const rootOther = n === 2 ? Sqrt(other) : Pow(other, Num(1 / n));
-    // Sul membro con la potenza pari compare il segno ±
+    const cleanOther = stripPm(other);
+    const rootOther = n === 2 ? Sqrt(cleanOther) : Pow(cleanOther, Num(1 / n));
+    // Sul membro con la potenza pari compare il segno ± (a meno di positiveOnly)
+    const rightSide = (ctx && ctx.positiveOnly) ? rootOther : Add(Pm(), rootOther);
     const newEq = side === 'left'
-      ? Eq(found.base, Add(Pm(), rootOther))
-      : Eq(Add(Pm(), rootOther), found.base);
+      ? Eq(found.base, rightSide)
+      : Eq(rightSide, found.base);
     return {
       equation: newEq,
-      conditions: [conditionText(other, '≥ 0')],
+      conditions: [conditionText(cleanOther, '≥ 0')],
       steps: [
         `Estraggo la radice ${n === 2 ? 'quadrata' : `${n}-esima`} di entrambi i membri. ` +
         'L\'indice è pari: serve il radicando ≥ 0 e la radice di un grado pari è il valore assoluto, quindi introduco il segno ±.',
       ],
-      note: 'Il segno ± è matematicamente necessario: non va eliminato. ' +
-        'Se la grandezza cercata è per sua natura positiva (es. una lunghezza, una massa, un tempo), scegli il segno + per togliere l\'ambiguità.',
+      note: 'Il segno ± è matematicamente necessario per un\'equazione pura. ' +
+        'Se la grandezza cercata è per sua natura positiva (es. una lunghezza, una massa, un tempo, una velocità), scegli il segno + per togliere l\'ambiguità.',
+    };
+  },
+};
+
+// 12b) SCELTA DEL VALORE POSITIVO (per grandezze fisiche intrinsecamente non negative)
+export const rulePositiveBranch = {
+  id: 'positive-branch',
+  name: 'Considera solo il valore positivo (+)',
+  principle: 'Per grandezze fisiche non negative (tempo, modulo della velocità, massa, lunghezza), si considera solo la radice positiva: x = √A anziché x = ±√A.',
+  explanation: 'positive-branch',
+  apply(eq, ctx) {
+    const side = (ctx && ctx.side) ? ctx.side : (hasPmSign(eq.right) ? 'right' : 'left');
+    const targetSide = side === 'left' ? eq.left : eq.right;
+    const otherSide = side === 'left' ? eq.right : eq.left;
+    if (!hasPmSign(targetSide)) {
+      throw new RuleError(
+        'Nessun segno ± da risolvere sul membro selezionato.',
+        'La regola si applica a un membro con il segno ±.'
+      );
+    }
+    const cleaned = stripPm(targetSide);
+    const newEq = side === 'left' ? Eq(cleaned, otherSide) : Eq(otherSide, cleaned);
+    return {
+      equation: canonical(newEq),
+      conditions: [],
+      steps: [
+        'Considero solo la soluzione positiva (+): per grandezze fisiche reali non negative (tempo, velocità scalare, massa, distanza) si esclude la determinazione negativa −.',
+      ],
+      note: 'Scelta del valore positivo: il segno ± viene rimosso in accordo con la natura fisica della grandezza.',
     };
   },
 };
@@ -924,6 +955,15 @@ function distributePower(base, exp) {
     }
   }
 
+  // Segno ± elevato a potenza pari: (± X)^(pari) -> X^(pari)
+  if (uBase.type === 'Add' && uBase.args.length === 2) {
+    const hasPm = uBase.args.some((a) => unwrap(a).type === 'Var' && unwrap(a).name === '±');
+    if (hasPm && uExp.type === 'Num' && uExp.value % 2 === 0) {
+      const nonPm = uBase.args.find((a) => !(unwrap(a).type === 'Var' && unwrap(a).name === '±'));
+      return distributePower(nonPm, uExp);
+    }
+  }
+
   // Segno negativo: (-X)^2 -> X^2, (-X)^3 -> -X^3
   if (uBase.type === 'Neg') {
     if (uExp.type === 'Num' && uExp.value % 2 === 0) {
@@ -936,8 +976,23 @@ function distributePower(base, exp) {
   }
 
   // Potenza di potenza: (a^m)^n -> a^(m*n)
-  if (uBase.type === 'Pow' && uExp.type === 'Num' && unwrap(uBase.exp).type === 'Num') {
-    return Pow(uBase.base, Num(unwrap(uBase.exp).value * uExp.value));
+  if (uBase.type === 'Pow') {
+    const innerExp = unwrap(uBase.exp);
+    if (innerExp.type === 'Num' && uExp.type === 'Num') {
+      const combined = innerExp.value * uExp.value;
+      if (combined === 1) return distribute(uBase.base);
+      return distributePower(uBase.base, Num(combined));
+    }
+    if (innerExp.type === 'Div' && isNum(innerExp.num) && isNum(innerExp.den) && uExp.type === 'Num') {
+      const numVal = innerExp.num.value * uExp.value;
+      const denVal = innerExp.den.value;
+      if (numVal % denVal === 0) {
+        const intVal = numVal / denVal;
+        if (intVal === 1) return distribute(uBase.base);
+        return distributePower(uBase.base, Num(intVal));
+      }
+      return Pow(distribute(uBase.base), Div(Num(numVal), Num(denVal)));
+    }
   }
 
   return Pow(distribute(uBase), distribute(uExp));
@@ -1137,6 +1192,7 @@ export const RULES = {
   changeSign: ruleChangeSign,
   invertProportion: ruleInvertProportion,
   sqrtBoth: ruleSqrtBothSides,
+  positiveBranch: rulePositiveBranch,
   rootOddBoth: ruleRootOddBothSides,
   oddRootBoth: ruleRootOddBothSides,
   cbrtBoth: ruleRootOddBothSides,

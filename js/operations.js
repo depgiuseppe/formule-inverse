@@ -8,7 +8,7 @@
 // condizioni (÷ per una quantità ≠ 0, radice con radicando ≥ 0, …) restano
 // coerenti con il resto dell'applicazione.
 
-import { Sqrt, Pow, Num, Neg, Eq, unwrap, unwrapNeutrals, canonical, isNum, collectVars, evalConst } from './ast.js';
+import { Sqrt, Pow, Num, Neg, Eq, unwrap, unwrapNeutrals, canonical, isNum, collectVars, evalConst, stripPm } from './ast.js';
 import { parseExpression } from './parser.js';
 import { RULES, applyRule, conditionText } from './rules.js';
 import { whichSideHas } from './algebra.js';
@@ -125,11 +125,13 @@ function applySqrtBothSides(eq, targetVar) {
     }
   }
 
-  const newEq = canonical(Eq(Sqrt(eq.left), Sqrt(eq.right)));
+  const cleanLeft = stripPm(eq.left);
+  const cleanRight = stripPm(eq.right);
+  const newEq = canonical(Eq(Sqrt(cleanLeft), Sqrt(cleanRight)));
   return {
     ok: true,
     equation: newEq,
-    conditions: [conditionText(eq.left, '≥ 0'), conditionText(eq.right, '≥ 0')],
+    conditions: [conditionText(cleanLeft, '≥ 0'), conditionText(cleanRight, '≥ 0')],
     steps: ['Estraggo la radice quadrata di entrambi i membri.'],
     note: 'La radice di un quadrato è un valore assoluto: √(x²) = |x|. Perché la radice di entrambi i membri abbia senso, entrambi devono essere ≥ 0.',
   };

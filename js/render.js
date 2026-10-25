@@ -275,7 +275,7 @@ export function renderNode(node, id, opts) {
 
       let baseHtml = renderNode(node.base, id + '/base', { ...opts, interactive: false, isPowBase: true });
       const uBase = unwrap(node.base);
-      if (node.base.type !== 'Group' && (uBase.type === 'Add' || uBase.type === 'Sub' || uBase.type === 'Mul' || uBase.type === 'Div')) {
+      if (node.base.type !== 'Group' && (uBase.type === 'Add' || uBase.type === 'Sub' || uBase.type === 'Mul' || uBase.type === 'Div' || uBase.type === 'Pow' || uBase.type === 'Neg')) {
         const hasFrac = hasFraction(uBase);
         const cls = 'node-group-parens' + (hasFrac ? ' has-frac' : '');
         baseHtml = `<span class="${cls}"><span class="group-paren">(</span>${baseHtml}<span class="group-paren">)</span></span>`;

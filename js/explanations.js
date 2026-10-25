@@ -139,6 +139,17 @@ export const EXPLANATIONS = {
     ],
   },
 
+  'positive-branch': {
+    nome: 'Scelta del valore positivo per grandezze fisiche intrinsecamente non negative',
+    intuitiva: 'In fisica, grandezze come il tempo, la massa, la distanza o il modulo della velocità non possono essere negative: si considera solo la radice con il segno positivo (+).',
+    principio: 'Selezione del ramo positivo della soluzione di un\'equazione pura: da x = ±√A si deduce x = √A in base al dominio fisico della grandezza.',
+    perche: 'Mentre l\'algebra pura ammette entrambe le radici opposte (±), la formulazione di una legge fisica esclude le soluzioni non fisiche (ad esempio tempi o masse negative).',
+    attenzione: [
+      'Valida solo quando la grandezza fisica cercata è definita strettamente come non negativa.',
+      'Se la grandezza ammette entrambi i versi (es. velocità vettoriale monodimensionale lungo un asse), il segno ± va mantenuto per rappresentare la direzione del moto.',
+    ],
+  },
+
   'root-odd': {
     nome: 'Estrazione di una radice di indice DISPARI (es. cubica) di entrambi i membri',
     intuitiva: 'Se x³ = k, allora x = ∛k. Una radice di indice dispari è definita per OGNI valore di k, positivo o negativo, e restituisce un solo risultato.',

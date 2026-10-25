@@ -422,7 +422,10 @@ export function toPretty(node, parentPrec = 0) {
       return wrap(s, 2, parentPrec > 2);
     }
     case 'Pow': {
-      const s = toPretty(node.base, 3) + '^' + toPretty(node.exp, 4);
+      const uBase = unwrap(node.base);
+      const needBaseParen = ['Add', 'Sub', 'Mul', 'Div', 'Neg', 'Pow'].includes(uBase.type);
+      const baseStr = needBaseParen ? `(${toPretty(node.base, 0)})` : toPretty(node.base, 3);
+      const s = baseStr + '^' + toPretty(node.exp, 4);
       return wrap(s, 3, parentPrec > 3);
     }
     case 'Sqrt':
@@ -546,7 +549,7 @@ export function toLatex(node, parentPrec = 0) {
     }
     case 'Pow': {
       const baseUnwrapped = unwrap(node.base);
-      const needBaseParen = ['Add', 'Sub', 'Mul', 'Div', 'Neg'].includes(baseUnwrapped.type);
+      const needBaseParen = ['Add', 'Sub', 'Mul', 'Div', 'Neg', 'Pow'].includes(baseUnwrapped.type);
       const baseStr = needBaseParen ? `\\left(${toLatex(node.base, 0)}\\right)` : toLatex(node.base, 3);
       return `${baseStr}^{${toLatex(node.exp, 0)}}`;
     }
@@ -610,6 +613,27 @@ export function unwrapNeutrals(node) {
     return unwrapNeutrals(u.num);
   }
   return u;
+}
+
+// Verifica se un nodo ha la forma ± X
+export function hasPmSign(node) {
+  node = unwrap(node);
+  if (!node) return false;
+  if (node.type === 'Add' && node.args.length === 2) {
+    return node.args.some((a) => unwrap(a).type === 'Var' && unwrap(a).name === '±');
+  }
+  return false;
+}
+
+// Rimuove il segno ± se presente (ritorna X da ± X, oppure il nodo originale)
+export function stripPm(node) {
+  node = unwrap(node);
+  if (!node) return node;
+  if (hasPmSign(node)) {
+    const nonPm = node.args.find((a) => !(unwrap(a).type === 'Var' && unwrap(a).name === '±'));
+    return unwrap(nonPm);
+  }
+  return node;
 }
 
 // Rimuove ricorsivamente i fattori neutri (1 in prodotti) e termini neutri (0 in somme).
@@ -919,11 +943,81 @@ function canon(node) {
     }
 
     case 'Pow': {
-      const base = canon(node.base);
-      const exp = canon(node.exp);
+      let base = canon(node.base);
+      let exp = canon(node.exp);
       if (isNum(exp) && exp.value === 1) return base;
+      if (isNum(exp) && exp.value === 0) return Num(1);
+
       // (sqrt(x))^2 -> x
       if (base.type === 'Sqrt' && isNum(exp) && exp.value === 2) return canon(base.arg);
+
+      // (sqrt(x))^(2k) -> x^k
+      if (base.type === 'Sqrt' && isNum(exp) && exp.value % 2 === 0 && exp.value > 2) {
+        return canon(Pow(base.arg, Num(exp.value / 2)));
+      }
+
+      // (sqrt(x)) elevato a esponente: (x^(1/2))^n -> x^(n/2)
+      if (base.type === 'Sqrt' && isNum(exp)) {
+        if (exp.value % 2 === 0) {
+          return canon(Pow(base.arg, Num(exp.value / 2)));
+        }
+        return canon(Pow(base.arg, Div(exp, Num(2))));
+      }
+
+      // Semplificazione del segno ± elevato a potenza pari: (± X)^(pari) -> X^(pari)
+      const uBasePm = unwrap(base);
+      if (uBasePm.type === 'Add' && uBasePm.args.length === 2) {
+        const hasPm = uBasePm.args.some((a) => unwrap(a).type === 'Var' && unwrap(a).name === '±');
+        if (hasPm && isNum(exp) && exp.value % 2 === 0) {
+          const nonPm = uBasePm.args.find((a) => !(unwrap(a).type === 'Var' && unwrap(a).name === '±'));
+          base = canon(nonPm);
+          return canon(Pow(base, exp));
+        }
+      }
+
+      // Proprietà delle potenze: potenza di potenza (a^m)^n -> a^(m*n)
+      if (base.type === 'Pow') {
+        const innerBase = base.base;
+        const innerExp = base.exp;
+        if (isNum(innerExp) && isNum(exp)) {
+          const combined = innerExp.value * exp.value;
+          if (combined === 1) return canon(innerBase);
+          if (combined === 0) return Num(1);
+          return canon(Pow(innerBase, Num(combined)));
+        }
+        if (innerExp.type === 'Div' && isNum(innerExp.num) && isNum(innerExp.den) && isNum(exp)) {
+          const numVal = innerExp.num.value * exp.value;
+          const denVal = innerExp.den.value;
+          if (numVal % denVal === 0) {
+            const intVal = numVal / denVal;
+            if (intVal === 1) return canon(innerBase);
+            return canon(Pow(innerBase, Num(intVal)));
+          }
+          return canon(Pow(innerBase, Div(Num(numVal), Num(denVal))));
+        }
+        if (isNum(innerExp) && exp.type === 'Div' && isNum(exp.num) && isNum(exp.den)) {
+          const numVal = innerExp.value * exp.num.value;
+          const denVal = exp.den.value;
+          if (numVal % denVal === 0) {
+            const intVal = numVal / denVal;
+            if (intVal === 1) return canon(innerBase);
+            return canon(Pow(innerBase, Num(intVal)));
+          }
+          return canon(Pow(innerBase, Div(Num(numVal), Num(denVal))));
+        }
+        if (innerExp.type === 'Div' && isNum(innerExp.num) && isNum(innerExp.den) &&
+            exp.type === 'Div' && isNum(exp.num) && isNum(exp.den)) {
+          const numVal = innerExp.num.value * exp.num.value;
+          const denVal = innerExp.den.value * exp.den.value;
+          if (numVal % denVal === 0) {
+            const intVal = numVal / denVal;
+            if (intVal === 1) return canon(innerBase);
+            return canon(Pow(innerBase, Num(intVal)));
+          }
+          return canon(Pow(innerBase, Div(Num(numVal), Num(denVal))));
+        }
+      }
+
       // (x^3)^(1/3) -> x (semplificazione della potenza cubica con radice cubica)
       const isOneThird = (isNum(exp) && Math.abs(exp.value - 1 / 3) < 1e-9) ||
         (exp.type === 'Div' && isNum(exp.num) && exp.num.value === 1 && isNum(exp.den) && exp.den.value === 3);
@@ -933,6 +1027,7 @@ function canon(node) {
       if (base.type === 'Neg' && base.arg.type === 'Pow' && isNum(base.arg.exp) && base.arg.exp.value === 3 && isOneThird) {
         return canon(Neg(base.arg.base));
       }
+
       // radice come potenza (utile per confronti): sqrt(a) == a^(1/2)
       if (isNum(base) && isNum(exp)) {
         return Num(Math.pow(base.value, exp.value));
@@ -941,9 +1036,41 @@ function canon(node) {
     }
 
     case 'Sqrt': {
-      const arg = canon(node.arg);
-      if (arg.type === 'Pow' && isNum(arg.exp) && arg.exp.value === 2) {
-        return canon(arg.base);
+      let arg = canon(node.arg);
+      // Mai il segno ± dentro una radice nel campo reale: si considera il radicando positivo
+      const uArg = unwrap(arg);
+      if (uArg.type === 'Add' && uArg.args.length === 2) {
+        const hasPm = uArg.args.some((a) => unwrap(a).type === 'Var' && unwrap(a).name === '±');
+        if (hasPm) {
+          const nonPm = uArg.args.find((a) => !(unwrap(a).type === 'Var' && unwrap(a).name === '±'));
+          arg = canon(nonPm);
+        }
+      }
+      // Radice di radice (esponenti razionali): √(√(x)) = (x^(1/2))^(1/2) = x^(1/4)
+      if (arg.type === 'Sqrt') {
+        return canon(Pow(arg.arg, Div(Num(1), Num(4))));
+      }
+      // Semplificazione di radici di potenze:
+      if (arg.type === 'Pow') {
+        if (isNum(arg.exp)) {
+          if (arg.exp.value === 2) return canon(arg.base);
+          if (arg.exp.value % 2 === 0 && arg.exp.value > 0) {
+            return canon(Pow(arg.base, Num(arg.exp.value / 2)));
+          }
+          if (Math.abs(arg.exp.value - 0.5) < 1e-9) {
+            return canon(Pow(arg.base, Div(Num(1), Num(4))));
+          }
+        }
+        if (arg.exp.type === 'Div' && isNum(arg.exp.num) && isNum(arg.exp.den)) {
+          const numVal = arg.exp.num.value;
+          const denVal = arg.exp.den.value * 2;
+          if (numVal % denVal === 0) {
+            const intVal = numVal / denVal;
+            if (intVal === 1) return canon(arg.base);
+            return canon(Pow(arg.base, Num(intVal)));
+          }
+          return canon(Pow(arg.base, Div(Num(numVal), Num(denVal))));
+        }
       }
       return { type: 'Sqrt', arg };
     }
