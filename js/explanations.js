@@ -241,12 +241,56 @@ export const EXPLANATIONS = {
       'L\'inversa restituisce la soluzione nel RAMO PRINCIPALE. Poiché le funzioni trigonometriche sono periodiche, possono esistere altre soluzioni: vanno discusse separatamente.',
     ],
   },
+
+  'quadratic-canonical': {
+    nome: 'Forma canonica dell\'equazione di 2° grado (A·x² + B·x + C = 0)',
+    intuitiva:
+      'Quando la grandezza incognita compare sia al 1° sia al 2° grado (come il tempo t e t² nella legge oraria del moto accelerato), non basta "trasportare o dividere" perché l\'incognita resterebbe sempre intrappolata da una parte o dall\'altra. Bisogna portare tutti i termini sullo stesso membro, ordinandoli per potenze decrescenti (A·x² + B·x + C = 0) per identificare i tre coefficienti A, B e C.',
+    principio:
+      'Primo principio di equivalenza: sommando l\'opposto di ciascun termine da un membro all\'altro si ottiene un\'equazione equivalente della forma polinomiale canonica P(x) = 0.',
+    perche:
+      'Portare tutti i termini a sinistra lasciando 0 a destra consente di classificare l\'equazione come quadratica completa e applicare la formula risolutiva generale, impossibile da usare se i termini sono sparsi sui due membri.',
+    attenzione: [
+      'Identifica con cura i segni dei coefficienti: se un termine viene trasportato dall\'altro membro, il suo segno si inverte.',
+      'Il coefficiente A (legato a x²) deve essere non nullo (A ≠ 0), altrimenti l\'equazione si riduce a un\'equazione di primo grado lineare (B·x + C = 0).',
+      'Non tentare di dividere per l\'incognita x: divideresti per una quantità potenzialmente nulla (x = 0) e perderesti soluzioni fisiche o matematiche.',
+    ],
+  },
+
+  'quadratic-formula': {
+    nome: 'Formula risolutiva delle equazioni di 2° grado',
+    intuitiva:
+      'La formula quadratica x = (−B ± √(B² − 4AC)) / (2A) è lo strumento algebrico fondamentale per isolare direttamente l\'incognita quando compare sia al quadrato sia al primo grado. Calcola il discriminante Δ = B² − 4AC per trovare i due valori possibili.',
+    principio:
+      'Completamento del quadrato applicato alla forma canonica A·x² + B·x + C = 0: (x + B/(2A))² = (B² − 4AC)/(4A²), da cui x = (−B ± √(B² − 4AC)) / (2A).',
+    perche:
+      'Poiché l\'incognita è presente simultaneamente con gradi diversi, le sole quattro operazioni aritmetiche elementari non possono isolarla: la formula risolutiva sintetizza il completamento del quadrato e l\'estrazione di radice in un unico passaggio esatto.',
+    attenzione: [
+      'Condizione di realtà (discriminante Δ ≥ 0): nel campo dei numeri reali, il radicando B² − 4AC deve essere maggiore o uguale a zero. Se Δ < 0, l\'equazione non ha soluzioni reali (in fisica significa che l\'evento o la posizione non viene mai raggiunta con le condizioni iniziali date).',
+      'Condizione A ≠ 0: il denominatore 2A richiede che il termine quadratico sia effettivamente presente.',
+      'Scelta del segno (±) in fisica: l\'algebra pura fornisce due soluzioni matematiche (±). Tuttavia, per grandezze fisiche intrinsecamente non negative come il tempo t ≥ 0 o la distanza, si applica la regola del valore positivo (positiveBranch), scartando la radice col segno meno se produrrebbe un tempo negativo anteriore all\'inizio del moto.',
+    ],
+  },
 };
 
 // ---------------------------------------------------------------------------
 // Modelli pedagogici degli errori più frequenti degli studenti (Misconceptions)
 // ---------------------------------------------------------------------------
 export const STUDENT_MISCONCEPTIONS = {
+  'quadratic-linear-isolation': {
+    id: 'quadratic-linear-isolation',
+    titolo: 'Tentativo di isolamento lineare su equazione di 2° grado',
+    badge: 'Equazione Quadratica (Grado Misto)',
+    principio: 'Le equazioni in cui l\'incognita compare sia al 1° sia al 2° grado (ax² + bx = c) non si isolano con semplici divisioni: dividendo per (ax + b) l\'incognita resta al denominatore.',
+    spiegazione:
+      'Quando un\'incognita è presente sia al primo grado (x) sia al secondo grado (x²), raccogliere x a fattor comune x·(ax + b) = c e poi dividere per (ax + b) NON isola x, perché ottieni x = c/(ax + b) dove x compare ancora al secondo membro! Per isolare l\'incognita in modo definitivo occorre la formula risolutiva di 2° grado.',
+    controesempio:
+      'Nella legge oraria s = v0·t + (1/2)·a·t², se raccogli t ottenendo t·(v0 + (1/2)·a·t) = s e dividi per la parentesi, ottieni t = s / (v0 + (1/2)·a·t). L\'incognita t è ancora presente a destra: non è affatto isolata!',
+    come_risolvere:
+      'Porta l\'equazione in forma canonica A·t² + B·t + C = 0 con A = (1/2)·a, B = v0, C = −s, e applica la formula risolutiva didattica t = (−B ± √(B² − 4AC)) / (2A).',
+    regola_guida:
+      'Se l\'incognita compare contemporaneamente al 1° e al 2° grado, porta in forma canonica ax² + bx + c = 0 e usa la formula quadratica!',
+  },
   'illegal-sum-cancellation': {
     id: 'illegal-sum-cancellation',
     titolo: 'Cancellazione illecita su una somma (Somma vs Prodotto)',
@@ -575,6 +619,30 @@ export function diagnoseStudentMisconception(errorText = '', hintText = '', acti
     const m = STUDENT_MISCONCEPTIONS['invalid-transposition-factor-as-term'];
     return {
       category: 'invalid-transposition-factor-as-term',
+      badge: m.badge,
+      title: m.titolo,
+      explanation: errorText || m.spiegazione,
+      counterexample: m.controesempio,
+      advice: hintText || m.come_risolvere,
+      ruleReminder: m.regola_guida,
+      principio: m.principio,
+    };
+  }
+
+  // 5b. Equazione di 2° grado / isolamento lineare non riuscito (grado misto)
+  if (
+    errLow.includes('equazione quadratica') ||
+    errLow.includes('formula quadratica') ||
+    errLow.includes('secondo grado') ||
+    errLow.includes('compare sia come') ||
+    errLow.includes('sia al 1° sia al 2° grado') ||
+    errLow.includes('sia al primo sia al secondo grado') ||
+    hintLow.includes('formula quadratica') ||
+    hintLow.includes('forma canonica')
+  ) {
+    const m = STUDENT_MISCONCEPTIONS['quadratic-linear-isolation'];
+    return {
+      category: 'quadratic-linear-isolation',
       badge: m.badge,
       title: m.titolo,
       explanation: errorText || m.spiegazione,

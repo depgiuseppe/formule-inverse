@@ -13,8 +13,13 @@ import {
   unwrap, unwrapNeutrals, canonical, isNum, equivalentExpr, equivalentEq, collectVars, toPretty,
   isIdenticallyZero, clone, FUNC_INFO, hasPmSign, stripPm,
 } from './ast.js';
-import { RULES, applyRule, additiveTerms, cancelFractionFactor, findCommonFactorInFraction, hasTrigConflict, canDistribute, findCommonFactor, factorOut } from './rules.js';
+import {
+  RULES, applyRule, additiveTerms, cancelFractionFactor, findCommonFactorInFraction,
+  hasTrigConflict, canDistribute, findCommonFactor, factorOut,
+  extractQuadraticCoefficients, isQuadraticInTarget,
+} from './rules.js';
 import { canReduceToSingleFraction } from './common-denom.js';
+import { parseEquation } from './parser.js';
 
 // ---------------------------------------------------------------------------
 // Stato/contesto di lavoro
@@ -483,6 +488,41 @@ export function globalActions(eq, target) {
     });
   }
 
+  // Ramo positivo (±) per grandezze fisiche
+  if (hasPmSign(eq.left) || hasPmSign(eq.right)) {
+    const pmSide = hasPmSign(eq.right) ? 'right' : 'left';
+    actions.push({
+      id: 'positive-branch',
+      label: 'Considera solo il valore positivo (+) [grandezza fisica]',
+      description: 'Per grandezze fisiche reali non negative (tempo, modulo della velocità, massa, distanza), elimina il segno ± tenendo solo la soluzione positiva.',
+      ruleKey: 'positiveBranch',
+      build: () => ({ side: pmSide }),
+    });
+  }
+
+  // Equazioni di secondo grado (quadratiche)
+  if (target) {
+    const quad = extractQuadraticCoefficients(eq, target);
+    if (quad) {
+      if (!quad.isCanonical) {
+        actions.push({
+          id: 'quadratic-canonical',
+          label: `Porta in forma canonica A·${target}² + B·${target} + C = 0`,
+          description: `Raccoglie i coefficienti rispetto a ${target} per applicare la formula risolutiva quadratica.`,
+          ruleKey: 'quadraticCanonical',
+          build: () => ({ target }),
+        });
+      }
+      actions.push({
+        id: 'quadratic-formula',
+        label: `Applica la formula risolutiva delle equazioni di 2° grado per ${target}`,
+        description: `Ricava ${target} = (−B ± √(B² − 4AC)) / (2A) identificando i coefficienti A, B, C.`,
+        ruleKey: 'quadraticFormula',
+        build: () => ({ target }),
+      });
+    }
+  }
+
   return actions;
 }
 
@@ -684,6 +724,35 @@ export function suggestNextStep(eq, target) {
         build: () => ({ den: canR, side: 'right', denText }),
       },
       reason: `Al secondo membro c'è un fattore comune ${denText} tra numeratore e denominatore: semplificalo prima di procedere.`,
+    };
+  }
+
+  // Riconoscimento prioritario: equazione di 2° grado completa in target (presente sia al 1° sia al 2° grado)
+  const quad = extractQuadraticCoefficients(eq, target);
+  if (quad) {
+    if (quad.isCanonical) {
+      return {
+        found: true,
+        action: {
+          id: 'quadratic-formula',
+          label: `Applica la formula risolutiva delle equazioni di 2° grado per ${target}`,
+          description: `Dalla forma canonica A·${target}² + B·${target} + C = 0 ricava ${target} = (−B ± √(B² − 4AC)) / (2A).`,
+          ruleKey: 'quadraticFormula',
+          build: () => ({ target }),
+        },
+        reason: `L'equazione è in forma canonica di 2° grado rispetto a ${target} (A = ${toPretty(quad.A, 0)}, B = ${toPretty(quad.B, 0)}, C = ${toPretty(quad.C, 0)}): applica la formula quadratica didattica.`,
+      };
+    }
+    return {
+      found: true,
+      action: {
+        id: 'quadratic-canonical',
+        label: `Porta in forma canonica A·${target}² + B·${target} + C = 0`,
+        description: `Raccoglie i coefficienti rispetto a ${target} per applicare la formula risolutiva quadratica.`,
+        ruleKey: 'quadraticCanonical',
+        build: () => ({ target }),
+      },
+      reason: `L'incognita ${target} compare contemporaneamente al 1° e al 2° grado: porta l'equazione in forma canonica (A = ${toPretty(quad.A, 0)}, B = ${toPretty(quad.B, 0)}, C = ${toPretty(quad.C, 0)}).`,
     };
   }
 
@@ -1017,5 +1086,59 @@ export function mergeConditions(existing, added) {
   for (const c of added) set.add(c);
   return Array.from(set);
 }
+
+// ---------------------------------------------------------------------------
+// 8) Risolutore automatico sequenziale (solveEquation / isolateVariable)
+// ---------------------------------------------------------------------------
+export function solveEquation(eq, target, options = {}) {
+  const maxSteps = options.maxSteps || 30;
+  let curr = typeof eq === 'string' ? parseEquation(eq) : eq;
+  const steps = [];
+
+  for (let i = 0; i < maxSteps; i++) {
+    if (isGoalReached(curr, target)) {
+      if (options.positiveOnly && (hasPmSign(curr.left) || hasPmSign(curr.right))) {
+        const pmSide = hasPmSign(curr.right) ? 'right' : 'left';
+        const resPm = performAction(curr, {
+          id: 'positive-branch',
+          ruleKey: 'positiveBranch',
+          build: () => ({ side: pmSide }),
+        });
+        if (resPm && resPm.ok) {
+          curr = resPm.equation;
+          steps.push('Considera solo il valore positivo (+)');
+        }
+      }
+      return { ok: true, equation: curr, steps };
+    }
+
+    const sug = suggestNextStep(curr, target);
+    if (!sug || !sug.found) {
+      return { ok: false, equation: curr, steps, reason: sug ? sug.message : 'nessun suggerimento' };
+    }
+
+    const action = { ...sug.action };
+    if (options.positiveOnly && action.ruleKey === 'quadraticFormula') {
+      const origBuild = action.build;
+      action.build = (ctx) => ({ ...origBuild(ctx), positiveOnly: true });
+    }
+
+    const res = performAction(curr, action);
+    if (!res || !res.ok) {
+      return { ok: false, equation: curr, steps, reason: res ? res.error : 'azione non eseguibile' };
+    }
+
+    curr = res.equation;
+    steps.push(sug.action.label);
+
+    if (steps.length > 3 && steps.slice(-3).every((l, _, arr) => l === arr[0])) {
+      return { ok: false, equation: curr, steps, reason: 'ciclo rilevato' };
+    }
+  }
+
+  return { ok: false, equation: curr, steps, reason: 'troppi passaggi' };
+}
+
+export const isolateVariable = solveEquation;
 
 export { toPretty, unwrap };

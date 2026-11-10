@@ -11,8 +11,8 @@ import { parseEquation, parseExpression, ParseError } from './parser.js';
 import { toPretty, toLatex, equivalentEq, unwrap, unwrapNeutrals, stripNeutrals, collectVars, clone, canonical, Sin, Ln, Var, Num, evalWithEnv, substituteVarsInAst, floatToFraction } from './ast.js';
 import { renderEquation, prettyVar } from './render.js';
 import { applyDragMove } from './dragdrop.js';
-import { RULES, applyRule, findCommonFactor, hasTrigConflict, canDistribute } from './rules.js';
-import { isGoalReached, performAction, suggestNextStep, enumerateElements, ensureTargetOnFirstMember } from './algebra.js';
+import { RULES, applyRule, findCommonFactor, hasTrigConflict, canDistribute, extractQuadraticCoefficients, isQuadraticInTarget } from './rules.js';
+import { isGoalReached, performAction, suggestNextStep, enumerateElements, ensureTargetOnFirstMember, solveEquation, isolateVariable } from './algebra.js';
 import { reciprocalEquation } from './reciprocals.js';
 import { crossCancel } from './cross.js';
 import { applyKeypadOperation, KEYPAD_OPERATIONS } from './operations.js';
@@ -2123,6 +2123,135 @@ export function runAllTests() {
     const renderedEq = renderEquation(eq('x = 0.5'));
     if (renderedEq.includes('0.5')) return `il numero decimale 0.5 non deve apparire a schermo: ${renderedEq}`;
     if (!renderedEq.includes('frac-num') || !renderedEq.includes('frac-den')) return `attesa struttura frac per 0.5: ${renderedEq}`;
+    return true;
+  }));
+
+  // =========================================================================
+  // EQUAZIONI DI 2° GRADO (FORMA CANONICA, FORMULA RISOLUTIVA E RAMO POSITIVO)
+  // =========================================================================
+
+  results.push(test('Riconoscimento equazioni di 2° grado: isQuadraticInTarget e coefficienti A, B, C', () => {
+    // 1. Legge oraria moto uniformemente accelerato
+    const eq1 = eq('s = v0*t + 1/2*a*t^2');
+    if (!isQuadraticInTarget(eq1, 't')) return 'atteso isQuadraticInTarget=true per s = v0*t + 1/2*a*t^2 rispetto a t';
+    const q1 = extractQuadraticCoefficients(eq1, 't');
+    if (!q1) return 'extractQuadraticCoefficients ha restituito null per t in eq1';
+    if (toPretty(q1.A, 0) !== '(1/2)·a') return `atteso A=(1/2)·a, ottenuto: ${toPretty(q1.A, 0)}`;
+    if (toPretty(q1.B, 0) !== 'v0') return `atteso B=v0, ottenuto: ${toPretty(q1.B, 0)}`;
+    if (toPretty(q1.C, 0) !== '−s') return `atteso C=−s, ottenuto: ${toPretty(q1.C, 0)}`;
+    if (q1.isCanonical) return 'eq1 non doveva essere considerata in forma canonica';
+
+    // 2. Legge oraria moto circolare
+    const eq2 = eq('theta = theta0 + omega0*t + 1/2*alpha*t^2');
+    if (!isQuadraticInTarget(eq2, 't')) return 'atteso isQuadraticInTarget=true per theta rispetto a t';
+    const q2 = extractQuadraticCoefficients(eq2, 't');
+    if (toPretty(q2.A, 0) !== '(1/2)·alpha') return `atteso A=(1/2)·alpha, ottenuto: ${toPretty(q2.A, 0)}`;
+    if (toPretty(q2.B, 0) !== 'omega0') return `atteso B=omega0, ottenuto: ${toPretty(q2.B, 0)}`;
+    if (toPretty(q2.C, 0) !== 'theta0 − theta') return `atteso C=theta0 − theta, ottenuto: ${toPretty(q2.C, 0)}`;
+
+    // 3. Equazione canonica astratta
+    const eq3 = eq('a*x^2 + b*x + c = 0');
+    if (!isQuadraticInTarget(eq3, 'x')) return 'atteso isQuadraticInTarget=true per a*x^2 + b*x + c = 0';
+    const q3 = extractQuadraticCoefficients(eq3, 'x');
+    if (toPretty(q3.A, 0) !== 'a' || toPretty(q3.B, 0) !== 'b' || toPretty(q3.C, 0) !== 'c') {
+      return `atteso A=a, B=b, C=c, ottenuto: A=${toPretty(q3.A, 0)} B=${toPretty(q3.B, 0)} C=${toPretty(q3.C, 0)}`;
+    }
+    if (!q3.isCanonical) return 'eq3 doveva essere considerata già in forma canonica';
+
+    // 4. Casi negativi: equazioni pure (senza termine di 1° grado) o lineari
+    const eqPure = eq('s = 1/2*a*t^2');
+    if (isQuadraticInTarget(eqPure, 't')) return 'un equazione pura (B=0) non deve essere trattata come quadratica completa';
+    const eqLinear = eq('v = s/t');
+    if (isQuadraticInTarget(eqLinear, 't')) return 'un equazione lineare non deve essere trattata come quadratica';
+
+    return true;
+  }));
+
+  results.push(test('Regola forma canonica: ruleQuadraticCanonical porta s = v0*t + 1/2*a*t^2 in (1/2)*a*t^2 + v0*t - s = 0', () => {
+    const eqStart = eq('s = v0*t + 1/2*a*t^2');
+    const res = applyRule(RULES.quadraticCanonical, eqStart, { target: 't' });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    const pretty = toPretty(res.equation, 0);
+    if (!pretty.includes('(1/2)·a·t^2') || !pretty.includes('v0·t') || !pretty.endsWith('= 0')) {
+      return `forma canonica non corretta, ottenuta: ${pretty}`;
+    }
+    if (res.steps.length < 2) return `attesi passaggi didattici strutturati, ottenuti: ${res.steps.length}`;
+    return true;
+  }));
+
+  results.push(test('Regola formula quadratica: ruleQuadraticFormula ricava t = (-v0 ± sqrt(v0^2 + 2*a*s)) / a', () => {
+    const eqCanon = eq('(1/2)*a*t^2 + v0*t - s = 0');
+    const res = applyRule(RULES.quadraticFormula, eqCanon, { target: 't' });
+    if (!res.ok) return 'rifiutata: ' + res.error;
+    const pretty = toPretty(res.equation, 0);
+    if (!pretty.includes('v0^2 + 2·a·s')) return `discriminante non corretto, ottenuto: ${pretty}`;
+    if (!pretty.includes('±')) return `atteso segno ± nella formula completa, ottenuto: ${pretty}`;
+    if (!res.conditions.some((c) => c.includes('≥ 0'))) return 'manca condizione di realtà discriminante >= 0';
+    return true;
+  }));
+
+  results.push(test('Ramo positivo su formula quadratica: rulePositiveBranch semplifica a t = (-v0 + sqrt(v0^2 + 2*a*s)) / a', () => {
+    const eqCanon = eq('(1/2)*a*t^2 + v0*t - s = 0');
+    const resQuad = applyRule(RULES.quadraticFormula, eqCanon, { target: 't' });
+    if (!resQuad.ok) return 'formula quadratica fallita';
+
+    const resPos = applyRule(RULES.positiveBranch, resQuad.equation, { side: 'right' });
+    if (!resPos.ok) return 'positiveBranch rifiutata su frazione quadratica: ' + resPos.error;
+    const pretty = toPretty(resPos.equation, 0);
+    if (pretty.includes('±')) return `il segno ± non è stato eliminato: ${pretty}`;
+    if (!pretty.includes('√(v0^2 + 2·a·s)')) return `radice mancante o corrotta: ${pretty}`;
+    return true;
+  }));
+
+  results.push(test('Risoluzione automatica end-to-end: solveEquation e isolateVariable su s-vt-half-at2 e theta-legge-oraria', () => {
+    // 1. s-vt-half-at2 per t
+    const res1 = solveEquation('s = v0*t + 1/2*a*t^2', 't');
+    if (!res1.ok) return `solveEquation fallito per s-vt-half-at2: ${res1.reason}`;
+    if (!isGoalReached(res1.equation, 't')) return 'obiettivo t non raggiunto per s-vt-half-at2';
+    const pretty1 = toPretty(res1.equation, 0);
+    if (!pretty1.includes('v0^2 + 2·a·s')) return `espressione finale inattesa per s-vt-half-at2: ${pretty1}`;
+
+    // 2. theta-legge-oraria per t con opzione positiveOnly
+    const res2 = isolateVariable('theta = theta0 + omega0*t + 1/2*alpha*t^2', 't', { positiveOnly: true });
+    if (!res2.ok) return `isolateVariable fallito per theta-legge-oraria: ${res2.reason}`;
+    if (!isGoalReached(res2.equation, 't')) return 'obiettivo t non raggiunto per theta-legge-oraria';
+    const pretty2 = toPretty(res2.equation, 0);
+    if (pretty2.includes('±')) return `atteso ramo positivo senza ± per theta-legge-oraria, ottenuto: ${pretty2}`;
+    if (!pretty2.includes('omega0^2')) return `espressione finale inattesa: ${pretty2}`;
+
+    return true;
+  }));
+
+  results.push(test('Didattica e spiegazioni: spiegazioni strutturate e diagnosi misconception per equazione di 2° grado', () => {
+    // Spiegazioni registrate
+    const expCanon = getExplanation('quadratic-canonical');
+    if (!expCanon || !expCanon.intuitiva || !expCanon.principio || !expCanon.attenzione.length) {
+      return 'spiegazione quadratic-canonical incompleta o assente';
+    }
+    const expForm = getExplanation('quadratic-formula');
+    if (!expForm || !expForm.intuitiva || !expForm.principio || !expForm.attenzione.length) {
+      return 'spiegazione quadratic-formula incompleta o assente';
+    }
+
+    // Pannelli didattici
+    const panelCanon = buildRulePanel('quadratic-canonical', {
+      beforeText: 's = v0*t + 1/2*a*t^2',
+      afterText: '(1/2)*a*t^2 + v0*t - s = 0',
+      steps: ['Porta in forma canonica'],
+    });
+    if (!panelCanon.title.includes('canonica') && !panelCanon.html.includes('canonica')) {
+      return 'pannello quadratic-canonical non contiene la spiegazione attesa';
+    }
+
+    // Diagnosi misconception per isolamento lineare errato su secondo grado
+    const diag = diagnoseStudentMisconception('Equazione di secondo grado: non puoi dividere per l\'incognita t presente sia come t sia come t^2');
+    if (diag.category !== 'quadratic-linear-isolation') {
+      return `attesa categoria quadratic-linear-isolation, ottenuta: ${diag.category}`;
+    }
+    if (!diag.counterexample.includes('s = v0·t + (1/2)·a·t²')) {
+      return `manca controesempio cinematico in misconception: ${diag.counterexample}`;
+    }
+
     return true;
   }));
 

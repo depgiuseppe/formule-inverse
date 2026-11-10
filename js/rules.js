@@ -15,7 +15,7 @@ import {
   Num, Var, Add, Sub, Mul, Div, Pow, Sqrt, Neg, Group, Eq,
   Sin, Cos, Tan, Ln, Asin, Acos, Atan, Exp,
   unwrap, unwrapNeutrals, canonical, isNum, isVar, equivalentExpr, evalConst, isIdenticallyZero,
-  collectVars, FUNC_INFO, hasPmSign, stripPm, floatToFraction,
+  collectVars, FUNC_INFO, hasPmSign, stripPm, floatToFraction, toPretty,
 } from './ast.js';
 import { reduceEquationToCommonDenominator, canReduceToSingleFraction } from './common-denom.js';
 import { memberIsFractionSum } from './reciprocals.js';
@@ -481,6 +481,281 @@ export const rulePositiveBranch = {
         'Considero solo la soluzione positiva (+): per grandezze fisiche reali non negative (tempo, velocità scalare, massa, distanza) si esclude la determinazione negativa −.',
       ],
       note: 'Scelta del valore positivo: il segno ± viene rimosso in accordo con la natura fisica della grandezza.',
+    };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// 12c) EQUAZIONI DI 2° GRADO (FORMA CANONICA E FORMULA RISOLUTIVA DIDATTICA)
+// ---------------------------------------------------------------------------
+
+// Appiattisce completamente termini additivi e sottrazioni annidate
+export function flattenAdditiveTerms(node, sign = '+') {
+  const u = unwrap(node);
+  if (!u) return [];
+  if (u.type === 'Add') {
+    const out = [];
+    for (const a of u.args) out.push(...flattenAdditiveTerms(a, sign));
+    return out;
+  }
+  if (u.type === 'Sub') {
+    const out = flattenAdditiveTerms(u.args[0], sign);
+    const invSign = sign === '+' ? '-' : '+';
+    for (let i = 1; i < u.args.length; i++) {
+      out.push(...flattenAdditiveTerms(u.args[i], invSign));
+    }
+    return out;
+  }
+  if (u.type === 'Neg') {
+    const invSign = sign === '+' ? '-' : '+';
+    return flattenAdditiveTerms(u.arg, invSign);
+  }
+  if (u.type === 'Num' && u.value < 0) {
+    const invSign = sign === '+' ? '-' : '+';
+    return [{ node: Num(-u.value), sign: invSign }];
+  }
+  return [{ node: u, sign }];
+}
+
+function extractTermDegreeAndCoeff(termNode, termSign, target) {
+  const u = unwrap(termNode);
+  if (!collectVars(u).has(target)) {
+    const val = termSign === '-' ? Neg(u) : u;
+    return { ok: true, degree: 0, coeff: val };
+  }
+  if (u.type === 'Var' && u.name === target) {
+    return { ok: true, degree: 1, coeff: termSign === '-' ? Num(-1) : Num(1) };
+  }
+  if (u.type === 'Pow' && unwrap(u.base).type === 'Var' && unwrap(u.base).name === target) {
+    const expVal = isNum(unwrap(u.exp)) ? unwrap(u.exp).value : null;
+    if (expVal === 2) {
+      return { ok: true, degree: 2, coeff: termSign === '-' ? Num(-1) : Num(1) };
+    }
+    return { ok: false };
+  }
+  if (u.type === 'Mul') {
+    let deg = 0;
+    const otherArgs = [];
+    for (const a of u.args) {
+      const ua = unwrap(a);
+      if (!collectVars(ua).has(target)) {
+        otherArgs.push(ua);
+      } else if (ua.type === 'Var' && ua.name === target) {
+        deg += 1;
+      } else if (ua.type === 'Pow' && unwrap(ua.base).type === 'Var' && unwrap(ua.base).name === target) {
+        const expVal = isNum(unwrap(ua.exp)) ? unwrap(ua.exp).value : null;
+        if (expVal != null && Number.isInteger(expVal)) {
+          deg += expVal;
+        } else {
+          return { ok: false };
+        }
+      } else {
+        return { ok: false };
+      }
+    }
+    if (deg === 1 || deg === 2) {
+      let coeffNode = otherArgs.length === 0 ? Num(1) : (otherArgs.length === 1 ? otherArgs[0] : Mul(...otherArgs));
+      if (termSign === '-') coeffNode = Neg(coeffNode);
+      return { ok: true, degree: deg, coeff: coeffNode };
+    }
+    return { ok: false };
+  }
+  if (u.type === 'Div' && !collectVars(u.den).has(target)) {
+    const numRes = extractTermDegreeAndCoeff(u.num, termSign, target);
+    if (numRes.ok && numRes.degree > 0) {
+      return { ok: true, degree: numRes.degree, coeff: Div(numRes.coeff, u.den) };
+    }
+  }
+  return { ok: false };
+}
+
+export function extractQuadraticCoefficients(eq, target) {
+  if (!eq || eq.type !== 'Eq' || !target) return null;
+  const inL = collectVars(eq.left).has(target);
+  const inR = collectVars(eq.right).has(target);
+  if (!inL && !inR) return null;
+
+  const lTerms = flattenAdditiveTerms(eq.left);
+  const rTerms = flattenAdditiveTerms(eq.right);
+
+  const lHasTarget2 = lTerms.some((t) => {
+    const res = extractTermDegreeAndCoeff(t.node, t.sign, target);
+    return res.ok && res.degree === 2;
+  });
+  const rHasTarget2 = rTerms.some((t) => {
+    const res = extractTermDegreeAndCoeff(t.node, t.sign, target);
+    return res.ok && res.degree === 2;
+  });
+
+  if (!lHasTarget2 && !rHasTarget2) return null;
+
+  const quadSide = (lHasTarget2 && !rHasTarget2) ? 'left' : 'right';
+  const sameSideTerms = quadSide === 'right' ? rTerms : lTerms;
+  const otherSideTerms = quadSide === 'right' ? lTerms : rTerms;
+
+  const allTerms = [
+    ...sameSideTerms,
+    ...otherSideTerms.map((t) => ({ node: t.node, sign: t.sign === '+' ? '-' : '+' })),
+  ];
+
+  const deg2 = [];
+  const deg1 = [];
+  const deg0 = [];
+
+  for (const t of allTerms) {
+    const res = extractTermDegreeAndCoeff(t.node, t.sign, target);
+    if (!res.ok) return null;
+    if (res.degree === 2) deg2.push(res.coeff);
+    else if (res.degree === 1) deg1.push(res.coeff);
+    else deg0.push(res.coeff);
+  }
+
+  // Richiede sia termine di 2° grado sia termine di 1° grado
+  if (deg2.length === 0 || deg1.length === 0) return null;
+
+  const combineCoeffs = (list) => {
+    if (list.length === 0) return Num(0);
+    if (list.length === 1) return list[0];
+    return Add(...list);
+  };
+
+  let finalA = canonical(combineCoeffs(deg2));
+  let finalB = canonical(combineCoeffs(deg1));
+  let finalC = canonical(combineCoeffs(deg0));
+
+  const uA = unwrap(finalA);
+  const isANeg = uA.type === 'Neg' || (uA.type === 'Num' && uA.value < 0);
+  if (isANeg) {
+    finalA = canonical(Neg(finalA));
+    finalB = canonical(Neg(finalB));
+    finalC = canonical(Neg(finalC));
+  }
+
+  // Verifica se è già in forma canonica (un membro è 0 e l'altro membro ha tutti i termini di target)
+  const isRightZero = unwrap(eq.right).type === 'Num' && unwrap(eq.right).value === 0;
+  const isLeftZero = unwrap(eq.left).type === 'Num' && unwrap(eq.left).value === 0;
+  const isCanonical = (isRightZero && !collectVars(eq.right).has(target)) ||
+                      (isLeftZero && !collectVars(eq.left).has(target));
+
+  return {
+    A: finalA,
+    B: finalB,
+    C: finalC,
+    quadSide,
+    isCanonical,
+  };
+}
+
+export function isQuadraticInTarget(eq, target) {
+  return extractQuadraticCoefficients(eq, target) !== null;
+}
+
+// 12c.1) PORTARE IN FORMA CANONICA A·x² + B·x + C = 0
+export const ruleQuadraticCanonical = {
+  id: 'quadratic-canonical',
+  name: 'Porta in forma canonica A·x² + B·x + C = 0',
+  principle: 'Raccoglie tutti i termini al primo membro ordinandoli per potenze decrescenti dell\'incognita per identificare i coefficienti A, B, C.',
+  explanation: 'quadratic-canonical',
+  precondition(eq, ctx) {
+    const target = ctx && ctx.target;
+    if (!target) return { ok: false, reason: 'Nessuna variabile target specificata per l\'equazione di 2° grado.' };
+    const q = extractQuadraticCoefficients(eq, target);
+    if (!q) return { ok: false, reason: `L'equazione non è di secondo grado completa rispetto a "${target}".` };
+    return { ok: true };
+  },
+  apply(eq, ctx) {
+    const target = ctx && ctx.target;
+    if (!target) {
+      throw new RuleError('Variabile obiettivo mancante per la forma canonica.', 'Seleziona la variabile da ricavare.');
+    }
+    const q = extractQuadraticCoefficients(eq, target);
+    if (!q) {
+      throw new RuleError(
+        `L'equazione non è quadratica completa rispetto all'incognita "${target}".`,
+        'Verifica che l\'incognita compaia contemporaneamente al secondo e al primo grado.'
+      );
+    }
+    const { A, B, C } = q;
+    const term2 = (unwrap(A).type === 'Num' && unwrap(A).value === 1)
+      ? Pow(Var(target), Num(2))
+      : ((unwrap(A).type === 'Num' && unwrap(A).value === -1)
+          ? Neg(Pow(Var(target), Num(2)))
+          : Mul(A, Pow(Var(target), Num(2))));
+
+    const term1 = (unwrap(B).type === 'Num' && unwrap(B).value === 1)
+      ? Var(target)
+      : ((unwrap(B).type === 'Num' && unwrap(B).value === -1)
+          ? Neg(Var(target))
+          : Mul(B, Var(target)));
+
+    const terms = [term2, term1];
+    if (unwrap(C).type !== 'Num' || unwrap(C).value !== 0) {
+      terms.push(C);
+    }
+    const lhs = Add(...terms);
+    const newEq = Eq(lhs, Num(0));
+
+    return {
+      equation: newEq,
+      conditions: [],
+      steps: [
+        `Riconosco un'equazione di 2° grado nell'incognita ${target} (compare sia come ${target} sia come ${target}²).`,
+        `Trasporto tutti i termini al primo membro raccogliendo i coefficienti: A = ${toPretty(A, 0)}, B = ${toPretty(B, 0)}, C = ${toPretty(C, 0)}.`,
+        `Ottengo la forma canonica: ${toPretty(newEq, 0)}.`,
+      ],
+      note: 'Forma canonica: A·x² + B·x + C = 0 permette di identificare i coefficienti e applicare la formula risolutiva.',
+    };
+  },
+};
+
+// 12c.2) FORMULA RISOLUTIVA DELLE EQUAZIONI DI 2° GRADO
+export const ruleQuadraticFormula = {
+  id: 'quadratic-formula',
+  name: 'Formula risolutiva delle equazioni di 2° grado',
+  principle: 'Se A·x² + B·x + C = 0 con A ≠ 0, allora x = (−B ± √(B² − 4AC)) / (2A).',
+  explanation: 'quadratic-formula',
+  precondition(eq, ctx) {
+    const target = ctx && ctx.target;
+    if (!target) return { ok: false, reason: 'Nessuna variabile target specificata.' };
+    const q = extractQuadraticCoefficients(eq, target);
+    if (!q) return { ok: false, reason: `L'equazione non è quadratica rispetto a "${target}".` };
+    return { ok: true };
+  },
+  apply(eq, ctx) {
+    const target = ctx && ctx.target;
+    if (!target) {
+      throw new RuleError('Variabile obiettivo non definita per la formula quadratica.', 'Seleziona la variabile da ricavare.');
+    }
+    const q = extractQuadraticCoefficients(eq, target);
+    if (!q) {
+      throw new RuleError(
+        `Impossibile applicare la formula quadratica: l'equazione non è di 2° grado in "${target}".`,
+        'Assicurati che l\'equazione contenga l\'incognita al 1° e al 2° grado.'
+      );
+    }
+    const { A, B, C } = q;
+    const twoA = canonical(Mul(Num(2), A));
+    const delta = canonical(Sub(Pow(B, Num(2)), Mul(Num(4), A, C)));
+    const positiveOnly = !!(ctx && ctx.positiveOnly);
+    const num = positiveOnly
+      ? Add(Neg(B), Sqrt(delta))
+      : Add(Neg(B), Pm(), Sqrt(delta));
+    const resultExpr = (unwrap(twoA).type === 'Num' && unwrap(twoA).value === 1) ? num : Div(num, twoA);
+    const newEq = Eq(Var(target), resultExpr);
+
+    return {
+      equation: newEq,
+      conditions: [conditionText(delta, '≥ 0'), conditionText(twoA, '≠ 0')],
+      steps: [
+        `Identifico i coefficienti: A = ${toPretty(A, 0)}, B = ${toPretty(B, 0)}, C = ${toPretty(C, 0)}.`,
+        `Calcolo il discriminante: Δ = B² − 4AC = ${toPretty(delta, 0)}.`,
+        positiveOnly
+          ? `Applico la formula quadratica didattica con valore positivo (+): ${target} = (−B + √Δ) / (2A).`
+          : `Applico la formula risolutiva generale: ${target} = (−B ± √Δ) / (2A).`,
+      ],
+      note: positiveOnly
+        ? `Formula quadratica: ricavata la soluzione fisica positiva per ${target}.`
+        : `Formula quadratica: ${target} è isolata con il doppio segno ±. Per grandezze non negative (es. tempo t ≥ 0), considera il valore positivo (+).`,
     };
   },
 };
@@ -1211,7 +1486,6 @@ function removeCommonFactor(expr, common) {
 // ---------------------------------------------------------------------------
 // Testo delle condizioni
 // ---------------------------------------------------------------------------
-import { toPretty } from './ast.js';
 
 export function conditionText(node, relation) {
   return `${toPretty(unwrap(node), 0)} ${relation}`;
@@ -1244,6 +1518,8 @@ export const RULES = {
   cancelFactor: ruleCancelFactor,
   invertFunction: ruleInvertFunction,
   commonDenom: ruleCommonDenominator,
+  quadraticCanonical: ruleQuadraticCanonical,
+  quadraticFormula: ruleQuadraticFormula,
 };
 
 // ---------------------------------------------------------------------------

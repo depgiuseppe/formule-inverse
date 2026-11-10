@@ -192,9 +192,9 @@ Lo script esegue in ordine: controllo dei selettori DOM, controllo di sintassi e
 `npm run coverage` prova a isolare **ogni grandezza di ogni formula** della libreria con il motore dell'app e misura quanti casi vengono risolti automaticamente:
 
 ```
-Formule: 176   Abbinamenti formula/grandezza: 650
-Risolti automaticamente: 645   Non risolti: 5   Copertura: 99,2%
-Casi noti non risolvibili: 5   Regressioni: 0
+Formule: 225   Abbinamenti formula/grandezza: 839
+Risolti automaticamente: 835   Non risolti: 4   Copertura: 99.5%
+Casi noti non risolvibili: 4   Regressioni: 0
 ```
 
 Il comando **fallisce se un caso prima risolto smette di esserlo**, così le regressioni non passano inosservate.
@@ -203,11 +203,10 @@ Il comando **fallisce se un caso prima risolto smette di esserlo**, così le reg
 
 | Formula | Grandezza | Motivo |
 |---|---|---|
-| $s = v_0 t + \frac{1}{2} a t^2$ | $t$ | equazione di 2° grado: serve la formula risolutiva |
-| $\theta = \theta_0 + \omega_0 t + \frac{1}{2} \alpha t^2$ | $t$ | equazione di 2° grado: serve la formula risolutiva |
 | $v = -A\,\omega \sin(\omega t + \varphi)$ | $\omega$ | la grandezza compare sia fuori sia dentro la funzione seno: non è ricavabile in forma chiusa |
-| $a = g(\sin\theta - \mu\cos\theta)$ | $\theta$ | l'angolo compare in seno **e** coseno: non basta una funzione inversa |
-| $E^2 - (pc)^2 = (mc^2)^2$ | $c$ | la grandezza compare al quadrato dentro due prodotti |
+| $E^2 - (pc)^2 = (mc^2)^2$ | $c$ | la grandezza compare al quadrato dentro due prodotti: servirebbe un raccoglimento sotto potenza |
+| Gas di Van der Waals | $n$ | equazione di terzo grado in $n$: non risolvibile con passaggi lineari elementari |
+| Gas di Van der Waals | $V$ | equazione di terzo grado in $V$: non risolvibile con passaggi lineari elementari |
 
 ---
 

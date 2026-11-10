@@ -412,8 +412,16 @@ export function toPretty(node, parentPrec = 0) {
       // I termini negativi sono mostrati come sottrazione (v − v0, non v + −v0).
       const isSub = node.type === 'Sub';
       let s = '';
-      node.args.forEach((a, i) => {
+      for (let i = 0; i < node.args.length; i++) {
+        const a = node.args[i];
         const u = unwrap(a);
+        if (u.type === 'Var' && u.name === '±' && i + 1 < node.args.length) {
+          const nextNode = node.args[i + 1];
+          const nextText = toPretty(nextNode, 2);
+          s += (i === 0 ? '±' : ' ± ') + nextText;
+          i++;
+          continue;
+        }
         const isNeg = u.type === 'Neg' || (u.type === 'Num' && u.value < 0);
         const bodyNode = u.type === 'Neg' ? u.arg : (u.type === 'Num' && u.value < 0 ? Num(-u.value) : a);
         const body = toPretty(bodyNode, isNeg ? 2 : 1);
@@ -423,7 +431,7 @@ export function toPretty(node, parentPrec = 0) {
           const minus = isSub ? !isNeg : isNeg;
           s += (minus ? ' − ' : ' + ') + body;
         }
-      });
+      }
       return wrap(s, 1, parentPrec > 1);
     }
     case 'Mul': {
@@ -548,8 +556,16 @@ export function toLatex(node, parentPrec = 0) {
       // I termini negativi diventano sottrazioni: v - v_0, non v + -v_0.
       const isSub = node.type === 'Sub';
       let s = '';
-      node.args.forEach((a, i) => {
+      for (let i = 0; i < node.args.length; i++) {
+        const a = node.args[i];
         const u = unwrap(a);
+        if (u.type === 'Var' && u.name === '±' && i + 1 < node.args.length) {
+          const nextNode = node.args[i + 1];
+          const nextText = toLatex(nextNode, 2);
+          s += (i === 0 ? '\\pm ' : ' \\pm ') + nextText;
+          i++;
+          continue;
+        }
         const isNeg = u.type === 'Neg' || (u.type === 'Num' && u.value < 0);
         const bodyNode = u.type === 'Neg' ? u.arg : (u.type === 'Num' && u.value < 0 ? Num(-u.value) : a);
         const body = toLatex(bodyNode, isNeg ? 2 : 1);
@@ -559,7 +575,7 @@ export function toLatex(node, parentPrec = 0) {
           const minus = isSub ? !isNeg : isNeg;
           s += (minus ? ' - ' : ' + ') + body;
         }
-      });
+      }
       return wrap(s, parentPrec > 1);
     }
     case 'Mul': {
@@ -637,25 +653,70 @@ export function unwrapNeutrals(node) {
   return u;
 }
 
-// Verifica se un nodo ha la forma ± X (o contiene il termine ± in una somma)
+// Verifica se un nodo ha la forma ± X (o contiene il termine ± in qualsiasi sotto-espressione)
 export function hasPmSign(node) {
   node = unwrap(node);
   if (!node) return false;
-  if (node.type === 'Add') {
-    return node.args.some((a) => unwrap(a).type === 'Var' && unwrap(a).name === '±');
+  if (node.type === 'Var' && node.name === '±') return true;
+  if (node.type === 'Add' || node.type === 'Sub' || node.type === 'Mul') {
+    return node.args.some(hasPmSign);
+  }
+  if (node.type === 'Div') {
+    return hasPmSign(node.num) || hasPmSign(node.den);
+  }
+  if (node.type === 'Pow') {
+    return hasPmSign(node.base) || hasPmSign(node.exp);
+  }
+  if (node.type === 'Sqrt' || node.type === 'Neg' || node.type === 'Group') {
+    return hasPmSign(node.arg);
+  }
+  if (node.type === 'Eq') {
+    return hasPmSign(node.left) || hasPmSign(node.right);
   }
   return false;
 }
 
-// Rimuove il segno ± se presente (ritorna X da ± X, oppure il nodo originale)
+// Rimuove il segno ± se presente (ritorna X da ± X, oppure pulisce ricorsivamente il nodo)
 export function stripPm(node) {
   node = unwrap(node);
   if (!node) return node;
-  if (hasPmSign(node)) {
-    const nonPm = node.args.filter((a) => !(unwrap(a).type === 'Var' && unwrap(a).name === '±'));
+  if (node.type === 'Var' && node.name === '±') return Num(0);
+  if (node.type === 'Add') {
+    const nonPm = node.args
+      .filter((a) => !(unwrap(a).type === 'Var' && unwrap(a).name === '±'))
+      .map(stripPm);
     if (nonPm.length === 0) return Num(0);
     if (nonPm.length === 1) return unwrap(nonPm[0]);
     return Add(...nonPm);
+  }
+  if (node.type === 'Sub') {
+    return Sub(...node.args.map(stripPm));
+  }
+  if (node.type === 'Mul') {
+    const args = node.args
+      .filter((a) => !(unwrap(a).type === 'Var' && unwrap(a).name === '±'))
+      .map(stripPm);
+    if (args.length === 0) return Num(1);
+    if (args.length === 1) return unwrap(args[0]);
+    return Mul(...args);
+  }
+  if (node.type === 'Div') {
+    return Div(stripPm(node.num), stripPm(node.den));
+  }
+  if (node.type === 'Pow') {
+    return Pow(stripPm(node.base), stripPm(node.exp));
+  }
+  if (node.type === 'Sqrt') {
+    return Sqrt(stripPm(node.arg));
+  }
+  if (node.type === 'Neg') {
+    return Neg(stripPm(node.arg));
+  }
+  if (node.type === 'Group') {
+    return Group(stripPm(node.arg));
+  }
+  if (node.type === 'Eq') {
+    return Eq(stripPm(node.left), stripPm(node.right));
   }
   return node;
 }
