@@ -683,6 +683,24 @@ async function run() {
   await page.locator('#btn-lim-mode').click();
   await page.waitForTimeout(150);
 
+  // 21b. Verifica Internazionalizzazione (i18n bilingue IT/EN)
+  const hasLangToggle = await page.locator('#btn-lang-toggle').count();
+  check('Pulsante toggle lingua (#btn-lang-toggle) presente nella toolbar', hasLangToggle === 1);
+  const initialBtnText = await page.locator('#btn-lang-toggle').innerText();
+  check('Etichetta iniziale del pulsante lingua contiene EN o IT', /EN|IT/i.test(initialBtnText));
+
+  // Toggle in EN
+  await page.locator('#btn-lang-toggle').click();
+  await page.waitForTimeout(200);
+  const titleAfterEn = await page.locator('[data-i18n="app.title"]').innerText();
+  check('Cambio lingua in EN aggiorna il titolo dell app in inglese', /Inverse Formula Lab/i.test(titleAfterEn));
+
+  // Toggle di ritorno in IT
+  await page.locator('#btn-lang-toggle').click();
+  await page.waitForTimeout(200);
+  const titleAfterIt = await page.locator('[data-i18n="app.title"]').innerText();
+  check('Ritorno a lingua IT ripristina il titolo in italiano', /Laboratorio di Formule Inverse/i.test(titleAfterIt));
+
   // 22. Verifica completa contrasti WCAG AAA su pulsanti, target e pannelli
   await page.locator('#btn-contrast').click();
   await page.waitForTimeout(250);

@@ -37,6 +37,9 @@ import {
   announceMathLive, speakMath, stopSpeaking,
 } from './a11y.js';
 import { initQuizManager } from './quiz.js';
+import {
+  t, getLanguage, setLanguage, onLanguageChange, translateDomTree,
+} from './i18n.js';
 
 // Moduli UI specializzati estratti dall'architettura modulare
 import {
@@ -170,6 +173,7 @@ const dom = {
   btnContrast: $('#btn-contrast'),
   btnTheme: $('#btn-theme'),
   btnLimMode: $('#btn-lim-mode'),
+  btnLangToggle: $('#btn-lang-toggle'),
   btnSpeakEquation: $('#btn-speak-equation'),
   mathLiveVerbalizer: $('#math-live-verbalizer'),
   mathLiveAlert: $('#math-live-alert'),
@@ -344,6 +348,7 @@ const appContext = {
 // ---------------------------------------------------------------------------
 function init() {
   initTheme();
+  initI18n();
   populateTopics();
   renderLibrary();
   bindLibraryEvents();
@@ -1843,6 +1848,13 @@ function bindGlobalEvents() {
     });
   }
 
+  if (dom.btnLangToggle) {
+    dom.btnLangToggle.addEventListener('click', () => {
+      const nextLang = getLanguage() === 'it' ? 'en' : 'it';
+      setLanguage(nextLang);
+    });
+  }
+
   if (dom.btnSpeakEquation) {
     dom.btnSpeakEquation.addEventListener('click', () => {
       if (!state.currentEq) {
@@ -1914,6 +1926,31 @@ function initTheme() {
       if (dom.btnTheme) dom.btnTheme.textContent = '☀️ Modalità chiara';
     }
   } catch (e) {}
+}
+
+function initI18n() {
+  const currentLang = getLanguage();
+  if (dom.btnLangToggle) {
+    dom.btnLangToggle.textContent = currentLang === 'it' ? '🌐 EN' : '🌐 IT';
+    dom.btnLangToggle.setAttribute('aria-label', currentLang === 'it' ? 'Passa alla lingua inglese' : 'Switch to Italian');
+    dom.btnLangToggle.title = currentLang === 'it' ? 'Passa alla lingua inglese' : 'Switch to Italian';
+  }
+  translateDomTree();
+
+  onLanguageChange((lang) => {
+    translateDomTree();
+    if (dom.btnLangToggle) {
+      dom.btnLangToggle.textContent = lang === 'it' ? '🌐 EN' : '🌐 IT';
+      dom.btnLangToggle.setAttribute('aria-label', lang === 'it' ? 'Passa alla lingua inglese' : 'Switch to Italian');
+      dom.btnLangToggle.title = lang === 'it' ? 'Passa alla lingua inglese' : 'Switch to Italian';
+    }
+    populateTopics();
+    renderLibrary();
+    if (state.targetVar && dom.targetDisplay) {
+      dom.targetDisplay.textContent = t('objective.isolate', { var: prettyVar(state.targetVar) });
+    }
+    announceMathLive(lang === 'it' ? 'Lingua impostata su Italiano' : 'Language set to English');
+  });
 }
 
 function escapeHtml(s) {

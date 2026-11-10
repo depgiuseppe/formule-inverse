@@ -819,9 +819,9 @@
     a = Math.abs(a);
     b = Math.abs(b);
     while (b) {
-      const t = a % b;
+      const t2 = a % b;
       a = b;
-      b = t;
+      b = t2;
     }
     return a || 1;
   }
@@ -1434,8 +1434,8 @@
       this.expect("=");
       const right = this.parseExpr();
       if (!this.atEnd()) {
-        const t = this.peek();
-        throw new ParseError(`Elemento inatteso dopo l'equazione: "${t.v}"`);
+        const t2 = this.peek();
+        throw new ParseError(`Elemento inatteso dopo l'equazione: "${t2.v}"`);
       }
       return Eq(left, right);
     }
@@ -1704,9 +1704,9 @@
     a = Math.abs(a);
     b = Math.abs(b);
     while (b) {
-      const t = a % b;
+      const t2 = a % b;
       a = b;
-      b = t;
+      b = t2;
     }
     return a || 1;
   }
@@ -1852,55 +1852,55 @@
       res.push(...firstTerms);
       for (let i = 1; i < u.args.length; i++) {
         const subTerms = getAdditiveTerms(u.args[i]);
-        for (const t of subTerms) {
-          res.push({ sign: -t.sign, node: t.node });
+        for (const t2 of subTerms) {
+          res.push({ sign: -t2.sign, node: t2.node });
         }
       }
       return res;
     }
     if (u.type === "Neg") {
       const inner = getAdditiveTerms(u.arg);
-      return inner.map((t) => ({ sign: -t.sign, node: t.node }));
+      return inner.map((t2) => ({ sign: -t2.sign, node: t2.node }));
     }
     return [{ sign: 1, node: u }];
   }
   function reduceAdditiveTermsToCommonDenominator(node) {
     const rawTerms = getAdditiveTerms(node);
     if (rawTerms.length === 0) return node;
-    const terms = rawTerms.map((t) => {
-      const reducedNode = reduceToSingleFraction(t.node);
+    const terms = rawTerms.map((t2) => {
+      const reducedNode = reduceToSingleFraction(t2.node);
       const frac = termAsFraction(reducedNode);
       return {
-        sign: t.sign * frac.sign,
+        sign: t2.sign * frac.sign,
         num: frac.num,
         den: frac.den,
         hasDen: frac.hasDen
       };
     });
-    const anyFraction = terms.some((t) => t.hasDen);
+    const anyFraction = terms.some((t2) => t2.hasDen);
     if (!anyFraction) {
       if (terms.length === 1) {
         const single = terms[0];
         return single.sign < 0 ? canonical(Neg(single.num)) : canonical(single.num);
       }
-      const pos = terms.filter((t) => t.sign > 0).map((t) => t.num);
-      const neg = terms.filter((t) => t.sign < 0).map((t) => t.num);
+      const pos = terms.filter((t2) => t2.sign > 0).map((t2) => t2.num);
+      const neg = terms.filter((t2) => t2.sign < 0).map((t2) => t2.num);
       if (neg.length === 0) return canonical(Add(...pos));
       if (pos.length === 0) return canonical(Neg(neg.length === 1 ? neg[0] : Add(...neg)));
       const pNode = pos.length === 1 ? pos[0] : Add(...pos);
       const nNode = neg.length === 1 ? neg[0] : Add(...neg);
       return canonical(Sub(pNode, nNode));
     }
-    const decList = terms.map((t) => decomposeDenominator(t.den));
+    const decList = terms.map((t2) => decomposeDenominator(t2.den));
     const { totalCoeff, maxPowers, lcmNode } = computeLcmDenominator(decList);
     const posTerms = [];
     const negTerms = [];
     for (let i = 0; i < terms.length; i++) {
-      const t = terms[i];
+      const t2 = terms[i];
       const dec = decList[i];
       const q = computeQuotient(totalCoeff, maxPowers, dec);
-      const newNum = canonical(multiplyNumerator(t.num, q));
-      if (t.sign > 0) {
+      const newNum = canonical(multiplyNumerator(t2.num, q));
+      if (t2.sign > 0) {
         posTerms.push(newNum);
       } else {
         negTerms.push(newNum);
@@ -1980,8 +1980,8 @@
     const u = unwrap(node);
     if (u.type === "Add" || u.type === "Sub") {
       const terms = getAdditiveTerms(u);
-      if (terms.some((t) => termAsFraction(t.node).hasDen)) return true;
-      return terms.some((t) => canReduceToSingleFraction(t.node));
+      if (terms.some((t2) => termAsFraction(t2.node).hasDen)) return true;
+      return terms.some((t2) => canReduceToSingleFraction(t2.node));
     }
     if (u.type === "Div") {
       const fNum = termAsFraction(u.num);
@@ -2009,8 +2009,8 @@
     if (u.type === "Div") {
       const denU = unwrap(u.den);
       const numU = unwrap(u.num);
-      const denHasSumFrac = (denU.type === "Add" || denU.type === "Sub") && getAdditiveTerms(denU).some((t) => termAsFraction(t.node).hasDen);
-      const numHasSumFrac = (numU.type === "Add" || numU.type === "Sub") && getAdditiveTerms(numU).some((t) => termAsFraction(t.node).hasDen);
+      const denHasSumFrac = (denU.type === "Add" || denU.type === "Sub") && getAdditiveTerms(denU).some((t2) => termAsFraction(t2.node).hasDen);
+      const numHasSumFrac = (numU.type === "Add" || numU.type === "Sub") && getAdditiveTerms(numU).some((t2) => termAsFraction(t2.node).hasDen);
       if (denHasSumFrac || numHasSumFrac) {
         const newNum = numHasSumFrac ? reduceAdditiveTermsToCommonDenominator(numU) : u.num;
         const newDen = denHasSumFrac ? reduceAdditiveTermsToCommonDenominator(denU) : u.den;
@@ -2164,7 +2164,7 @@
       const from = side === "left" ? eq.left : eq.right;
       const to = side === "left" ? eq.right : eq.left;
       const fromTerms = additiveTerms(from);
-      const idx = fromTerms.findIndex((t) => equivalentExpr(t.node, unwrap(term)));
+      const idx = fromTerms.findIndex((t2) => equivalentExpr(t2.node, unwrap(term)));
       if (idx < 0) {
         throw new RuleError("Il termine selezionato non \xE8 un additivo di quel membro.");
       }
@@ -2302,9 +2302,9 @@
     }
     if (node.type === "Add" || node.type === "Sub") {
       const terms = additiveTerms(node);
-      const flipped = terms.map((t) => ({
-        sign: t.sign === "-" ? "+" : "-",
-        node: t.node
+      const flipped = terms.map((t2) => ({
+        sign: t2.sign === "-" ? "+" : "-",
+        node: t2.node
       }));
       return canonical(rebuildSum(flipped));
     }
@@ -2524,12 +2524,12 @@
     if (!inL && !inR) return null;
     const lTerms = flattenAdditiveTerms(eq.left);
     const rTerms = flattenAdditiveTerms(eq.right);
-    const lHasTarget2 = lTerms.some((t) => {
-      const res = extractTermDegreeAndCoeff(t.node, t.sign, target);
+    const lHasTarget2 = lTerms.some((t2) => {
+      const res = extractTermDegreeAndCoeff(t2.node, t2.sign, target);
       return res.ok && res.degree === 2;
     });
-    const rHasTarget2 = rTerms.some((t) => {
-      const res = extractTermDegreeAndCoeff(t.node, t.sign, target);
+    const rHasTarget2 = rTerms.some((t2) => {
+      const res = extractTermDegreeAndCoeff(t2.node, t2.sign, target);
       return res.ok && res.degree === 2;
     });
     if (!lHasTarget2 && !rHasTarget2) return null;
@@ -2538,13 +2538,13 @@
     const otherSideTerms = quadSide === "right" ? lTerms : rTerms;
     const allTerms = [
       ...sameSideTerms,
-      ...otherSideTerms.map((t) => ({ node: t.node, sign: t.sign === "+" ? "-" : "+" }))
+      ...otherSideTerms.map((t2) => ({ node: t2.node, sign: t2.sign === "+" ? "-" : "+" }))
     ];
     const deg2 = [];
     const deg1 = [];
     const deg0 = [];
-    for (const t of allTerms) {
-      const res = extractTermDegreeAndCoeff(t.node, t.sign, target);
+    for (const t2 of allTerms) {
+      const res = extractTermDegreeAndCoeff(t2.node, t2.sign, target);
       if (!res.ok) return null;
       if (res.degree === 2) deg2.push(res.coeff);
       else if (res.degree === 1) deg1.push(res.coeff);
@@ -2970,8 +2970,8 @@
     return null;
   }
   function rebuildSum(terms) {
-    const positive = terms.filter((t) => t.sign === "+").map((t) => t.node);
-    const negative = terms.filter((t) => t.sign === "-").map((t) => t.node);
+    const positive = terms.filter((t2) => t2.sign === "+").map((t2) => t2.node);
+    const negative = terms.filter((t2) => t2.sign === "-").map((t2) => t2.node);
     let node;
     if (positive.length === 0) {
       node = Num(0);
@@ -2989,9 +2989,9 @@
     a = Math.abs(a);
     b = Math.abs(b);
     while (b) {
-      const t = a % b;
+      const t2 = a % b;
       a = b;
-      b = t;
+      b = t2;
     }
     return a || 1;
   }
@@ -3104,10 +3104,10 @@
         const others = args.filter((_, i) => i !== idx);
         const factor = others.length === 0 ? Num(1) : productOf(others);
         if (target.type === "Add") {
-          return Add(...target.args.map((t) => distribute(Mul(factor, t))));
+          return Add(...target.args.map((t2) => distribute(Mul(factor, t2))));
         } else {
           const first = distribute(Mul(factor, target.args[0]));
-          const rest = target.args.slice(1).map((t) => distribute(Mul(factor, t)));
+          const rest = target.args.slice(1).map((t2) => distribute(Mul(factor, t2)));
           return Sub(first, ...rest);
         }
       }
@@ -3168,10 +3168,10 @@
     if (node.type !== "Add" && node.type !== "Sub") return null;
     const terms = additiveTerms(node);
     const others = [];
-    for (const t of terms) {
-      const f = removeCommonFactor(t.node, common);
+    for (const t2 of terms) {
+      const f = removeCommonFactor(t2.node, common);
       if (!f) return null;
-      others.push({ node: f, sign: t.sign });
+      others.push({ node: f, sign: t2.sign });
     }
     const inner = rebuildSum(others);
     return Mul(common, Group(inner));
@@ -3440,9 +3440,9 @@
         return;
       }
     }
-    const targetTerms = terms.filter((t) => collectVars(t.node).has(target));
-    for (const t of targetTerms) {
-      extract(t.node);
+    const targetTerms = terms.filter((t2) => collectVars(t2.node).has(target));
+    for (const t2 of targetTerms) {
+      extract(t2.node);
     }
     for (const cand of candidates) {
       if (factorOut(member, cand)) return cand;
@@ -3911,7 +3911,7 @@
     const side = whichSideHas(eq, target);
     if (side === "both") {
       const rightTerms = additiveTerms(eq.right);
-      const targetTermOnRight = rightTerms.find((t) => collectVars(t.node).has(target));
+      const targetTermOnRight = rightTerms.find((t2) => collectVars(t2.node).has(target));
       if (targetTermOnRight && rightTerms.length > 1) {
         const tText = toPretty(targetTermOnRight.node, 0);
         return {
@@ -3927,7 +3927,7 @@
         };
       }
       const leftTerms = additiveTerms(eq.left);
-      const strangeOnLeft = leftTerms.find((t) => !collectVars(t.node).has(target));
+      const strangeOnLeft = leftTerms.find((t2) => !collectVars(t2.node).has(target));
       if (strangeOnLeft && leftTerms.length > 1) {
         const sText = toPretty(strangeOnLeft.node, 0);
         return {
@@ -4047,7 +4047,7 @@
       };
     }
     const memberTerms = additiveTerms(member);
-    const hasStrangeTerms = memberTerms.length > 1 && memberTerms.some((t) => !collectVars(t.node).has(target));
+    const hasStrangeTerms = memberTerms.length > 1 && memberTerms.some((t2) => !collectVars(t2.node).has(target));
     if (!hasStrangeTerms && canReduceToSingleFraction(member)) {
       const sideName = side === "left" ? "primo" : "secondo";
       return {
@@ -4110,36 +4110,36 @@
           reason: `La grandezza ${target} compare in tutti i termini del membro: raccogliendola a fattor comune rester\xE0 un unico fattore da eliminare.`
         };
       }
-      const strange = terms.find((t) => !collectVars(t.node).has(target));
+      const strange = terms.find((t2) => !collectVars(t2.node).has(target));
       if (strange) {
-        const t = toPretty(strange.node, 0);
+        const t2 = toPretty(strange.node, 0);
         return {
           found: true,
           action: {
             id: "move-term",
-            label: `Porta ${t} dall'altro membro (cambio di segno)`,
-            description: `Sottrai ${t} da entrambi i membri per isolare ${target}.`,
+            label: `Porta ${t2} dall'altro membro (cambio di segno)`,
+            description: `Sottrai ${t2} da entrambi i membri per isolare ${target}.`,
             ruleKey: "moveTerm",
-            build: () => ({ term: strange.node, side, termText: t })
+            build: () => ({ term: strange.node, side, termText: t2 })
           },
-          reason: `Il termine ${t} \xE8 sommato/sottratto al termine contenente ${target}: trasportandolo dall'altra parte con il segno opposto ci si avvicina all'obiettivo.`
+          reason: `Il termine ${t2} \xE8 sommato/sottratto al termine contenente ${target}: trasportandolo dall'altra parte con il segno opposto ci si avvicina all'obiettivo.`
         };
       }
     }
     if (mU.type === "Mul") {
       const strange = mU.args.find((f) => !collectVars(unwrap(f)).has(target));
       if (strange) {
-        const t = toPretty(strange, 0);
+        const t2 = toPretty(strange, 0);
         return {
           found: true,
           action: {
             id: "move-factor",
-            label: `Dividi entrambi i membri per ${t}`,
-            description: `Isola ${target} eliminando il fattore ${t} (richiede ${t} \u2260 0).`,
+            label: `Dividi entrambi i membri per ${t2}`,
+            description: `Isola ${target} eliminando il fattore ${t2} (richiede ${t2} \u2260 0).`,
             ruleKey: "moveFactor",
-            build: () => ({ factor: unwrap(strange), side, factorText: t })
+            build: () => ({ factor: unwrap(strange), side, factorText: t2 })
           },
-          reason: `Il fattore ${t} moltiplica la grandezza ${target}: per isolarla dividi entrambi i membri per ${t} (secondo principio).`
+          reason: `Il fattore ${t2} moltiplica la grandezza ${target}: per isolarla dividi entrambi i membri per ${t2} (secondo principio).`
         };
       }
     }
@@ -4250,10 +4250,10 @@
     };
   }
   function parseOperand(text) {
-    const t = String(text || "").trim();
-    if (!t) return null;
+    const t2 = String(text || "").trim();
+    if (!t2) return null;
     try {
-      return parseExpression(t);
+      return parseExpression(t2);
     } catch {
       return null;
     }
@@ -4626,11 +4626,11 @@
     }
     return { side, segs, sign };
   }
-  function termEff(t) {
-    return t.sign === "+" ? canonical(t.node) : canonical(Neg(t.node));
+  function termEff(t2) {
+    return t2.sign === "+" ? canonical(t2.node) : canonical(Neg(t2.node));
   }
   function removeByEff(terms, eff) {
-    const idx = terms.findIndex((t) => equivalentExpr(termEff(t), eff));
+    const idx = terms.findIndex((t2) => equivalentExpr(termEff(t2), eff));
     if (idx < 0) return null;
     return terms.filter((_, k) => k !== idx);
   }
@@ -7368,7 +7368,7 @@
   function filterFormulas({ topic, search, difficulty } = {}) {
     const normSearch = normalizeText(search);
     const rawTokens = normSearch ? normSearch.split(" ").filter(Boolean) : [];
-    const filteredTokens = rawTokens.filter((t) => !STOP_WORDS.has(t));
+    const filteredTokens = rawTokens.filter((t2) => !STOP_WORDS.has(t2));
     const searchTokens = filteredTokens.length > 0 ? filteredTokens : rawTokens;
     const matchesFormula = (f) => {
       if (difficulty && String(f.difficulty) !== String(difficulty)) return false;
@@ -8912,7 +8912,7 @@
   }
   function moveAdditiveTermByDrag(fromExpr, toExpr, targetVarName) {
     const terms = additiveTerms(fromExpr);
-    const idx = terms.findIndex((t) => isMatch(t.node, targetVarName));
+    const idx = terms.findIndex((t2) => isMatch(t2.node, targetVarName));
     if (idx < 0) return null;
     const matched = terms[idx];
     const remaining = terms.filter((_, i) => i !== idx);
@@ -11633,16 +11633,16 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       } catch {
         continue;
       }
-      for (const t of f.isolate) {
-        if (isGoalReached(eq, t)) {
+      for (const t2 of f.isolate) {
+        if (isGoalReached(eq, t2)) {
           continue;
         }
-        const diff = classifyFormulaDifficulty(f.formula, t);
+        const diff = classifyFormulaDifficulty(f.formula, t2);
         if (!diff.solvable || diff.steps === 0) continue;
         if (level === "all" || diff.level === level) {
           candidates.push({
             formulaEntry: f,
-            targetVar: t,
+            targetVar: t2,
             optimalSteps: diff.steps,
             level: diff.level
           });
@@ -12002,10 +12002,10 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     let selectedTopic = "";
     if (dom6.quizTopicSelect) {
       dom6.quizTopicSelect.innerHTML = '<option value="">Tutti gli argomenti</option>';
-      TOPICS.forEach((t) => {
+      TOPICS.forEach((t2) => {
         const opt = document.createElement("option");
-        opt.value = t;
-        opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+        opt.value = t2;
+        opt.textContent = t2.charAt(0).toUpperCase() + t2.slice(1);
         dom6.quizTopicSelect.appendChild(opt);
       });
       dom6.quizTopicSelect.addEventListener("change", () => {
@@ -12349,6 +12349,830 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       closeCompletionModal,
       getActiveExercise: () => activeQuizExercise
     };
+  }
+
+  // js/i18n.js
+  var SUPPORTED_LANGUAGES = ["it", "en"];
+  var DEFAULT_LANGUAGE = "it";
+  var STORAGE_KEY2 = "afi_language";
+  var DICTIONARY = {
+    it: {
+      app: {
+        title: "Laboratorio di Formule Inverse",
+        subtitle: "Impara a ricavare le formule inverse applicando i principi di equivalenza in modo rigoroso e interattivo",
+        brand: "\u26A1 Fisica & Matematica"
+      },
+      header: {
+        quiz_dashboard: "\u{1F3C6} Quiz & Badge",
+        quiz_dashboard_title: "Apri Dashboard Quiz e Badge di Maestria",
+        install_pwa: "\u{1F4F2} Installa App",
+        install_pwa_title: "Installa l'applicazione sul tuo dispositivo Android",
+        theme_dark: "\u{1F319} Modalit\xE0 scura",
+        theme_light: "\u2600\uFE0F Modalit\xE0 chiara",
+        theme_aria: "Cambia tema chiaro/scuro",
+        contrast: "Alto contrasto",
+        lim_mode: "\u{1F58A}\uFE0F Modalit\xE0 LIM",
+        lim_mode_title: "Modalit\xE0 Lavagna Interattiva (LIM): calibrazione stilo e tocco ad alta precisione",
+        help: "Guida rapida",
+        lang_toggle_label: "Lingua: Italiano (clicca per passare all'inglese)",
+        lang_toggle_title: "Passa a Inglese / Switch to English (IT/EN)"
+      },
+      library: {
+        heading: "A. Libreria delle formule",
+        count_single: "{n} formula",
+        count_plural: "{n} formule",
+        search_label: "Cerca",
+        search_placeholder: "es. stevino, archimede, suono, doppler, ohm...",
+        search_aria: "Cerca formula",
+        topic_label: "Argomento",
+        topic_aria: "Filtra per argomento",
+        all_topics: "Tutti gli argomenti",
+        diff_label: "Difficolt\xE0",
+        diff_aria: "Filtra per difficolt\xE0",
+        diff_all: "Tutti i livelli",
+        diff_1: "\u2605\u2606\u2606\u2606\u2606 Livello 1 (Base)",
+        diff_2: "\u2605\u2605\u2606\u2606\u2606 Livello 2 (Medio)",
+        diff_3: "\u2605\u2605\u2605\u2606\u2606 Livello 3 (Intermedio)",
+        diff_4: "\u2605\u2605\u2605\u2605\u2606 Livello 4 (Avanzato)",
+        diff_5: "\u2605\u2605\u2605\u2605\u2605 Livello 5 (Esperto)",
+        random_btn: "\u{1F3B2} Esercizio casuale",
+        custom_toggle: "\u2795 Inserisci formula personalizzata",
+        custom_label: "Formula (sintassi: v = s/t)",
+        custom_placeholder: "es. F = m*a oppure E = m*c^2",
+        custom_load: "Carica formula",
+        latex_toggle: "\u{1F4D0} Inserisci formula in codice LaTeX",
+        latex_label: "Codice LaTeX (sintassi: v = \\frac{s}{t})",
+        latex_placeholder: "es. F = G \\frac{m_1 m_2}{r^2} oppure E = m c^2",
+        latex_preview: "Anteprima conversione",
+        latex_save: "Salva nell'archivio",
+        my_formulas_toggle: "\u{1F4C2} Le mie formule salvate",
+        export_json: "Esporta JSON",
+        import_json: "Importa JSON",
+        clear_archive: "Svuota archivio",
+        no_results: "Nessuna formula corrisponde ai filtri impostati.",
+        formula_card_target: "Incognite:"
+      },
+      topics: {
+        "cinematica": "Cinematica",
+        "dinamica": "Dinamica",
+        "lavoro, energia e potenza": "Lavoro, energia e potenza",
+        "quantit\xE0 di moto e urti": "Quantit\xE0 di moto e urti",
+        "corpo rigido e gravitazione": "Corpo rigido e gravitazione",
+        "pressione e fluidostatica": "Pressione e fluidostatica",
+        "idrodinamica": "Idrodinamica",
+        "termologia": "Termologia",
+        "termodinamica": "Termodinamica",
+        "onde e acustica": "Onde e acustica",
+        "elettricit\xE0": "Elettricit\xE0",
+        "elettrostatica": "Elettrostatica",
+        "magnetostatica": "Magnetostatica",
+        "circuiti elettrici": "Circuiti elettrici",
+        "elettromagnetismo": "Elettromagnetismo",
+        "ottica": "Ottica",
+        "relativit\xE0": "Relativit\xE0",
+        "fisica moderna": "Fisica moderna",
+        "astrofisica": "Astrofisica",
+        "chimica": "Chimica",
+        "geometria": "Geometria",
+        "proporzionalit\xE0": "Proporzionalit\xE0",
+        "algebra": "Algebra"
+      },
+      workarea: {
+        heading: "B. Area di lavoro",
+        retry_btn: "\u21BA Ricomincia",
+        retry_title: "Ricomincia questo esercizio dall'inizio (ripristina la formula di partenza)",
+        mode_free: "Libera",
+        mode_free_title: "Modalit\xE0 Libera: interagisci liberamente con l'equazione, trascina variabili o applica operazioni",
+        mode_auto: "Automatica",
+        mode_auto_title: "Modalit\xE0 Automatica: a ogni clic del mouse il programma esegue una operazione giustificando la regola",
+        speak_btn: "\u{1F50A} Ascolta formula",
+        speak_title: "Ascolta lettura vocale della formula (per studenti DSA e non vedenti)",
+        mirror_btn: "\u{1FA9E} Regola dello specchio",
+        mirror_title: "Regola dello specchio: scambia i due membri dell'equazione (A = B \u2194 B = A)",
+        reciprocal_btn: "\u{1F501} Regola dei reciproci",
+        reciprocal_title: "Regola dei reciproci: scambia numeratore e denominatore di entrambi i membri (A/B = C/D \u2194 B/A = D/C)",
+        distribute_btn: "\u{1F4E6} Sviluppa parentesi",
+        distribute_title: "Propriet\xE0 distributiva: sviluppa i prodotti con parentesi, potenze di frazioni o radici",
+        factor_common_btn: "\u{1F9E9} Raccoglimento a fattori",
+        factor_common_title: "Regola del raccoglimento a fattor comune: ax + ab = a(x + b)",
+        common_denom_btn: "\u{1F9EE} m.c.m. frazioni",
+        common_denom_title: "Minimo comune multiplo: riduce somme di frazioni a un'unica frazione algebrica",
+        change_sign_btn: "\xB1 Cambio segno",
+        change_sign_title: "Cambio di segno: moltiplica entrambi i membri per \u22121",
+        positive_branch_btn: "\u2705 Valore positivo (+)",
+        positive_branch_title: "Grandezze non negative: scarta il ramo negativo (\xB1x \u2192 +x) per grandezze fisiche scalari",
+        cross_cancel_btn: "\u2715 Croce di semplificazione",
+        cross_cancel_title: "Semplificazione incrociata: cancella fattori identici tra numeratore e denominatore",
+        hint_btn: "\u{1F4A1} Suggerimento",
+        hint_title: "Suggerisci la mossa migliore",
+        export_worksheet_btn: "\u{1F4DD} Esporta Scheda",
+        export_worksheet_title: "Esporta scheda didattica stampabile o verifica LaTeX per la classe",
+        bubble_ok: "Ho capito! \u{1F44D}",
+        bubble_close: "Chiudi fumetto",
+        copy_latex_inline: "Copia codice LaTeX",
+        empty_placeholder: "Carica una formula dalla libreria o inserisci una formula personalizzata per iniziare."
+      },
+      objective: {
+        prompt: "Scegli la grandezza da ricavare:",
+        isolate: "Isola {var} applicando i principi di equivalenza.",
+        target_is: "Obiettivo: isolare {var}",
+        completed_title: "\u{1F389} Ottimo Lavoro!",
+        completed_msg: "Hai isolato correttamente {var} applicando i principi di equivalenza in modo rigoroso.",
+        retry_btn: "\u21BA Riprova",
+        next_btn: "\u{1F3B2} Altro esercizio"
+      },
+      keypad: {
+        title: "Tastierino delle operazioni",
+        placeholder: "Carica una formula per usare il tastierino.",
+        select_op_first: "Prima scegli un'operazione nel tastierino, poi la grandezza o il numero.",
+        no_change: "Questa operazione non cambia l'equazione: prova un'altra trasformazione.",
+        apply_both: "Applica {op} a entrambi i membri",
+        op_add: "Somma la stessa grandezza o numero a entrambi i membri",
+        op_sub: "Sottrai la stessa grandezza o numero a entrambi i membri",
+        op_mul: "Moltiplica entrambi i membri per la stessa grandezza o numero",
+        op_div: "Dividi entrambi i membri per la stessa grandezza o numero (\u2260 0)",
+        op_pow: "Eleva entrambi i membri alla stessa potenza",
+        op_sqrt: "Estrai la radice quadrata di entrambi i membri",
+        op_cbrt: "Estrazione della radice cubica di entrambi i membri",
+        op_asin: "Applica l'arcoseno (sin\u207B\xB9) a entrambi i membri per liberare l'argomento del seno",
+        op_acos: "Applica l'arcocoseno (cos\u207B\xB9) a entrambi i membri per liberare l'argomento del coseno",
+        op_atan: "Applica l'arcotangente (tan\u207B\xB9) a entrambi i membri per liberare l'argomento della tangente"
+      },
+      rules: {
+        heading: "C. Regola applicata",
+        placeholder: "Interagisci con l'equazione o usa il tastierino: qui comparir\xE0 la giustificazione teorica della regola applicata.",
+        panel_rule: "Regola",
+        panel_before: "Prima",
+        panel_operation: "Operazione",
+        panel_after: "Dopo",
+        panel_explanation: "Spiegazione",
+        panel_principle: "Principio di equivalenza",
+        panel_why: "Perch\xE9 \xE8 corretto",
+        panel_conditions: "Condizioni di validit\xE0",
+        panel_no_conditions: "nessuna condizione particolare",
+        applied_transformation: "Trasformazione applicata"
+      },
+      history: {
+        heading: "D. Cronologia passaggi",
+        copy_text: "\u{1F4CB} Copia testo",
+        copy_text_title: "Copia passaggi negli appunti",
+        copy_latex: "\u{1F4D0} Copia LaTeX",
+        copy_latex_title: "Copia passaggi formattati per LaTeX",
+        undo: "\u21B6 Annulla",
+        undo_title: "Annulla ultima trasformazione",
+        redo: "\u21B7 Ripristina",
+        redo_title: "Ripristina trasformazione annullata",
+        reset: "\u21BA Ricomincia",
+        initial_step: "Equazione di partenza",
+        empty: "Nessun passaggio eseguito."
+      },
+      calc: {
+        title: "Calcolo numerico",
+        subtitle: "Sostituisci i valori noti con le loro unit\xE0 di misura per calcolare il valore numerico dell'incognita ricavata",
+        target_label: "Grandezza incognita ricavata",
+        knowns_label: "Inserisci i valori noti (unit\xE0 SI)",
+        sample_btn: "\u{1F3B2} Dati di esempio",
+        sample_title: "Carica dati realistici di prova",
+        reset_btn: "\u21BA Resetta",
+        reset_title: "Pulisci tutti i valori",
+        calc_btn: "Calcola",
+        copy_result: "\u{1F4CB} Copia risultato",
+        copy_result_title: "Copia risultato negli appunti",
+        placeholder: "Inserisci i valori sopra e premi Calcola."
+      },
+      quiz: {
+        hud_title: "Modalit\xE0 Quiz",
+        new_btn: "\u{1F3B2} Nuovo Esercizio",
+        new_title: "Genera un nuovo esercizio casuale per il livello selezionato",
+        badges_btn: "\u{1F3C6} Badge & Statistiche",
+        badges_title: "Visualizza statistiche, progressi e badge di maestria",
+        level_easy: "\u{1F7E2} Base",
+        level_medium: "\u{1F7E1} Intermedio",
+        level_hard: "\u{1F534} Avanzato",
+        level_all: "\u{1F3B2} Casuale",
+        stat_solved: "Risolti",
+        stat_streak: "Serie Attuale",
+        stat_accuracy: "Precisione",
+        stat_best_streak: "Serie Migliore",
+        stat_avg_eff: "Efficienza Media",
+        completion_title: "Ottimo Lavoro!",
+        completion_retry: "\u21BA Riprova Esercizio",
+        completion_stats: "\u{1F3C6} Badge & Progressi",
+        completion_board: "\u{1F441}\uFE0F Vedi Lavagna",
+        completion_next: "Prossimo Esercizio \u2794",
+        dashboard_title: "\u{1F3C6} Dashboard Eserciziario & Badge di Maestria",
+        current_rank: "Grado Attuale",
+        xp_label: "Punti Esperienza (XP)",
+        next_rank_at: "Prossimo grado a",
+        badges_section: "\u{1F396}\uFE0F Distintivi di Maestria",
+        history_section: "\u{1F4DC} Ultimi Esercizi Completati",
+        reset_progress: "\u{1F5D1}\uFE0F Azzera progressi",
+        continue_btn: "Continua ad allenarti",
+        history_empty: "Nessun esercizio completato finora.",
+        badges_unlocked: "{unlocked} / {total} Sbloccati",
+        ranks: {
+          1: "Apprendista dei Principi",
+          2: "Risolutore Diligente",
+          3: "Architetto Algebrico",
+          4: "Maestro delle Inverse",
+          5: "Gran Maestro STEM"
+        },
+        badges: {
+          first_win: {
+            title: "Primo Traguardo",
+            desc: "Completa con successo il tuo primo esercizio in modalit\xE0 Quiz."
+          },
+          optimal_sniper: {
+            title: "Cecchino Algebrico",
+            desc: "Risolvi un esercizio con efficienza 100% (mosse ottimali)."
+          },
+          flawless: {
+            title: "Mente Rigorosa",
+            desc: "Risolvi un esercizio senza commettere nessun errore di principio."
+          },
+          easy_trio: {
+            title: "Basi d'Acciaio",
+            desc: "Completa 3 esercizi di livello Base."
+          },
+          medium_trio: {
+            title: "Architetto delle Formule",
+            desc: "Completa 3 esercizi di livello Intermedio."
+          },
+          hard_master: {
+            title: "Campione delle Inverse",
+            desc: "Completa 2 esercizi di livello Avanzato."
+          },
+          triple_three_stars: {
+            title: "Caccia alle Tre Stelle",
+            desc: "Ottieni 3 stelle (punteggio perfetto) in almeno 3 esercizi."
+          },
+          streak_3: {
+            title: "Inarrestabile (x3)",
+            desc: "Raggiungi una serie di 3 esercizi completati consecutivamente."
+          },
+          streak_5: {
+            title: "Dominio Totale (x5)",
+            desc: "Raggiungi una serie di 5 esercizi completati consecutivamente."
+          },
+          speed_demon: {
+            title: "Risolutore Rapido",
+            desc: "Risolvi un esercizio in meno di 25 secondi con almeno 2 stelle."
+          },
+          polymath: {
+            title: "Mente Poliedrica",
+            desc: "Risolvi almeno un esercizio in 3 argomenti diversi."
+          },
+          xp_centurion: {
+            title: "Centurione dei Punti",
+            desc: "Accumula almeno 100 XP totali nella modalit\xE0 Quiz."
+          }
+        }
+      },
+      worksheet: {
+        modal_title: "\u{1F4DD} Esportatore Schede Didattiche e Verifiche",
+        close_modal: "\u2715",
+        close_modal_aria: "Chiudi finestra",
+        config_title: "Configurazione Scheda",
+        title_label: "Titolo Scheda / Verifica",
+        title_placeholder: "es. Verifica di Fisica \u2014 Formule Inverse",
+        school_label: "Istituto Scolastico / Classe",
+        school_placeholder: "es. Liceo Scientifico \u2014 Classe 3\xAAB",
+        date_label: "Data",
+        num_exercises: "Numero di Esercizi",
+        layout_label: "Griglia / Colonne",
+        layout_single: "Colonna Singola (pi\xF9 spazio di lavoro)",
+        layout_double: "Doppia Colonna (compatta)",
+        topic_label: "Argomento prevalente",
+        diff_label: "Livello di difficolt\xE0",
+        diff_mixed: "Misto (Base + Medio + Avanzato)",
+        diff_easy: "Livello 1-2 (Base)",
+        diff_medium: "Livello 3 (Intermedio)",
+        diff_hard: "Livello 4-5 (Avanzato/Esperto)",
+        include_hints: "Includi suggerimento teorico / principio",
+        include_solutions: "Genera Foglio Soluzioni per il docente",
+        btn_regenerate: "\u{1F504} Rigenera Esercizi",
+        tab_preview_html: "\u{1F441}\uFE0F Anteprima Stampa",
+        tab_preview_latex: "\u{1F4D0} Codice LaTeX",
+        btn_print: "\u{1F5A8}\uFE0F Stampa / Salva PDF",
+        btn_print_title: "Apri anteprima di stampa per stampare su carta o salvare come PDF",
+        btn_download_latex: "\u{1F4C4} Scarica LaTeX (.tex)",
+        btn_download_latex_title: "Scarica sorgente .tex compilabile per Overleaf o MiKTeX",
+        btn_copy_latex: "\u{1F4CB} Copia LaTeX",
+        btn_copy_latex_title: "Copia il codice LaTeX negli appunti",
+        btn_download_html: "\u{1F310} Scarica HTML",
+        btn_download_html_title: "Scarica la scheda in formato HTML autonomo offline",
+        btn_close: "Chiudi"
+      },
+      a11y: {
+        eq_label_prefix: "Equazione:",
+        eq_role_desc: "equazione matematica interattiva",
+        token_role_desc: "termine matematico trascinabile",
+        no_active_eq: "Nessuna equazione attiva",
+        equals: "uguale a",
+        plus: "pi\xF9",
+        minus: "meno",
+        times: "per",
+        divided_by: "fratto",
+        squared: "al quadrato",
+        cubed: "al cubo",
+        square_root_of: "radice quadrata di {arg}",
+        cube_root_of: "radice cubica di {arg}",
+        raised_to: "elevato a {exp}",
+        raised_to_power: "elevato alla {exp}",
+        sine_of: "seno di {arg}",
+        cosine_of: "coseno di {arg}",
+        tangent_of: "tangente di {arg}",
+        arcsine_of: "arcoseno di {arg}",
+        arccosine_of: "arcocoseno di {arg}",
+        arctangent_of: "arcotangente di {arg}",
+        logarithm_of: "logaritmo naturale di {arg}",
+        exponential_of: "esponenziale di {arg}",
+        quantity: "quantit\xE0 {arg}",
+        fraction_compound: "frazione con numeratore {num}, fratto denominatore {den}",
+        one_half: "un mezzo",
+        one_third: "un terzo",
+        one_fourth: "un quarto",
+        two_thirds: "due terzi",
+        three_fourths: "tre quarti",
+        plus_minus: "pi\xF9 o meno"
+      },
+      modals: {
+        help_title: "Guida rapida",
+        pick_target_title: "\u{1F3AF} Scegli la grandezza da ricavare",
+        pick_target_btn: "ricava {var}",
+        cancel: "Annulla",
+        close: "Chiudi"
+      },
+      nav: {
+        formula: "Formula",
+        library: "Libreria",
+        steps: "Passaggi",
+        calc: "Calcolo",
+        aria: "Navigazione rapida sezioni mobile"
+      }
+    },
+    en: {
+      app: {
+        title: "Inverse Formula Lab",
+        subtitle: "Learn to derive inverse formulas by applying equivalence principles rigorously and interactively",
+        brand: "\u26A1 Physics & Mathematics"
+      },
+      header: {
+        quiz_dashboard: "\u{1F3C6} Quiz & Badges",
+        quiz_dashboard_title: "Open Quiz Dashboard and Mastery Badges",
+        install_pwa: "\u{1F4F2} Install App",
+        install_pwa_title: "Install the application on your Android device",
+        theme_dark: "\u{1F319} Dark mode",
+        theme_light: "\u2600\uFE0F Light mode",
+        theme_aria: "Toggle dark/light theme",
+        contrast: "High contrast",
+        lim_mode: "\u{1F58A}\uFE0F Whiteboard Mode",
+        lim_mode_title: "Interactive Whiteboard Mode: high-precision stylus & touch calibration",
+        help: "Quick guide",
+        lang_toggle_label: "Language: English (click to switch to Italian)",
+        lang_toggle_title: "Switch to Italian / Passa a Italiano (IT/EN)"
+      },
+      library: {
+        heading: "A. Formula Library",
+        count_single: "{n} formula",
+        count_plural: "{n} formulas",
+        search_label: "Search",
+        search_placeholder: "e.g. stevino, archimedes, sound, doppler, ohm...",
+        search_aria: "Search formula",
+        topic_label: "Topic",
+        topic_aria: "Filter by topic",
+        all_topics: "All topics",
+        diff_label: "Difficulty",
+        diff_aria: "Filter by difficulty",
+        diff_all: "All levels",
+        diff_1: "\u2605\u2606\u2606\u2606\u2606 Level 1 (Basic)",
+        diff_2: "\u2605\u2605\u2606\u2606\u2606 Level 2 (Medium)",
+        diff_3: "\u2605\u2605\u2605\u2606\u2606 Level 3 (Intermediate)",
+        diff_4: "\u2605\u2605\u2605\u2605\u2606 Level 4 (Advanced)",
+        diff_5: "\u2605\u2605\u2605\u2605\u2605 Level 5 (Expert)",
+        random_btn: "\u{1F3B2} Random exercise",
+        custom_toggle: "\u2795 Enter custom formula",
+        custom_label: "Formula (syntax: v = s/t)",
+        custom_placeholder: "e.g. F = m*a or E = m*c^2",
+        custom_load: "Load formula",
+        latex_toggle: "\u{1F4D0} Enter formula in LaTeX code",
+        latex_label: "LaTeX code (syntax: v = \\frac{s}{t})",
+        latex_placeholder: "e.g. F = G \\frac{m_1 m_2}{r^2} or E = m c^2",
+        latex_preview: "Preview conversion",
+        latex_save: "Save to archive",
+        my_formulas_toggle: "\u{1F4C2} My saved formulas",
+        export_json: "Export JSON",
+        import_json: "Import JSON",
+        clear_archive: "Clear archive",
+        no_results: "No formulas match the selected filters.",
+        formula_card_target: "Variables:"
+      },
+      topics: {
+        "cinematica": "Kinematics",
+        "dinamica": "Dynamics",
+        "lavoro, energia e potenza": "Work, Energy & Power",
+        "quantit\xE0 di moto e urti": "Momentum & Collisions",
+        "corpo rigido e gravitazione": "Rigid Body & Gravitation",
+        "pressione e fluidostatica": "Pressure & Fluid Statics",
+        "idrodinamica": "Hydrodynamics",
+        "termologia": "Heat & Temperature",
+        "termodinamica": "Thermodynamics",
+        "onde e acustica": "Waves & Acoustics",
+        "elettricit\xE0": "Electricity",
+        "elettrostatica": "Electrostatics",
+        "magnetostatica": "Magnetostatics",
+        "circuiti elettrici": "Electric Circuits",
+        "elettromagnetismo": "Electromagnetism",
+        "ottica": "Optics",
+        "relativit\xE0": "Relativity",
+        "fisica moderna": "Modern Physics",
+        "astrofisica": "Astrophysics",
+        "chimica": "Chemistry",
+        "geometria": "Geometry",
+        "proporzionalit\xE0": "Proportionality",
+        "algebra": "Algebra"
+      },
+      workarea: {
+        heading: "B. Work Area",
+        retry_btn: "\u21BA Restart",
+        retry_title: "Restart this exercise from the beginning (restore initial formula)",
+        mode_free: "Free",
+        mode_free_title: "Free Mode: interact freely with the equation, drag variables or apply operations",
+        mode_auto: "Auto",
+        mode_auto_title: "Auto Mode: on each click the program performs a step and explains the rule",
+        speak_btn: "\u{1F50A} Listen to formula",
+        speak_title: "Listen to spoken equation (for dyslexia & visually impaired students)",
+        mirror_btn: "\u{1FA9E} Mirror rule",
+        mirror_title: "Mirror rule: swap both sides of the equation (A = B \u2194 B = A)",
+        reciprocal_btn: "\u{1F501} Reciprocals rule",
+        reciprocal_title: "Reciprocals rule: invert numerator and denominator on both sides (A/B = C/D \u2194 B/A = D/C)",
+        distribute_btn: "\u{1F4E6} Expand parentheses",
+        distribute_title: "Distributive property: expand products with parentheses, powers of fractions or roots",
+        factor_common_btn: "\u{1F9E9} Factor out common term",
+        factor_common_title: "Factoring rule: ax + ab = a(x + b)",
+        common_denom_btn: "\u{1F9EE} Common denominator",
+        common_denom_title: "Least common denominator: reduces fraction sums to a single algebraic fraction",
+        change_sign_btn: "\xB1 Change sign",
+        change_sign_title: "Change sign: multiply both sides by \u22121",
+        positive_branch_btn: "\u2705 Positive value (+)",
+        positive_branch_title: "Non-negative quantities: discard negative branch (\xB1x \u2192 +x) for scalar physical quantities",
+        cross_cancel_btn: "\u2715 Cross cancellation",
+        cross_cancel_title: "Cross cancellation: cancel identical factors between numerator and denominator",
+        hint_btn: "\u{1F4A1} Hint",
+        hint_title: "Suggest the best next move",
+        export_worksheet_btn: "\u{1F4DD} Export Worksheet",
+        export_worksheet_title: "Export printable worksheet or LaTeX test for the class",
+        bubble_ok: "Got it! \u{1F44D}",
+        bubble_close: "Close tip",
+        copy_latex_inline: "Copy LaTeX code",
+        empty_placeholder: "Load a formula from the library or enter a custom formula to begin."
+      },
+      objective: {
+        prompt: "Choose the variable to isolate:",
+        isolate: "Isolate {var} by applying equivalence principles.",
+        target_is: "Target: isolate {var}",
+        completed_title: "\u{1F389} Great Job!",
+        completed_msg: "You have successfully isolated {var} by applying equivalence principles rigorously.",
+        retry_btn: "\u21BA Try again",
+        next_btn: "\u{1F3B2} Next exercise"
+      },
+      keypad: {
+        title: "Operations Keypad",
+        placeholder: "Load a formula to use the keypad.",
+        select_op_first: "First choose an operation on the keypad, then the quantity or number.",
+        no_change: "This operation does not change the equation: try another transformation.",
+        apply_both: "Apply {op} to both sides",
+        op_add: "Add the same quantity or number to both sides",
+        op_sub: "Subtract the same quantity or number from both sides",
+        op_mul: "Multiply both sides by the same quantity or number",
+        op_div: "Divide both sides by the same quantity or number (\u2260 0)",
+        op_pow: "Raise both sides to the same power",
+        op_sqrt: "Take the square root of both sides",
+        op_cbrt: "Take the cube root of both sides",
+        op_asin: "Apply arcsine (sin\u207B\xB9) to both sides to isolate the sine argument",
+        op_acos: "Apply arccosine (cos\u207B\xB9) to both sides to isolate the cosine argument",
+        op_atan: "Apply arctangent (tan\u207B\xB9) to both sides to isolate the tangent argument"
+      },
+      rules: {
+        heading: "C. Applied Rule",
+        placeholder: "Interact with the equation or use the keypad: theoretical justification of the applied rule will appear here.",
+        panel_rule: "Rule",
+        panel_before: "Before",
+        panel_operation: "Operation",
+        panel_after: "After",
+        panel_explanation: "Explanation",
+        panel_principle: "Equivalence principle",
+        panel_why: "Why it is correct",
+        panel_conditions: "Validity conditions",
+        panel_no_conditions: "no special conditions",
+        applied_transformation: "Applied transformation"
+      },
+      history: {
+        heading: "D. Step History",
+        copy_text: "\u{1F4CB} Copy text",
+        copy_text_title: "Copy steps to clipboard",
+        copy_latex: "\u{1F4D0} Copy LaTeX",
+        copy_latex_title: "Copy steps formatted for LaTeX",
+        undo: "\u21B6 Undo",
+        undo_title: "Undo last transformation",
+        redo: "\u21B7 Redo",
+        redo_title: "Redo last transformation",
+        reset: "\u21BA Restart",
+        initial_step: "Initial equation",
+        empty: "No steps taken yet."
+      },
+      calc: {
+        title: "Numerical Calculation",
+        subtitle: "Substitute known values with units of measurement to calculate the numeric value of the isolated variable",
+        target_label: "Derived unknown quantity",
+        knowns_label: "Enter known values (SI units)",
+        sample_btn: "\u{1F3B2} Sample data",
+        sample_title: "Load realistic sample data",
+        reset_btn: "\u21BA Reset",
+        reset_title: "Clear all values",
+        calc_btn: "Calculate",
+        copy_result: "\u{1F4CB} Copy result",
+        copy_result_title: "Copy result to clipboard",
+        placeholder: "Enter values above and press Calculate."
+      },
+      quiz: {
+        hud_title: "Quiz Mode",
+        new_btn: "\u{1F3B2} New Exercise",
+        new_title: "Generate a new random exercise for the selected level",
+        badges_btn: "\u{1F3C6} Badges & Stats",
+        badges_title: "View statistics, progress and mastery badges",
+        level_easy: "\u{1F7E2} Basic",
+        level_medium: "\u{1F7E1} Intermediate",
+        level_hard: "\u{1F534} Advanced",
+        level_all: "\u{1F3B2} Random",
+        stat_solved: "Solved",
+        stat_streak: "Current Streak",
+        stat_accuracy: "Accuracy",
+        stat_best_streak: "Best Streak",
+        stat_avg_eff: "Avg Efficiency",
+        completion_title: "Great Job!",
+        completion_retry: "\u21BA Retry Exercise",
+        completion_stats: "\u{1F3C6} Badges & Progress",
+        completion_board: "\u{1F441}\uFE0F View Board",
+        completion_next: "Next Exercise \u2794",
+        dashboard_title: "\u{1F3C6} Quiz Dashboard & Mastery Badges",
+        current_rank: "Current Rank",
+        xp_label: "Experience Points (XP)",
+        next_rank_at: "Next rank at",
+        badges_section: "\u{1F396}\uFE0F Mastery Badges",
+        history_section: "\u{1F4DC} Recently Completed Exercises",
+        reset_progress: "\u{1F5D1}\uFE0F Reset progress",
+        continue_btn: "Keep practicing",
+        history_empty: "No exercises completed so far.",
+        badges_unlocked: "{unlocked} / {total} Unlocked",
+        ranks: {
+          1: "Principle Apprentice",
+          2: "Diligent Solver",
+          3: "Algebraic Architect",
+          4: "Master of Inverses",
+          5: "STEM Grandmaster"
+        },
+        badges: {
+          first_win: {
+            title: "First Milestone",
+            desc: "Successfully complete your first exercise in Quiz mode."
+          },
+          optimal_sniper: {
+            title: "Algebraic Sniper",
+            desc: "Solve an exercise with 100% efficiency (optimal moves)."
+          },
+          flawless: {
+            title: "Rigorous Mind",
+            desc: "Solve an exercise without committing any principle error."
+          },
+          easy_trio: {
+            title: "Iron Foundations",
+            desc: "Complete 3 Basic-level exercises."
+          },
+          medium_trio: {
+            title: "Formula Architect",
+            desc: "Complete 3 Intermediate-level exercises."
+          },
+          hard_master: {
+            title: "Champion of Inverses",
+            desc: "Complete 2 Advanced-level exercises."
+          },
+          triple_three_stars: {
+            title: "Three-Star Hunt",
+            desc: "Earn 3 stars (perfect score) in at least 3 exercises."
+          },
+          streak_3: {
+            title: "Unstoppable (x3)",
+            desc: "Achieve a streak of 3 consecutively completed exercises."
+          },
+          streak_5: {
+            title: "Total Dominance (x5)",
+            desc: "Achieve a streak of 5 consecutively completed exercises."
+          },
+          speed_demon: {
+            title: "Speed Solver",
+            desc: "Solve an exercise in under 25 seconds with at least 2 stars."
+          },
+          polymath: {
+            title: "Polymath Mind",
+            desc: "Solve at least one exercise across 3 different topics."
+          },
+          xp_centurion: {
+            title: "XP Centurion",
+            desc: "Accumulate at least 100 total XP in Quiz mode."
+          }
+        }
+      },
+      worksheet: {
+        modal_title: "\u{1F4DD} Worksheet & Test Exporter",
+        close_modal: "\u2715",
+        close_modal_aria: "Close dialog",
+        config_title: "Worksheet Configuration",
+        title_label: "Worksheet / Test Title",
+        title_placeholder: "e.g. Physics Test \u2014 Inverse Formulas",
+        school_label: "School / Class",
+        school_placeholder: "e.g. High School \u2014 Grade 11",
+        date_label: "Date",
+        num_exercises: "Number of Exercises",
+        layout_label: "Grid / Columns",
+        layout_single: "Single Column (more work space)",
+        layout_double: "Two Columns (compact)",
+        topic_label: "Primary Topic",
+        diff_label: "Difficulty Level",
+        diff_mixed: "Mixed (Basic + Medium + Advanced)",
+        diff_easy: "Level 1-2 (Basic)",
+        diff_medium: "Level 3 (Intermediate)",
+        diff_hard: "Level 4-5 (Advanced/Expert)",
+        include_hints: "Include theoretical hint / principle",
+        include_solutions: "Generate Teacher Answer Key",
+        btn_regenerate: "\u{1F504} Regenerate Exercises",
+        tab_preview_html: "\u{1F441}\uFE0F Print Preview",
+        tab_preview_latex: "\u{1F4D0} LaTeX Code",
+        btn_print: "\u{1F5A8}\uFE0F Print / Save PDF",
+        btn_print_title: "Open print preview to print on paper or save as PDF",
+        btn_download_latex: "\u{1F4C4} Download LaTeX (.tex)",
+        btn_download_latex_title: "Download compilable .tex source for Overleaf or MiKTeX",
+        btn_copy_latex: "\u{1F4CB} Copy LaTeX",
+        btn_copy_latex_title: "Copy LaTeX source to clipboard",
+        btn_download_html: "\u{1F310} Download HTML",
+        btn_download_html_title: "Download standalone offline HTML worksheet",
+        btn_close: "Close"
+      },
+      a11y: {
+        eq_label_prefix: "Equation:",
+        eq_role_desc: "interactive math equation",
+        token_role_desc: "draggable math token",
+        no_active_eq: "No active equation",
+        equals: "equals",
+        plus: "plus",
+        minus: "minus",
+        times: "times",
+        divided_by: "divided by",
+        squared: "squared",
+        cubed: "cubed",
+        square_root_of: "square root of {arg}",
+        cube_root_of: "cube root of {arg}",
+        raised_to: "raised to {exp}",
+        raised_to_power: "raised to the power of {exp}",
+        sine_of: "sine of {arg}",
+        cosine_of: "cosine of {arg}",
+        tangent_of: "tangent of {arg}",
+        arcsine_of: "arcsine of {arg}",
+        arccosine_of: "arccosine of {arg}",
+        arctangent_of: "arctangent of {arg}",
+        logarithm_of: "natural logarithm of {arg}",
+        exponential_of: "exponential of {arg}",
+        quantity: "quantity {arg}",
+        fraction_compound: "fraction with numerator {num}, over denominator {den}",
+        one_half: "one half",
+        one_third: "one third",
+        one_fourth: "one fourth",
+        two_thirds: "two thirds",
+        three_fourths: "three fourths",
+        plus_minus: "plus or minus"
+      },
+      modals: {
+        help_title: "Quick Guide",
+        pick_target_title: "\u{1F3AF} Choose variable to isolate",
+        pick_target_btn: "isolate {var}",
+        cancel: "Cancel",
+        close: "Close"
+      },
+      nav: {
+        formula: "Formula",
+        library: "Library",
+        steps: "Steps",
+        calc: "Calc",
+        aria: "Mobile quick section navigation"
+      }
+    }
+  };
+  var activeLanguage = DEFAULT_LANGUAGE;
+  var changeListeners = /* @__PURE__ */ new Set();
+  function initStoredLanguage() {
+    if (typeof window !== "undefined" && typeof window.localStorage !== "undefined") {
+      try {
+        const saved = window.localStorage.getItem(STORAGE_KEY2);
+        if (saved && SUPPORTED_LANGUAGES.includes(saved)) {
+          activeLanguage = saved;
+          return;
+        }
+      } catch (_) {
+      }
+    }
+    activeLanguage = DEFAULT_LANGUAGE;
+  }
+  initStoredLanguage();
+  function getLanguage() {
+    return activeLanguage;
+  }
+  function setLanguage(lang) {
+    const norm = String(lang || "").toLowerCase().startsWith("en") ? "en" : "it";
+    activeLanguage = norm;
+    if (typeof window !== "undefined" && typeof window.localStorage !== "undefined") {
+      try {
+        window.localStorage.setItem(STORAGE_KEY2, norm);
+      } catch (_) {
+      }
+    }
+    if (typeof document !== "undefined" && document.documentElement) {
+      document.documentElement.lang = norm;
+    }
+    for (const listener of changeListeners) {
+      try {
+        listener(norm);
+      } catch (e) {
+        console.error("Errore listener onLanguageChange:", e);
+      }
+    }
+    return norm;
+  }
+  function onLanguageChange(listener) {
+    if (typeof listener === "function") {
+      changeListeners.add(listener);
+    }
+    return () => {
+      changeListeners.delete(listener);
+    };
+  }
+  function resolvePath(obj, path) {
+    if (!obj || typeof obj !== "object") return void 0;
+    const parts = path.split(".");
+    let cur = obj;
+    for (const part of parts) {
+      if (cur == null || typeof cur !== "object") return void 0;
+      cur = cur[part];
+    }
+    return cur;
+  }
+  function t(key, params = {}, lang = activeLanguage) {
+    const targetLang = SUPPORTED_LANGUAGES.includes(lang) ? lang : activeLanguage;
+    const currentDict = DICTIONARY[targetLang] || DICTIONARY[DEFAULT_LANGUAGE];
+    let res = resolvePath(currentDict, key);
+    if (res === void 0 && targetLang !== DEFAULT_LANGUAGE) {
+      res = resolvePath(DICTIONARY[DEFAULT_LANGUAGE], key);
+    }
+    if (res === void 0) {
+      return key;
+    }
+    if (typeof res !== "string") {
+      return res;
+    }
+    if (!params || Object.keys(params).length === 0) {
+      return res;
+    }
+    return res.replace(/\{(\w+)\}/g, (match, paramKey) => {
+      return params[paramKey] !== void 0 ? String(params[paramKey]) : match;
+    });
+  }
+  function translateDomTree(root = typeof document !== "undefined" ? document : null) {
+    if (!root || typeof root.querySelectorAll !== "function") return;
+    const textNodes = root.querySelectorAll("[data-i18n]");
+    textNodes.forEach((el) => {
+      const key = el.getAttribute("data-i18n");
+      if (!key) return;
+      const translated = t(key);
+      if (el.getAttribute("data-i18n-html") === "true") {
+        el.innerHTML = translated;
+      } else {
+        el.textContent = translated;
+      }
+    });
+    const titleNodes = root.querySelectorAll("[data-i18n-title]");
+    titleNodes.forEach((el) => {
+      const key = el.getAttribute("data-i18n-title");
+      if (key) el.title = t(key);
+    });
+    const ariaNodes = root.querySelectorAll("[data-i18n-aria]");
+    ariaNodes.forEach((el) => {
+      const key = el.getAttribute("data-i18n-aria");
+      if (key) el.setAttribute("aria-label", t(key));
+    });
+    const placeholderNodes = root.querySelectorAll("[data-i18n-placeholder]");
+    placeholderNodes.forEach((el) => {
+      const key = el.getAttribute("data-i18n-placeholder");
+      if (key) el.placeholder = t(key);
+    });
   }
 
   // js/ui-history.js
@@ -12712,32 +13536,32 @@ ${lines.join(" \\\\\n")}
       return;
     }
     const vars = collectVars(eq);
-    let t = target;
+    let t2 = target;
     let multipleSpecified = false;
-    if (t && (t.includes(",") || t.includes(";"))) {
-      const parts = t.split(/[,;\s]+/).filter(Boolean);
+    if (t2 && (t2.includes(",") || t2.includes(";"))) {
+      const parts = t2.split(/[,;\s]+/).filter(Boolean);
       const validParts = parts.filter((p) => vars.has(p) || [...vars].some((v) => v.toLowerCase() === p.toLowerCase()));
       if (validParts.length > 0) {
-        t = [...vars].find((v) => v.toLowerCase() === validParts[0].toLowerCase()) || validParts[0];
+        t2 = [...vars].find((v) => v.toLowerCase() === validParts[0].toLowerCase()) || validParts[0];
         multipleSpecified = true;
       } else {
         showCustomError(`Inserisci una sola grandezza da isolare alla volta (es. "${[...vars][0]}"). Grandezze presenti: ${[...vars].join(", ")}.`);
         return;
       }
     }
-    if (!t) {
+    if (!t2) {
       const L = unwrap(eq.left);
-      if (L.type === "Var") t = L.name;
+      if (L.type === "Var") t2 = L.name;
       else {
         showCustomError("Specifica la grandezza da isolare (una sola lettera, es. " + [...vars][0] + ").");
         return;
       }
     }
-    if (!vars.has(t)) {
-      const alt = [...vars].find((v) => v.toLowerCase() === t.toLowerCase());
-      if (alt) t = alt;
+    if (!vars.has(t2)) {
+      const alt = [...vars].find((v) => v.toLowerCase() === t2.toLowerCase());
+      if (alt) t2 = alt;
       else {
-        showCustomError(`La grandezza "${t}" non compare nella formula. Inserisci una sola grandezza presente: ${[...vars].join(", ")}.`);
+        showCustomError(`La grandezza "${t2}" non compare nella formula. Inserisci una sola grandezza presente: ${[...vars].join(", ")}.`);
         return;
       }
     }
@@ -12751,15 +13575,15 @@ ${lines.join(" \\\\\n")}
         conditions: [],
         difficulty: 3,
         notes: "Formula inserita manualmente."
-      }, t);
+      }, t2);
     }
     if (multipleSpecified) {
       if (ctx2 && ctx2.showMessage) {
-        ctx2.showMessage(`\xC8 possibile isolare una sola grandezza alla volta: impostato obiettivo su "${prettyVar(t)}". Puoi cambiare grandezza da isolare in qualsiasi momento dall'interfaccia!`, "info");
+        ctx2.showMessage(`\xC8 possibile isolare una sola grandezza alla volta: impostato obiettivo su "${prettyVar(t2)}". Puoi cambiare grandezza da isolare in qualsiasi momento dall'interfaccia!`, "info");
       }
     } else {
       if (ctx2 && ctx2.showMessage) {
-        ctx2.showMessage(`Formula personalizzata caricata. Obiettivo: isolare ${prettyVar(t)}.`, "success");
+        ctx2.showMessage(`Formula personalizzata caricata. Obiettivo: isolare ${prettyVar(t2)}.`, "success");
       }
     }
   }
@@ -13864,10 +14688,10 @@ ${lines.join(" \\\\\n")}
   function highlightLandedToken(varName, side) {
     if (!dom4.equationDisplay || !varName) return;
     const tokens = dom4.equationDisplay.querySelectorAll(`.draggable-token[data-side="${side}"]`);
-    for (const t of tokens) {
-      if (t.dataset.varName === varName || t.textContent.trim() === varName) {
-        t.classList.add("token-landing-glow");
-        setTimeout(() => t.classList.remove("token-landing-glow"), 600);
+    for (const t2 of tokens) {
+      if (t2.dataset.varName === varName || t2.textContent.trim() === varName) {
+        t2.classList.add("token-landing-glow");
+        setTimeout(() => t2.classList.remove("token-landing-glow"), 600);
         break;
       }
     }
@@ -14382,7 +15206,7 @@ ${lines.join(" \\\\\n")}
   }
   function cancelCompoundFractionAnimation() {
     if (state4 && state4.compoundAnimTimers && state4.compoundAnimTimers.length) {
-      for (const t of state4.compoundAnimTimers) clearTimeout(t);
+      for (const t2 of state4.compoundAnimTimers) clearTimeout(t2);
       state4.compoundAnimTimers = [];
     }
     if (state4) state4.isAnimatingCompoundFraction = false;
@@ -14587,6 +15411,7 @@ ${lines.join(" \\\\\n")}
     btnContrast: $("#btn-contrast"),
     btnTheme: $("#btn-theme"),
     btnLimMode: $("#btn-lim-mode"),
+    btnLangToggle: $("#btn-lang-toggle"),
     btnSpeakEquation: $("#btn-speak-equation"),
     mathLiveVerbalizer: $("#math-live-verbalizer"),
     mathLiveAlert: $("#math-live-alert"),
@@ -14753,6 +15578,7 @@ ${lines.join(" \\\\\n")}
   };
   function init() {
     initTheme();
+    initI18n();
     populateTopics();
     renderLibrary();
     bindLibraryEvents();
@@ -14876,10 +15702,10 @@ ${lines.join(" \\\\\n")}
   function populateTopics() {
     if (!dom5.libraryTopic) return;
     dom5.libraryTopic.innerHTML = '<option value="">Tutti gli argomenti</option>';
-    for (const t of TOPICS) {
+    for (const t2 of TOPICS) {
       const opt = document.createElement("option");
-      opt.value = t;
-      opt.textContent = t;
+      opt.value = t2;
+      opt.textContent = t2;
       dom5.libraryTopic.appendChild(opt);
     }
   }
@@ -15301,8 +16127,8 @@ ${lines.join(" \\\\\n")}
   var _lastAnnouncedSolvedEq = false;
   function updateObjective() {
     const f = state5.baseFormula;
-    const t = prettyVar(state5.targetVar);
-    dom5.objectiveText.textContent = f ? `ricavare ${t} \u2014 ${f.name} (${f.formula})` : `ricavare ${t}`;
+    const t2 = prettyVar(state5.targetVar);
+    dom5.objectiveText.textContent = f ? `ricavare ${t2} \u2014 ${f.name} (${f.formula})` : `ricavare ${t2}`;
     state5.goalReached = isGoalReached(state5.currentEq, state5.targetVar);
     if (state5.goalReached && state5.currentEq && state5.currentEq.type === "Eq") {
       const flipped = ensureTargetOnFirstMember(state5.currentEq, state5.targetVar);
@@ -15343,7 +16169,7 @@ ${lines.join(" \\\\\n")}
     if (dom5.completionBanner) {
       dom5.completionBanner.hidden = !isFullySolved;
       if (isFullySolved) {
-        if (dom5.completionTitle) dom5.completionTitle.textContent = `\u{1F3C6} Ottimo lavoro! Hai isolato ${t}`;
+        if (dom5.completionTitle) dom5.completionTitle.textContent = `\u{1F3C6} Ottimo lavoro! Hai isolato ${t2}`;
         if (dom5.completionSubtitle) {
           dom5.completionSubtitle.textContent = `Formula inversa ricavata con successo: ${toPretty(state5.currentEq, 0)}.`;
         }
@@ -16124,6 +16950,12 @@ ${lines.join(" \\\\\n")}
         announceMathLive(isLim ? "Modalit\xE0 Lavagna Interattiva LIM attivata: calibrazione stilo e zone di tocco estese abilitate" : "Modalit\xE0 LIM disattivata");
       });
     }
+    if (dom5.btnLangToggle) {
+      dom5.btnLangToggle.addEventListener("click", () => {
+        const nextLang = getLanguage() === "it" ? "en" : "it";
+        setLanguage(nextLang);
+      });
+    }
     if (dom5.btnSpeakEquation) {
       dom5.btnSpeakEquation.addEventListener("click", () => {
         if (!state5.currentEq) {
@@ -16205,6 +17037,29 @@ ${lines.join(" \\\\\n")}
       }
     } catch (e) {
     }
+  }
+  function initI18n() {
+    const currentLang = getLanguage();
+    if (dom5.btnLangToggle) {
+      dom5.btnLangToggle.textContent = currentLang === "it" ? "\u{1F310} EN" : "\u{1F310} IT";
+      dom5.btnLangToggle.setAttribute("aria-label", currentLang === "it" ? "Passa alla lingua inglese" : "Switch to Italian");
+      dom5.btnLangToggle.title = currentLang === "it" ? "Passa alla lingua inglese" : "Switch to Italian";
+    }
+    translateDomTree();
+    onLanguageChange((lang) => {
+      translateDomTree();
+      if (dom5.btnLangToggle) {
+        dom5.btnLangToggle.textContent = lang === "it" ? "\u{1F310} EN" : "\u{1F310} IT";
+        dom5.btnLangToggle.setAttribute("aria-label", lang === "it" ? "Passa alla lingua inglese" : "Switch to Italian");
+        dom5.btnLangToggle.title = lang === "it" ? "Passa alla lingua inglese" : "Switch to Italian";
+      }
+      populateTopics();
+      renderLibrary();
+      if (state5.targetVar && dom5.targetDisplay) {
+        dom5.targetDisplay.textContent = t("objective.isolate", { var: prettyVar(state5.targetVar) });
+      }
+      announceMathLive(lang === "it" ? "Lingua impostata su Italiano" : "Language set to English");
+    });
   }
   function escapeHtml5(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
