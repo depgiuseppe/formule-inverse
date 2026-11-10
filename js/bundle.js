@@ -15978,6 +15978,7 @@ ${lines.join(" \\\\\n")}
     btnReset: $("#btn-reset"),
     btnCopySteps: $("#btn-copy-steps"),
     btnCopyStepsLatex: $("#btn-copy-steps-latex"),
+    btnHistoryPrint: $("#btn-history-print"),
     customFormula: $("#custom-formula"),
     customTarget: $("#custom-target"),
     btnLoadCustom: $("#btn-load-custom"),
@@ -15991,6 +15992,7 @@ ${lines.join(" \\\\\n")}
     btnTheme: $("#btn-theme"),
     btnLimMode: $("#btn-lim-mode"),
     btnManimToggle: $("#btn-manim-toggle"),
+    btnHeaderWorksheet: $("#btn-header-worksheet"),
     btnLangToggle: $("#btn-lang-toggle"),
     btnSpeakEquation: $("#btn-speak-equation"),
     mathLiveVerbalizer: $("#math-live-verbalizer"),
@@ -17552,6 +17554,12 @@ ${lines.join(" \\\\\n")}
           "info"
         );
       });
+    }
+    if (dom5.btnHeaderWorksheet) {
+      dom5.btnHeaderWorksheet.addEventListener("click", () => openWorksheetModal(dom5, state5));
+    }
+    if (dom5.btnHistoryPrint) {
+      dom5.btnHistoryPrint.addEventListener("click", () => openWorksheetModal(dom5, state5));
     }
     if (dom5.btnLangToggle) {
       dom5.btnLangToggle.addEventListener("click", () => {

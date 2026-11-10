@@ -165,6 +165,7 @@ const dom = {
   btnReset: $('#btn-reset'),
   btnCopySteps: $('#btn-copy-steps'),
   btnCopyStepsLatex: $('#btn-copy-steps-latex'),
+  btnHistoryPrint: $('#btn-history-print'),
   customFormula: $('#custom-formula'),
   customTarget: $('#custom-target'),
   btnLoadCustom: $('#btn-load-custom'),
@@ -178,6 +179,7 @@ const dom = {
   btnTheme: $('#btn-theme'),
   btnLimMode: $('#btn-lim-mode'),
   btnManimToggle: $('#btn-manim-toggle'),
+  btnHeaderWorksheet: $('#btn-header-worksheet'),
   btnLangToggle: $('#btn-lang-toggle'),
   btnSpeakEquation: $('#btn-speak-equation'),
   mathLiveVerbalizer: $('#math-live-verbalizer'),
@@ -1879,6 +1881,13 @@ function bindGlobalEvents() {
         'info'
       );
     });
+  }
+
+  if (dom.btnHeaderWorksheet) {
+    dom.btnHeaderWorksheet.addEventListener('click', () => openWorksheetModal(dom, state));
+  }
+  if (dom.btnHistoryPrint) {
+    dom.btnHistoryPrint.addEventListener('click', () => openWorksheetModal(dom, state));
   }
 
   if (dom.btnLangToggle) {

@@ -4333,6 +4333,17 @@ body {
   .worksheet-config-grid {
     grid-template-columns: 1fr;
   }
+  .worksheet-preview-column {
+    order: -1; /* Mostra Anteprima Stampa e Codice LaTeX subito in cima */
+  }
+}
+
+@media (min-width: 901px) {
+  .worksheet-preview-column {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+  }
 }
 
 .worksheet-fieldset {
