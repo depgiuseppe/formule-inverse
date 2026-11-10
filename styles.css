@@ -1419,6 +1419,49 @@ body.dark-theme .equation-display-card {
   transform: scale(1.6) rotate(18deg);
   filter: blur(4px);
 }
+
+/* ==========================================================================
+   Animazione Manim TransformMatchingTex & Spostamento Termini
+   ========================================================================== */
+.manim-ghost-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 12;
+}
+
+.manim-ghost-token {
+  pointer-events: none;
+  font-family: var(--font-math);
+  user-select: none;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+.manim-transforming {
+  will-change: transform, opacity;
+  z-index: 15 !important;
+  display: inline-block;
+  transition: box-shadow 0.25s ease, color 0.25s ease;
+}
+
+.manim-crossed-equals {
+  color: var(--primary, #3b82f6) !important;
+  text-shadow: 0 0 12px rgba(59, 130, 246, 0.7);
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.4);
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .manim-transforming {
+    animation: none !important;
+    transform: none !important;
+  }
+  .manim-ghost-token {
+    display: none !important;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .cross-ghost { transition: opacity .2s ease; }
   .cross-ghost.dissolving { transform: none; filter: none; }

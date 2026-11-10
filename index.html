@@ -35,6 +35,7 @@
     <button id="btn-theme" class="btn btn-secondary" type="button" aria-label="Cambia tema chiaro/scuro">🌙 Modalità scura</button>
     <button id="btn-contrast" class="btn btn-secondary" type="button" aria-pressed="false">Alto contrasto</button>
     <button id="btn-lim-mode" class="btn btn-secondary" type="button" aria-pressed="false" title="Modalità Lavagna Interattiva (LIM): calibrazione stilo e tocco ad alta precisione">🖊️ Modalità LIM</button>
+    <button id="btn-manim-toggle" class="btn btn-secondary" type="button" aria-pressed="true" title="Animazione didattica stile Manim (TransformMatchingTex): mostra visivamente gli spostamenti dei termini">🎬 Manim ON</button>
     <button id="btn-lang-toggle" class="btn btn-secondary" type="button" aria-label="Cambia lingua (IT/EN) / Switch language" title="Cambia lingua / Switch language">🌐 EN</button>
     <button id="btn-help" class="btn btn-secondary" type="button">Guida rapida</button>
   </div>
@@ -247,6 +248,7 @@
         <p class="cross-help" id="cross-help">Trascina la croce su un fattore al numeratore e su uno uguale al denominatore.</p>
       </div>
       <div class="cross-dissolve-layer" id="cross-dissolve-layer" aria-hidden="true"></div>
+      <div class="manim-ghost-layer" id="manim-ghost-layer" aria-hidden="true"></div>
 
       <!-- Mini-Fumetto didattico animato per diagnosi degli errori di principio -->
       <div class="didactic-bubble-anchor" id="didactic-bubble-anchor" hidden>
@@ -567,10 +569,12 @@
             <div class="preview-tabs" role="tablist">
               <button class="preview-tab-btn active" id="btn-tab-preview-html" type="button" role="tab" aria-selected="true">👁️ Anteprima Stampa</button>
               <button class="preview-tab-btn" id="btn-tab-preview-latex" type="button" role="tab" aria-selected="false">📐 Codice LaTeX</button>
+              <button class="preview-tab-btn" id="btn-tab-preview-manim" type="button" role="tab" aria-selected="false">🎬 Script Manim</button>
             </div>
             <div class="preview-tab-content">
               <div id="worksheet-html-preview" class="worksheet-html-frame"></div>
               <textarea id="worksheet-latex-code" class="worksheet-latex-area" readonly hidden spellcheck="false"></textarea>
+              <textarea id="worksheet-manim-code" class="worksheet-latex-area" readonly hidden spellcheck="false"></textarea>
             </div>
           </div>
         </div>
@@ -581,6 +585,8 @@
       <button class="btn btn-primary" id="btn-print-worksheet" type="button" title="Apri anteprima di stampa per stampare su carta o salvare come PDF">🖨️ Stampa / Salva PDF</button>
       <button class="btn btn-secondary" id="btn-download-latex" type="button" title="Scarica sorgente .tex compilabile per Overleaf o MiKTeX">📄 Scarica LaTeX (.tex)</button>
       <button class="btn btn-secondary" id="btn-copy-latex" type="button" title="Copia il codice LaTeX negli appunti">📋 Copia LaTeX</button>
+      <button class="btn btn-secondary" id="btn-copy-manim" type="button" title="Copia lo script Python per Manim Community negli appunti" hidden>🎬 Copia Script Manim</button>
+      <button class="btn btn-secondary" id="btn-download-manim" type="button" title="Scarica lo script Python .py per Manim Community" hidden>💾 Scarica Manim (.py)</button>
       <button class="btn btn-secondary" id="btn-download-html" type="button" title="Scarica la scheda in formato HTML autonomo offline">🌐 Scarica HTML</button>
       <button class="btn btn-secondary" id="btn-close-worksheet" type="button">Chiudi</button>
     </div>

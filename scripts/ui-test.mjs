@@ -790,7 +790,59 @@ async function run() {
   });
   check('Il pulsante Quiz disattiva correttamente la Modalità Quiz tornando a Libera', isQuizHudClosed);
 
-  // 24. Nessun errore in console durante le interazioni
+  // 24. Animazione Manim TransformMatchingTex & Esportatore Python
+  const manimBtnExists = await page.locator('#btn-manim-toggle').count() > 0;
+  check('Pulsante animazione Manim (#btn-manim-toggle) presente nella toolbar', manimBtnExists);
+
+  const initialManimText = await page.locator('#btn-manim-toggle').textContent();
+  check('Etichetta iniziale pulsante Manim attiva (🎬 Manim ON)', initialManimText.includes('ON'));
+
+  // Toggle disattivazione
+  await page.locator('#btn-manim-toggle').click();
+  await page.waitForTimeout(100);
+  const manimToggledOff = await page.locator('#btn-manim-toggle').textContent();
+  const manimAriaOff = await page.locator('#btn-manim-toggle').getAttribute('aria-pressed');
+  check('Click su pulsante Manim disattiva animazione (🎬 Manim OFF)', manimToggledOff.includes('OFF') && manimAriaOff === 'false');
+
+  // Toggle riattivazione
+  await page.locator('#btn-manim-toggle').click();
+  await page.waitForTimeout(100);
+  const manimToggledOn = await page.locator('#btn-manim-toggle').textContent();
+  const manimAriaOn = await page.locator('#btn-manim-toggle').getAttribute('aria-pressed');
+  check('Secondo click riattiva animazione Manim (🎬 Manim ON)', manimToggledOn.includes('ON') && manimAriaOn === 'true');
+
+  // Test tab Manim nel generatore verifiche
+  await page.locator('#btn-export-worksheet').click();
+  await page.waitForTimeout(200);
+
+  const manimTabExists = await page.locator('#btn-tab-preview-manim').count() > 0;
+  check('Tab "Script Manim" presente nella finestra modale di esportazione', manimTabExists);
+
+  await page.locator('#btn-tab-preview-manim').click();
+  await page.waitForTimeout(200);
+
+  const isManimCodeVisible = await page.evaluate(() => {
+    const code = document.getElementById('worksheet-manim-code');
+    const htmlPrev = document.getElementById('worksheet-html-preview');
+    return code && !code.hidden && htmlPrev && htmlPrev.hidden;
+  });
+  check('Selezione tab Manim mostra l\'area codice Python e nasconde l\'anteprima HTML', isManimCodeVisible);
+
+  const manimCodeText = await page.locator('#worksheet-manim-code').inputValue();
+  check('Codice Manim contiene import e TransformMatchingTex',
+    manimCodeText.includes('from manim import *') && manimCodeText.includes('TransformMatchingTex'),
+    manimCodeText.slice(0, 100));
+
+  const isManimCopyVisible = await page.evaluate(() => {
+    const btn = document.getElementById('btn-copy-manim');
+    return btn && !btn.hidden;
+  });
+  check('Pulsante "Copia Script Manim" visibile nel tab Manim', isManimCopyVisible);
+
+  await page.locator('#btn-close-worksheet').click();
+  await page.waitForTimeout(150);
+
+  // 25. Nessun errore in console durante le interazioni
   check('Nessun errore JavaScript durante le interazioni',
     consoleErrors.length === 0, consoleErrors.join(' | '));
 

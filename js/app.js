@@ -40,6 +40,9 @@ import { initQuizManager } from './quiz.js';
 import {
   t, getLanguage, setLanguage, onLanguageChange, translateDomTree,
 } from './i18n.js';
+import {
+  isManimMotionEnabled, toggleManimMotion,
+} from './manim-motion.js';
 
 // Moduli UI specializzati estratti dall'architettura modulare
 import {
@@ -132,6 +135,7 @@ const dom = {
   crossLayer: $('#cross-layer'),
   crossHandle: $('#cross-handle'),
   crossDissolveLayer: $('#cross-dissolve-layer'),
+  manimGhostLayer: $('#manim-ghost-layer'),
   equationDisplay: $('#equation-display'),
   keypadOps: $('#keypad-ops'),
   keypadOperands: $('#keypad-operands'),
@@ -173,6 +177,7 @@ const dom = {
   btnContrast: $('#btn-contrast'),
   btnTheme: $('#btn-theme'),
   btnLimMode: $('#btn-lim-mode'),
+  btnManimToggle: $('#btn-manim-toggle'),
   btnLangToggle: $('#btn-lang-toggle'),
   btnSpeakEquation: $('#btn-speak-equation'),
   mathLiveVerbalizer: $('#math-live-verbalizer'),
@@ -241,11 +246,15 @@ const dom = {
   worksheetSelectedList: $('#worksheet-selected-list'),
   btnTabPreviewHtml: $('#btn-tab-preview-html'),
   btnTabPreviewLatex: $('#btn-tab-preview-latex'),
+  btnTabPreviewManim: $('#btn-tab-preview-manim'),
   worksheetHtmlPreview: $('#worksheet-html-preview'),
   worksheetLatexCode: $('#worksheet-latex-code'),
+  worksheetManimCode: $('#worksheet-manim-code'),
   btnPrintWorksheet: $('#btn-print-worksheet'),
   btnDownloadLatex: $('#btn-download-latex'),
   btnCopyLatex: $('#btn-copy-latex'),
+  btnCopyManim: $('#btn-copy-manim'),
+  btnDownloadManim: $('#btn-download-manim'),
   btnDownloadHtml: $('#btn-download-html'),
   btnCloseWorksheet: $('#btn-close-worksheet'),
   // --- Modalità Eserciziario / Quiz Interattivo & Badge ---
@@ -1845,6 +1854,30 @@ function bindGlobalEvents() {
       dom.btnLimMode.setAttribute('aria-pressed', isLim ? 'true' : 'false');
       dom.btnLimMode.classList.toggle('active', isLim);
       announceMathLive(isLim ? 'Modalità Lavagna Interattiva LIM attivata: calibrazione stilo e zone di tocco estese abilitate' : 'Modalità LIM disattivata');
+    });
+  }
+
+  if (dom.btnManimToggle) {
+    const updateManimBtn = () => {
+      const active = isManimMotionEnabled();
+      dom.btnManimToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
+      dom.btnManimToggle.classList.toggle('active', active);
+      dom.btnManimToggle.textContent = active ? '🎬 Manim ON' : '🎬 Manim OFF';
+    };
+    updateManimBtn();
+    dom.btnManimToggle.addEventListener('click', () => {
+      toggleManimMotion();
+      updateManimBtn();
+      const active = isManimMotionEnabled();
+      announceMathLive(active
+        ? 'Animazione Manim TransformMatchingTex attivata'
+        : 'Animazione Manim disattivata');
+      showMessage(
+        active
+          ? '🎬 Animazione Manim attivata (TransformMatchingTex): gli spostamenti dei termini sono visibili.'
+          : '⏸️ Animazione Manim disattivata.',
+        'info'
+      );
     });
   }
 

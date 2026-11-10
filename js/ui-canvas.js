@@ -18,6 +18,11 @@ import {
   isolatedSide, ensureTargetOnFirstMember, isGoalReached,
 } from './algebra.js';
 import { hasCompoundFraction, getCompoundFractionSteps } from './compound-fraction.js';
+import {
+  captureEquationSnapshot,
+  animateTransformMatchingTex,
+  isManimMotionEnabled,
+} from './manim-motion.js';
 
 let dom = null;
 let state = null;
@@ -40,7 +45,7 @@ export function initCanvas(domRefs, appState, appCtx) {
 // ---------------------------------------------------------------------------
 // Rendering Area di Lavoro
 // ---------------------------------------------------------------------------
-export function renderEquationView() {
+export function renderEquationView(options = {}) {
   if (!state || !dom || !dom.equationDisplay) return;
   state.clickDragToken = null;
   dom.equationDisplay.classList.remove('is-dragging-equation', 'is-click-drag-mode');
@@ -53,12 +58,23 @@ export function renderEquationView() {
     return;
   }
 
+  // Snapshot geometrico e simbolico dei token per l'animazione Manim TransformMatchingTex
+  const enableManim = options.animate !== false && isManimMotionEnabled();
+  let oldSnapshot = null;
+  if (enableManim && dom.equationDisplay) {
+    oldSnapshot = captureEquationSnapshot(dom.equationDisplay);
+  }
+
   dom.equationDisplay.innerHTML = renderEquation(state.currentEq, {
     selectedId: state.selectedId,
     targetVar: state.targetVar,
     interactive: true,
     showImplicitDen: state.showImplicitDen,
   });
+
+  if (oldSnapshot) {
+    animateTransformMatchingTex(dom.equationDisplay, oldSnapshot, options.manimOptions);
+  }
 
   if (dom.latexLiveCode) {
     dom.latexLiveCode.textContent = toLatex(state.currentEq);

@@ -13,6 +13,7 @@ import { isGoalReached, suggestNextStep, performAction, ensureTargetOnFirstMembe
 import { renderEquation, prettyVar } from './render.js';
 import { FORMULAS } from './formulas.js';
 import { getUserFormulas } from './formula-db.js';
+import { generateManimPythonScript } from './manim-motion.js';
 
 // ---------------------------------------------------------------------------
 // 1) Helper di escaping e formattazione
@@ -1178,6 +1179,7 @@ export function downloadWorksheetFile(filename, content, mimeType = 'text/plain;
 let activeWorksheetData = [];
 let activeLatexContent = '';
 let activeHtmlContent = '';
+let activeManimContent = '';
 
 /**
  * Legge i parametri dal form del modal e rigenera l'anteprima.
@@ -1235,6 +1237,20 @@ export function refreshWorksheetPreview(dom, state) {
   activeLatexContent = generateLatexDocument(exercises, options);
   activeHtmlContent = generateHtmlWorksheet(exercises, options, true);
 
+  // Generazione script Manim Python con TransformMatchingTex
+  const manimFormula = (state && state.baseFormula) || (exercises[0] ? {
+    id: exercises[0].id,
+    name: exercises[0].name,
+    formula: exercises[0].formulaStr,
+  } : null);
+  const manimTarget = (state && state.targetVar) || (exercises[0] && exercises[0].targetVar) || 't';
+
+  if (manimFormula) {
+    activeManimContent = generateManimPythonScript(manimFormula, manimTarget, null, { lang: options.lang || 'it' });
+  } else {
+    activeManimContent = '# Nessuna formula disponibile';
+  }
+
   // Aggiorna riepilogo nel modal
   if (dom.worksheetSummaryCount) {
     dom.worksheetSummaryCount.textContent = `${exercises.length} esercizi generati`;
@@ -1266,6 +1282,11 @@ export function refreshWorksheetPreview(dom, state) {
   // Codice LaTeX
   if (dom.worksheetLatexCode) {
     dom.worksheetLatexCode.value = activeLatexContent;
+  }
+
+  // Script Manim
+  if (dom.worksheetManimCode) {
+    dom.worksheetManimCode.value = activeManimContent;
   }
 }
 
@@ -1354,21 +1375,34 @@ export function initWorksheetExporter(dom, state) {
     }
   });
 
-  // Tab di anteprima (HTML vs LaTeX)
-  if (dom.btnTabPreviewHtml && dom.btnTabPreviewLatex) {
-    dom.btnTabPreviewHtml.addEventListener('click', () => {
-      dom.btnTabPreviewHtml.classList.add('active');
-      dom.btnTabPreviewLatex.classList.remove('active');
-      if (dom.worksheetHtmlPreview) dom.worksheetHtmlPreview.hidden = false;
-      if (dom.worksheetLatexCode) dom.worksheetLatexCode.hidden = true;
-    });
+  // Tab di anteprima (HTML vs LaTeX vs Manim Python)
+  const setPreviewTab = (tab) => {
+    if (dom.btnTabPreviewHtml) dom.btnTabPreviewHtml.classList.toggle('active', tab === 'html');
+    if (dom.btnTabPreviewLatex) dom.btnTabPreviewLatex.classList.toggle('active', tab === 'latex');
+    if (dom.btnTabPreviewManim) dom.btnTabPreviewManim.classList.toggle('active', tab === 'manim');
 
-    dom.btnTabPreviewLatex.addEventListener('click', () => {
-      dom.btnTabPreviewLatex.classList.add('active');
-      dom.btnTabPreviewHtml.classList.remove('active');
-      if (dom.worksheetHtmlPreview) dom.worksheetHtmlPreview.hidden = true;
-      if (dom.worksheetLatexCode) dom.worksheetLatexCode.hidden = false;
-    });
+    if (dom.worksheetHtmlPreview) dom.worksheetHtmlPreview.hidden = (tab !== 'html');
+    if (dom.worksheetLatexCode) dom.worksheetLatexCode.hidden = (tab !== 'latex');
+    if (dom.worksheetManimCode) dom.worksheetManimCode.hidden = (tab !== 'manim');
+
+    // Mostra/nascondi i pulsanti coerenti con il tab attivo
+    const isManim = (tab === 'manim');
+    if (dom.btnCopyManim) dom.btnCopyManim.hidden = !isManim;
+    if (dom.btnDownloadManim) dom.btnDownloadManim.hidden = !isManim;
+    if (dom.btnPrintWorksheet) dom.btnPrintWorksheet.hidden = isManim;
+    if (dom.btnDownloadHtml) dom.btnDownloadHtml.hidden = isManim;
+    if (dom.btnDownloadLatex) dom.btnDownloadLatex.hidden = isManim;
+    if (dom.btnCopyLatex) dom.btnCopyLatex.hidden = isManim;
+  };
+
+  if (dom.btnTabPreviewHtml) {
+    dom.btnTabPreviewHtml.addEventListener('click', () => setPreviewTab('html'));
+  }
+  if (dom.btnTabPreviewLatex) {
+    dom.btnTabPreviewLatex.addEventListener('click', () => setPreviewTab('latex'));
+  }
+  if (dom.btnTabPreviewManim) {
+    dom.btnTabPreviewManim.addEventListener('click', () => setPreviewTab('manim'));
   }
 
   // Stampa / Salva in PDF
@@ -1405,6 +1439,27 @@ export function initWorksheetExporter(dom, state) {
           const orig = dom.btnCopyLatex.textContent;
           dom.btnCopyLatex.textContent = '✓ Codice LaTeX Copiato!';
           setTimeout(() => { dom.btnCopyLatex.textContent = orig; }, 2000);
+        });
+      }
+    });
+  }
+
+  // Scarica Script Manim (.py)
+  if (dom.btnDownloadManim) {
+    dom.btnDownloadManim.addEventListener('click', () => {
+      const filename = `animazione-manim-${Date.now()}.py`;
+      downloadWorksheetFile(filename, activeManimContent, 'text/x-python;charset=utf-8');
+    });
+  }
+
+  // Copia Script Manim
+  if (dom.btnCopyManim) {
+    dom.btnCopyManim.addEventListener('click', () => {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(activeManimContent).then(() => {
+          const orig = dom.btnCopyManim.textContent;
+          dom.btnCopyManim.textContent = '✓ Script Manim Copiato!';
+          setTimeout(() => { dom.btnCopyManim.textContent = orig; }, 2000);
         });
       }
     });
