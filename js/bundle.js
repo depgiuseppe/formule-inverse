@@ -10636,9 +10636,11 @@
         topic: entry.topic || "Fisica",
         difficulty: entry.difficulty || 2,
         formulaStr: entry.formula,
+        formula: entry.formula,
         parsedEquation: parsedEq,
         latexFormula: toLatex(parsedEq),
         targetVar,
+        target: targetVar,
         targetVarPretty: prettyVar(targetVar),
         latexTarget: prettyVar(targetVar),
         conditions: requireConditions && Array.isArray(entry.conditions) ? entry.conditions : [],
@@ -10662,13 +10664,15 @@
       spaceHeight = 4,
       solutions = "appendix",
       // 'appendix' | 'result_only' | 'none'
-      reqConditions = true
+      reqConditions = true,
+      lang = "it"
     } = options;
     const totalPoints = exercises.reduce((sum, ex) => sum + (ex.points || 2), 0);
+    const isEn = lang === "en";
     let tex = `\\documentclass[11pt,a4paper]{article}
 \\usepackage[utf8]{inputenc}
 \\usepackage[T1]{fontenc}
-\\usepackage[italian]{babel}
+\\usepackage[${isEn ? "english" : "italian"}]{babel}
 \\usepackage{amsmath,amssymb}
 \\usepackage{geometry}
 \\geometry{a4paper, top=2cm, bottom=2cm, left=2cm, right=2cm}
@@ -10681,9 +10685,9 @@
 \\fancyhf{}
 `;
     if (docType === "test") {
-      tex += `\\lhead{\\textbf{Materia:} ${escapeLatexText(subject)} \\quad \\textbf{Classe:} ${escapeLatexText(className) || "\\rule{2cm}{0.4pt}"}}
-\\rhead{\\textbf{Data:} ${escapeLatexText(date) || "\\rule{2.5cm}{0.4pt}"} \\quad \\textbf{Docente:} ${escapeLatexText(teacher) || "\\rule{2.5cm}{0.4pt}"}}
-\\cfoot{Pagina \\thepage}
+      tex += `\\lhead{\\textbf{${isEn ? "Subject:" : "Materia:"}} ${escapeLatexText(subject)} \\quad \\textbf{${isEn ? "Class:" : "Classe:"}} ${escapeLatexText(className) || "\\rule{2cm}{0.4pt}"}}
+\\rhead{\\textbf{${isEn ? "Date:" : "Data:"}} ${escapeLatexText(date) || "\\rule{2.5cm}{0.4pt}"} \\quad \\textbf{${isEn ? "Teacher:" : "Docente:"}} ${escapeLatexText(teacher) || "\\rule{2.5cm}{0.4pt}"}}
+\\cfoot{${isEn ? "Page" : "Pagina"} \\thepage}
 
 \\begin{document}
 
@@ -10692,20 +10696,20 @@
 {\\large ${escapeLatexText(school)}} \\\\[8pt]
 \\begin{tabular}{|p{7.5cm}|p{4cm}|p{4.5cm}|}
 \\hline
-\\textbf{Cognome e Nome:} & \\textbf{Data:} & \\textbf{Punteggio / Valutazione:} \\\\
+\\textbf{${isEn ? "Student Name:" : "Cognome e Nome:"}} & \\textbf{${isEn ? "Date:" : "Data:"}} & \\textbf{${isEn ? "Evaluation / Score:" : "Punteggio / Valutazione:"}} \\\\
 \\rule{0pt}{1.8em} & & \\hfill / ${totalPoints} pt \\\\
 \\hline
 \\end{tabular}
 \\end{center}
 \\vspace{0.3cm}
 
-\\noindent\\textbf{Istruzioni:} Per ciascuna delle seguenti formule, isola la grandezza indicata applicando rigorosamente i principi di equivalenza delle equazioni. Mostra tutti i passaggi intermedi ed esplicita eventuali condizioni di validit\xE0 (denominatori $\\neq 0$, radicandi $\\ge 0$).
+\\noindent\\textbf{${isEn ? "Instructions:" : "Istruzioni:"}} ${isEn ? "For each of the following formulas, isolate the indicated variable by rigorously applying equation equivalence principles. Show all intermediate steps and explicitly state any validity conditions." : "Per ciascuna delle seguenti formule, isola la grandezza indicata applicando rigorosamente i principi di equivalenza delle equazioni. Mostra tutti i passaggi intermedi ed esplicita eventuali condizioni di validit\xE0 (denominatori $\\neq 0$, radicandi $\\ge 0$)."}
 \\vspace{0.4cm}
 `;
     } else {
-      tex += `\\lhead{\\textbf{${escapeLatexText(subject)}} \\quad \\textbf{Classe:} ${escapeLatexText(className) || "\\rule{2cm}{0.4pt}"}}
-\\rhead{\\textbf{Data:} ${escapeLatexText(date) || "\\rule{2.5cm}{0.4pt}"}}
-\\cfoot{Pagina \\thepage}
+      tex += `\\lhead{\\textbf{${escapeLatexText(subject)}} \\quad \\textbf{${isEn ? "Class:" : "Classe:"}} ${escapeLatexText(className) || "\\rule{2cm}{0.4pt}"}}
+\\rhead{\\textbf{${isEn ? "Date:" : "Data:"}} ${escapeLatexText(date) || "\\rule{2.5cm}{0.4pt}"}}
+\\cfoot{${isEn ? "Page" : "Pagina"} \\thepage}
 
 \\begin{document}
 
@@ -10715,7 +10719,7 @@
 \\end{center}
 \\vspace{0.3cm}
 
-\\noindent\\textbf{Obiettivo didattico:} Ricava la grandezza richiesta per ciascuna equazione giustificando i passaggi con il primo o il secondo principio di equivalenza.
+\\noindent\\textbf{${isEn ? "Learning Objective:" : "Obiettivo didattico:"}} ${isEn ? "Derive the required variable for each equation justifying each step with equivalence principles." : "Ricava la grandezza richiesta per ciascuna equazione giustificando i passaggi con il primo o il secondo principio di equivalenza."}
 \\vspace{0.4cm}
 `;
     }
@@ -10759,11 +10763,28 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     });
     if (solutions === "appendix") {
       tex += `\\newpage
-\\fancyhead[L]{\\textbf{SOLUZIONARIO E GUIDA DOCENTE}}
+\\fancyhead[L]{\\textbf{${isEn ? "TEACHER SOLUTIONS & GRADING GUIDE" : "SOLUZIONARIO E GUIDA DOCENTE"}}}
 \\fancyhead[R]{\\textbf{${escapeLatexText(subject)}}}
-\\section*{Soluzioni e Svolgimenti Dettagliati}
-\\noindent\\textit{Guida per il docente con tutti i passaggi algebrici risolutivi e le condizioni di validit\xE0.}
+\\section*{${isEn ? "Solutions and Detailed Derivations" : "Soluzioni e Svolgimenti Dettagliati"}}
+\\noindent\\textit{${isEn ? "Teacher guide with step-by-step algebraic derivations and validity conditions." : "Guida per il docente con tutti i passaggi algebrici risolutivi e le condizioni di validit\xE0."}}
 \\bigskip
+
+\\noindent\\textbf{${isEn ? "Teacher Grading Rubric and Score Summary:" : "Griglia di Valutazione Docente e Riepilogo Punteggi:"}}
+\\begin{center}
+\\begin{tabular}{|c|p{4.5cm}|c|p{4.5cm}|c|p{2.2cm}|}
+\\hline
+\\textbf{N.} & \\textbf{${isEn ? "Formula" : "Formula"}} & \\textbf{${isEn ? "Target" : "Incognita"}} & \\textbf{${isEn ? "Solved" : "Formula Ricavata"}} & \\textbf{${isEn ? "Pts" : "Punti"}} & \\textbf{${isEn ? "Score" : "Valutazione"}} \\\\
+\\hline
+`;
+      exercises.forEach((ex) => {
+        const finalTex = ex.solution.finalLatex || ex.latexFormula;
+        tex += `${ex.index} & $${ex.latexFormula}$ & $\\mathbf{${ex.latexTarget}}$ & $\\mathbf{${finalTex}}$ & ${ex.points} pt & \\\\ \\hline
+`;
+      });
+      tex += `\\multicolumn{4}{|r|}{\\textbf{${isEn ? "Total Maximum Score:" : "Punteggio Totale Massimo:"}}} & \\textbf{${totalPoints} pt} & \\\\ \\hline
+\\end{tabular}
+\\end{center}
+\\vspace{0.4cm}
 
 `;
       exercises.forEach((ex) => {
@@ -10829,9 +10850,11 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       spaceType = "grid",
       spaceHeight = 4,
       solutions = "appendix",
-      reqConditions = true
+      reqConditions = true,
+      lang = "it"
     } = options;
     const totalPoints = exercises.reduce((sum, ex) => sum + (ex.points || 2), 0);
+    const isEn = lang === "en";
     const heightMm = Math.round((spaceHeight || 4) * 10);
     let html = "";
     if (standalone) {
@@ -11035,6 +11058,41 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     margin-bottom: 1.5rem;
   }
   .solutions-title { font-size: 1.35rem; font-weight: 800; color: #047857; }
+  .teacher-rubric-card {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .rubric-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #166534;
+    margin-bottom: 0.75rem;
+  }
+  .rubric-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    background: #ffffff;
+  }
+  .rubric-table th, .rubric-table td {
+    border: 1px solid #cbd5e1;
+    padding: 0.5rem 0.65rem;
+    text-align: left;
+  }
+  .rubric-table th {
+    background: #e2e8f0;
+    font-weight: 700;
+    color: #334155;
+  }
+  .rubric-total-row {
+    background: #f8fafc;
+    font-weight: 700;
+  }
   .solution-card {
     background: #f0fdf4;
     border: 1px solid #bbf7d0;
@@ -11245,24 +11303,24 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     </div>
 `;
     if (docType === "test") {
-      html += `    <table class="student-table" aria-label="Dati dello studente">
+      html += `    <table class="student-table" aria-label="${isEn ? "Student info" : "Dati dello studente"}">
       <tr>
-        <td style="width: 50%;"><strong>Cognome e Nome:</strong> <span class="fill-line"></span></td>
-        <td style="width: 25%;"><strong>Classe:</strong> ${escapeHtml2(className) || '<span class="fill-line" style="min-width:60px;"></span>'}</td>
-        <td style="width: 25%;"><strong>Data:</strong> ${escapeHtml2(date) || '<span class="fill-line" style="min-width:70px;"></span>'}</td>
+        <td style="width: 50%;"><strong>${isEn ? "Student Name:" : "Cognome e Nome:"}</strong> <span class="fill-line"></span></td>
+        <td style="width: 25%;"><strong>${isEn ? "Class:" : "Classe:"}</strong> ${escapeHtml2(className) || '<span class="fill-line" style="min-width:60px;"></span>'}</td>
+        <td style="width: 25%;"><strong>${isEn ? "Date:" : "Data:"}</strong> ${escapeHtml2(date) || '<span class="fill-line" style="min-width:70px;"></span>'}</td>
       </tr>
       <tr>
-        <td><strong>Docente:</strong> ${escapeHtml2(teacher) || '<span class="fill-line"></span>'}</td>
-        <td colspan="2"><strong>Punteggio:</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / <strong>${totalPoints} pt</strong> &nbsp;&nbsp;&nbsp; <strong>Voto:</strong></td>
+        <td><strong>${isEn ? "Teacher:" : "Docente:"}</strong> ${escapeHtml2(teacher) || '<span class="fill-line"></span>'}</td>
+        <td colspan="2"><strong>${isEn ? "Score:" : "Punteggio:"}</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / <strong>${totalPoints} pt</strong> &nbsp;&nbsp;&nbsp; <strong>${isEn ? "Grade:" : "Voto:"}</strong></td>
       </tr>
     </table>
 `;
     } else {
-      html += `    <table class="student-table" aria-label="Intestazione">
+      html += `    <table class="student-table" aria-label="${isEn ? "Header" : "Intestazione"}">
       <tr>
-        <td style="width: 60%;"><strong>Studente:</strong> <span class="fill-line"></span></td>
-        <td style="width: 20%;"><strong>Classe:</strong> ${escapeHtml2(className) || '<span class="fill-line" style="min-width:50px;"></span>'}</td>
-        <td style="width: 20%;"><strong>Data:</strong> ${escapeHtml2(date) || '<span class="fill-line" style="min-width:70px;"></span>'}</td>
+        <td style="width: 60%;"><strong>${isEn ? "Student:" : "Studente:"}</strong> <span class="fill-line"></span></td>
+        <td style="width: 20%;"><strong>${isEn ? "Class:" : "Classe:"}</strong> ${escapeHtml2(className) || '<span class="fill-line" style="min-width:50px;"></span>'}</td>
+        <td style="width: 20%;"><strong>${isEn ? "Date:" : "Data:"}</strong> ${escapeHtml2(date) || '<span class="fill-line" style="min-width:70px;"></span>'}</td>
       </tr>
     </table>
 `;
@@ -11270,7 +11328,7 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     html += `  </header>
 
   <div class="instructions-box">
-    <strong>Istruzioni:</strong> Per ciascuna delle seguenti formule ricava la grandezza indicata applicando i principi di equivalenza. Mostra chiaramente ogni passaggio algebrico intermedio ed esplicita le condizioni di esistenza/validit\xE0 (denominatori $\\neq 0$, radicandi $\\ge 0$).
+    <strong>${isEn ? "Instructions:" : "Istruzioni:"}</strong> ${isEn ? "For each of the following formulas, isolate the indicated variable by applying equivalence principles. Clearly show each intermediate algebraic step and explicitly state any existence/validity conditions." : "Per ciascuna delle seguenti formule ricava la grandezza indicata applicando i principi di equivalenza. Mostra chiaramente ogni passaggio algebrico intermedio ed esplicita le condizioni di esistenza/validit\xE0 (denominatori $\\neq 0$, radicandi $\\ge 0$)."}
   </div>
 
   <main class="exercises-container">
@@ -11279,16 +11337,16 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       const renderedHtml = renderEquation(ex.parsedEquation, { interactive: false });
       html += `    <article class="exercise-item">
       <div class="exercise-header">
-        <span class="exercise-num">Esercizio ${ex.index}: ${escapeHtml2(ex.name)}</span>
+        <span class="exercise-num">${isEn ? "Exercise" : "Esercizio"} ${ex.index}: ${escapeHtml2(ex.name)}</span>
         <span class="exercise-points">${ex.points} pt</span>
       </div>
       <p class="exercise-prompt">
-        Dalla formula sotto riportata, isola la grandezza: <strong class="target-badge">${escapeHtml2(ex.targetVarPretty)}</strong>
+        ${isEn ? `From the formula below, isolate the variable: <strong class="target-badge">${escapeHtml2(ex.targetVarPretty)}</strong>` : `Dalla formula sotto riportata, isola la grandezza: <strong class="target-badge">${escapeHtml2(ex.targetVarPretty)}</strong>`}
       </p>
       <div class="exercise-eq-box" aria-label="Formula">${renderedHtml}</div>
 `;
       if (reqConditions && ex.conditions && ex.conditions.length > 0) {
-        html += `      <div class="exercise-conditions">Condizioni di validit\xE0 iniziali: ${escapeHtml2(ex.conditions.join(", "))}</div>
+        html += `      <div class="exercise-conditions">${isEn ? "Initial validity conditions:" : "Condizioni di validit\xE0 iniziali:"} ${escapeHtml2(ex.conditions.join(", "))}</div>
 `;
       }
       html += `      <div class="workspace-box workspace-${spaceType}" title="Spazio per lo svolgimento"></div>
@@ -11300,8 +11358,44 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
     if (solutions === "appendix") {
       html += `  <section class="solutions-page">
     <div class="solutions-header">
-      <h2 class="solutions-title">Soluzioni e Guida alla Correzione (Docente)</h2>
-      <p style="font-size: 0.9rem; color: #475569;">Svolgimenti passaggio per passaggio con principi di equivalenza</p>
+      <h2 class="solutions-title">${isEn ? "Solutions and Teacher Grading Guide" : "Soluzioni e Guida alla Correzione (Docente)"}</h2>
+      <p style="font-size: 0.9rem; color: #475569;">${isEn ? "Step-by-step equivalence principles derivation" : "Svolgimenti passaggio per passaggio con principi di equivalenza"}</p>
+    </div>
+
+    <div class="teacher-rubric-card">
+      <h3 class="rubric-title">${isEn ? "Teacher Grading Rubric & Score Summary" : "Griglia di Valutazione e Riepilogo Punteggi"}</h3>
+      <table class="rubric-table">
+        <thead>
+          <tr>
+            <th style="width: 38px; text-align: center;">#</th>
+            <th>${isEn ? "Original Formula" : "Formula di Partenza"}</th>
+            <th style="width: 70px; text-align: center;">${isEn ? "Target" : "Incognita"}</th>
+            <th>${isEn ? "Derived Formula" : "Formula Ricavata"}</th>
+            <th style="width: 80px; text-align: center;">${isEn ? "Max Pts" : "Punti Max"}</th>
+            <th style="width: 90px; text-align: center;">${isEn ? "Score" : "Valutazione"}</th>
+          </tr>
+        </thead>
+        <tbody>
+`;
+      exercises.forEach((ex) => {
+        const prettyFinal = ex.solution.finalPretty || ex.latexTarget || "";
+        html += `          <tr>
+            <td style="text-align: center; font-weight: 700;">${ex.index}</td>
+            <td><code>${escapeHtml2(ex.formula)}</code></td>
+            <td style="text-align: center; font-weight: 700; color: #2563eb;">${escapeHtml2(ex.target)}</td>
+            <td><code>${escapeHtml2(prettyFinal)}</code></td>
+            <td style="text-align: center; font-weight: 600;">${ex.points} pt</td>
+            <td style="text-align: center; color: #94a3b8;">/ ${ex.points}</td>
+          </tr>
+`;
+      });
+      html += `          <tr class="rubric-total-row">
+            <td colspan="4" style="text-align: right; font-weight: 700;">${isEn ? "Total Maximum Score:" : "Punteggio Totale Massimo:"}</td>
+            <td style="text-align: center; font-weight: 800; color: #166534;">${totalPoints} pt</td>
+            <td style="text-align: center; font-weight: 800; color: #166534;">/ ${totalPoints}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 `;
       exercises.forEach((ex) => {
