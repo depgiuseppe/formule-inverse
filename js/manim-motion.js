@@ -432,7 +432,7 @@ function toPythonClassName(name, targetVar) {
  * Pulisce una stringa LaTeX per l'inclusione in raw string Python r"..."
  */
 function cleanLatexForManim(latex) {
-  if (!latex) return '';
+  if (!latex || typeof latex !== 'string') return '';
   return latex.trim().replace(/\r?\n/g, ' ');
 }
 
@@ -468,15 +468,19 @@ export function generateManimPythonScript(formulaEntry, targetVar, steps = null,
     let eqLatex = '';
     if (st.eq) {
       eqLatex = toLatex(st.eq);
-    } else if (st.equation) {
+    } else if (st.equation && typeof st.equation === 'object') {
+      eqLatex = toLatex(st.equation);
+    } else if (typeof st.equation === 'string') {
       eqLatex = cleanLatexForManim(st.equation);
+    } else if (typeof st.latex === 'string') {
+      eqLatex = cleanLatexForManim(st.latex);
     }
     if (eqLatex) {
-      const expl = st.explanation || (lang === 'en' ? `Step ${idx + 1}` : `Passaggio ${idx + 1}`);
+      const expl = st.explanation || st.ruleName || st.rulePrinciple || (st.steps && st.steps[0]) || (lang === 'en' ? `Step ${idx + 1}` : `Passaggio ${idx + 1}`);
       stepData.push({
         index: idx,
         latex: eqLatex,
-        explanation: expl.replace(/"/g, '\\"'),
+        explanation: String(expl).replace(/"/g, '\\"'),
       });
     }
   });

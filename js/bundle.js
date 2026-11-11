@@ -10761,7 +10761,7 @@
     return `${clean || "InverseFormula"}Per${targetClean ? targetClean.charAt(0).toUpperCase() + targetClean.slice(1) : "X"}`;
   }
   function cleanLatexForManim(latex) {
-    if (!latex) return "";
+    if (!latex || typeof latex !== "string") return "";
     return latex.trim().replace(/\r?\n/g, " ");
   }
   function generateManimPythonScript(formulaEntry, targetVar, steps = null, opts = {}) {
@@ -10779,15 +10779,19 @@
       let eqLatex = "";
       if (st.eq) {
         eqLatex = toLatex(st.eq);
-      } else if (st.equation) {
+      } else if (st.equation && typeof st.equation === "object") {
+        eqLatex = toLatex(st.equation);
+      } else if (typeof st.equation === "string") {
         eqLatex = cleanLatexForManim(st.equation);
+      } else if (typeof st.latex === "string") {
+        eqLatex = cleanLatexForManim(st.latex);
       }
       if (eqLatex) {
-        const expl = st.explanation || (lang === "en" ? `Step ${idx + 1}` : `Passaggio ${idx + 1}`);
+        const expl = st.explanation || st.ruleName || st.rulePrinciple || st.steps && st.steps[0] || (lang === "en" ? `Step ${idx + 1}` : `Passaggio ${idx + 1}`);
         stepData.push({
           index: idx,
           latex: eqLatex,
-          explanation: expl.replace(/"/g, '\\"')
+          explanation: String(expl).replace(/"/g, '\\"')
         });
       }
     });
@@ -11965,10 +11969,17 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
       dom6.worksheetManimCode.value = activeManimContent;
     }
   }
-  function openWorksheetModal(dom6, state6) {
+  function openWorksheetModal(dom6, state6, initialTab = "html") {
     if (!dom6 || !dom6.worksheetModalBackdrop) return;
     dom6.worksheetModalBackdrop.hidden = false;
     refreshWorksheetPreview(dom6, state6);
+    if (initialTab === "manim" && dom6.btnTabPreviewManim) {
+      dom6.btnTabPreviewManim.click();
+    } else if (initialTab === "latex" && dom6.btnTabPreviewLatex) {
+      dom6.btnTabPreviewLatex.click();
+    } else if (initialTab === "html" && dom6.btnTabPreviewHtml) {
+      dom6.btnTabPreviewHtml.click();
+    }
   }
   function closeWorksheetModal(dom6) {
     if (!dom6 || !dom6.worksheetModalBackdrop) return;
@@ -13024,6 +13035,11 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         hint_title: "Suggerisci la mossa migliore",
         export_worksheet_btn: "\u{1F4DD} Esporta Scheda",
         export_worksheet_title: "Esporta scheda didattica stampabile o verifica LaTeX per la classe",
+        manim_auto_option: "\u{1F3AC} Animazione Manim (TransformMatchingTex)",
+        manim_auto_play: "\u{1F3AC} Risoluzione Animata",
+        manim_auto_pause: "\u23F8\uFE0F Pausa Risoluzione",
+        manim_auto_export: "\u{1F40D} Script Manim (.py)",
+        manim_auto_view: "\u{1F3AC} Anteprima Manim",
         bubble_ok: "Ho capito! \u{1F44D}",
         bubble_close: "Chiudi fumetto",
         copy_latex_inline: "Copia codice LaTeX",
@@ -13387,6 +13403,11 @@ ricava la grandezza incognita: $\\mathbf{${ex.latexTarget}}$.
         hint_title: "Suggest the best next move",
         export_worksheet_btn: "\u{1F4DD} Export Worksheet",
         export_worksheet_title: "Export printable worksheet or LaTeX test for the class",
+        manim_auto_option: "\u{1F3AC} Manim Animation (TransformMatchingTex)",
+        manim_auto_play: "\u{1F3AC} Animated Resolution",
+        manim_auto_pause: "\u23F8\uFE0F Pause Resolution",
+        manim_auto_export: "\u{1F40D} Manim Script (.py)",
+        manim_auto_view: "\u{1F3AC} Manim Preview",
         bubble_ok: "Got it! \u{1F44D}",
         bubble_close: "Close tip",
         copy_latex_inline: "Copy LaTeX code",
@@ -15992,6 +16013,12 @@ ${lines.join(" \\\\\n")}
     btnTheme: $("#btn-theme"),
     btnLimMode: $("#btn-lim-mode"),
     btnManimToggle: $("#btn-manim-toggle"),
+    autoModeOptionsInline: $("#auto-mode-options-inline"),
+    manimAutoCheckbox: $("#manim-auto-checkbox"),
+    manimAutoCheckText: $("#manim-auto-check-text"),
+    btnAutoManimPlay: $("#btn-auto-manim-play"),
+    btnAutoManimExport: $("#btn-auto-manim-export"),
+    btnAutoManimView: $("#btn-auto-manim-view"),
     btnHeaderWorksheet: $("#btn-header-worksheet"),
     btnLangToggle: $("#btn-lang-toggle"),
     btnSpeakEquation: $("#btn-speak-equation"),
@@ -16391,6 +16418,7 @@ ${lines.join(" \\\\\n")}
     dom5.pickTargetBackdrop.hidden = false;
   }
   function loadFormula(formulaEntry, targetVar) {
+    stopAutoManimPlay(true);
     cancelCompoundFractionAnimation();
     cancelActiveSwapAnimations();
     dismissDidacticBubble();
@@ -17013,6 +17041,8 @@ ${lines.join(" \\\\\n")}
         showMessage(modeDesc[state5.mode] || "", "info");
         const card = dom5.equationDisplay ? dom5.equationDisplay.closest(".equation-display-card") : null;
         if (card) card.classList.toggle("is-auto-mode", state5.mode === "auto");
+        if (dom5.autoModeOptionsInline) dom5.autoModeOptionsInline.hidden = state5.mode !== "auto";
+        if (state5.mode !== "auto") stopAutoManimPlay(true);
         if (state5.mode === "auto") {
           showAutoMode();
         } else {
@@ -17040,6 +17070,8 @@ ${lines.join(" \\\\\n")}
             b.setAttribute("aria-pressed", isFree ? "true" : "false");
           });
           if (state5.quizManager) state5.quizManager.setQuizModeActive(false);
+          if (dom5.autoModeOptionsInline) dom5.autoModeOptionsInline.hidden = true;
+          stopAutoManimPlay(true);
           const card = dom5.equationDisplay ? dom5.equationDisplay.closest(".equation-display-card") : null;
           if (card) card.classList.remove("is-auto-mode");
           const hintBadge = document.querySelector(".drag-hint-badge");
@@ -17060,6 +17092,8 @@ ${lines.join(" \\\\\n")}
             b.setAttribute("aria-pressed", "false");
           });
           if (state5.quizManager) state5.quizManager.setQuizModeActive(true);
+          if (dom5.autoModeOptionsInline) dom5.autoModeOptionsInline.hidden = true;
+          stopAutoManimPlay(true);
           const card = dom5.equationDisplay ? dom5.equationDisplay.closest(".equation-display-card") : null;
           if (card) card.classList.remove("is-auto-mode");
           const hintBadge = document.querySelector(".drag-hint-badge");
@@ -17074,6 +17108,87 @@ ${lines.join(" \\\\\n")}
         }
       });
     }
+  }
+  var _isAutoPlaying = false;
+  var _autoPlayTimer = null;
+  function updateAutoManimPlayButton() {
+    if (!dom5.btnAutoManimPlay) return;
+    if (_isAutoPlaying) {
+      dom5.btnAutoManimPlay.classList.add("is-playing");
+      dom5.btnAutoManimPlay.textContent = t("work.manim_auto_pause", "\u23F8\uFE0F Pausa Risoluzione");
+      dom5.btnAutoManimPlay.setAttribute("title", "Metti in pausa la risoluzione automatica animata");
+    } else {
+      dom5.btnAutoManimPlay.classList.remove("is-playing");
+      dom5.btnAutoManimPlay.textContent = t("work.manim_auto_play", "\u{1F3AC} Risoluzione Animata");
+      dom5.btnAutoManimPlay.setAttribute("title", "Riproduci l'intera risoluzione automaticamente passo dopo passo con animazione Manim TransformMatchingTex");
+    }
+  }
+  function startAutoManimPlay() {
+    if (!state5.currentEq) {
+      showMessage("Seleziona prima una formula dalla libreria per avviare la risoluzione animata.", "info");
+      return;
+    }
+    if (state5.goalReached) {
+      showMessage(`\u{1F389} Formula gi\xE0 risolta! La grandezza ${prettyVar(state5.targetVar)} \xE8 gi\xE0 isolata.`, "info");
+      return;
+    }
+    if (!isManimMotionEnabled()) {
+      setManimMotionEnabled(true);
+      if (dom5.manimAutoCheckbox) dom5.manimAutoCheckbox.checked = true;
+      if (dom5.btnManimToggle) {
+        dom5.btnManimToggle.setAttribute("aria-pressed", "true");
+        dom5.btnManimToggle.classList.add("active");
+        dom5.btnManimToggle.textContent = "\u{1F3AC} Manim ON";
+      }
+    }
+    _isAutoPlaying = true;
+    updateAutoManimPlayButton();
+    announceMathLive("Avvio risoluzione automatica animata Manim");
+    showMessage("\u{1F3AC} Risoluzione animata avviata: i passaggi si susseguono mostrando gli spostamenti dei termini.", "info");
+    const runStep = () => {
+      if (!_isAutoPlaying || state5.mode !== "auto" || !state5.currentEq || state5.goalReached) {
+        stopAutoManimPlay(true);
+        return;
+      }
+      executeNextAutoStep();
+      if (state5.goalReached) {
+        stopAutoManimPlay(true);
+        return;
+      }
+      _autoPlayTimer = setTimeout(runStep, 1400);
+    };
+    _autoPlayTimer = setTimeout(runStep, 250);
+  }
+  function stopAutoManimPlay(silent = false) {
+    if (_autoPlayTimer) {
+      clearTimeout(_autoPlayTimer);
+      _autoPlayTimer = null;
+    }
+    const wasPlaying = _isAutoPlaying;
+    _isAutoPlaying = false;
+    updateAutoManimPlayButton();
+    if (wasPlaying && !silent && !state5.goalReached) {
+      showMessage("\u23F8\uFE0F Riproduzione animata in pausa. Fai clic per riprendere.", "info");
+    }
+  }
+  function exportAutoManimScript() {
+    if (!state5.currentFormula && !state5.currentEq) return;
+    const formulaObj = state5.currentFormula || {
+      id: "formula-corrente",
+      name: "Formula Matematica",
+      formula: toLatex(state5.history && state5.history[0]?.equation ? state5.history[0].equation : state5.currentEq)
+    };
+    const script = generateManimPythonScript(
+      formulaObj,
+      state5.targetVar,
+      state5.history && state5.history.length > 1 ? state5.history : null,
+      { lang: getLanguage() }
+    );
+    const safeTarget = (state5.targetVar || "incognita").replace(/[^a-zA-Z0-9_]/g, "");
+    const filename = `risoluzione_manim_${safeTarget}_${Date.now()}.py`;
+    downloadWorksheetFile(filename, script, "text/x-python;charset=utf-8");
+    showMessage("\u{1F40D} Script Manim scaricato con successo!", "success");
+    announceMathLive("Script Python per Manim scaricato");
   }
   var _isAutoStepping = false;
   function executeNextAutoStep() {
@@ -17214,6 +17329,13 @@ ${lines.join(" \\\\\n")}
     if (!state5.currentEq) return;
     const card = dom5.equationDisplay ? dom5.equationDisplay.closest(".equation-display-card") : null;
     if (card) card.classList.add("is-auto-mode");
+    if (dom5.autoModeOptionsInline) {
+      dom5.autoModeOptionsInline.hidden = false;
+    }
+    if (dom5.manimAutoCheckbox) {
+      dom5.manimAutoCheckbox.checked = isManimMotionEnabled();
+    }
+    updateAutoManimPlayButton();
     const hintBadge = document.querySelector(".drag-hint-badge");
     const hintText = document.querySelector(".drag-hint-text");
     if (hintBadge && hintText) {
@@ -17221,17 +17343,44 @@ ${lines.join(" \\\\\n")}
       hintText.innerHTML = "<strong>Fai clic ovunque con il mouse</strong> (sull'equazione o sul pulsante in basso) per eseguire il passaggio successivo!";
     }
     if (state5.goalReached) {
+      stopAutoManimPlay(true);
+      if (dom5.btnAutoManimExport) dom5.btnAutoManimExport.hidden = false;
+      if (dom5.btnAutoManimView) dom5.btnAutoManimView.hidden = false;
       if (dom5.actionHint) dom5.actionHint.textContent = "Modalit\xE0 Automatica:";
       if (dom5.actionButtons) {
         dom5.actionButtons.innerHTML = `
         <div class="auto-mode-finished">
           <div class="auto-success-header">\u{1F389} Formula isolata con successo!</div>
           <p>La grandezza <strong>${prettyVar(state5.targetVar)}</strong> \xE8 stata completamente isolata. Puoi cambiare la grandezza da isolare in alto o selezionare un'altra formula dalla libreria.</p>
+          <div class="auto-finished-actions">
+            <button class="btn btn-secondary btn-mini btn-export-manim-action" type="button" title="Scarica lo script Python per Manim Community con TransformMatchingTex">
+              \u{1F40D} Scarica Script Manim (.py)
+            </button>
+            <button class="btn btn-secondary btn-mini btn-view-manim-action" type="button" title="Visualizza lo script Manim nell'anteprima">
+              \u{1F3AC} Anteprima Script Manim
+            </button>
+          </div>
         </div>
       `;
+        const exportBtn = dom5.actionButtons.querySelector(".btn-export-manim-action");
+        if (exportBtn) {
+          exportBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            exportAutoManimScript();
+          });
+        }
+        const viewBtn = dom5.actionButtons.querySelector(".btn-view-manim-action");
+        if (viewBtn) {
+          viewBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openWorksheetModal(dom5, state5, "manim");
+          });
+        }
       }
       return;
     }
+    if (dom5.btnAutoManimExport) dom5.btnAutoManimExport.hidden = true;
+    if (dom5.btnAutoManimView) dom5.btnAutoManimView.hidden = true;
     const sug = suggestNextStep(state5.currentEq, state5.targetVar);
     const roadmap = computeRoadmap(state5.currentEq, state5.targetVar);
     if (dom5.actionHint) {
@@ -17548,11 +17697,51 @@ ${lines.join(" \\\\\n")}
         toggleManimMotion();
         updateManimBtn();
         const active = isManimMotionEnabled();
+        if (dom5.manimAutoCheckbox) dom5.manimAutoCheckbox.checked = active;
         announceMathLive(active ? "Animazione Manim TransformMatchingTex attivata" : "Animazione Manim disattivata");
         showMessage(
           active ? "\u{1F3AC} Animazione Manim attivata (TransformMatchingTex): gli spostamenti dei termini sono visibili." : "\u23F8\uFE0F Animazione Manim disattivata.",
           "info"
         );
+      });
+    }
+    if (dom5.manimAutoCheckbox) {
+      dom5.manimAutoCheckbox.checked = isManimMotionEnabled();
+      dom5.manimAutoCheckbox.addEventListener("change", (e) => {
+        const active = !!e.target.checked;
+        setManimMotionEnabled(active);
+        if (dom5.btnManimToggle) {
+          dom5.btnManimToggle.setAttribute("aria-pressed", active ? "true" : "false");
+          dom5.btnManimToggle.classList.toggle("active", active);
+          dom5.btnManimToggle.textContent = active ? "\u{1F3AC} Manim ON" : "\u{1F3AC} Manim OFF";
+        }
+        announceMathLive(active ? "Opzione animazione Manim TransformMatchingTex attivata" : "Animazione Manim disattivata");
+        showMessage(
+          active ? "\u{1F3AC} Opzione animazione Manim attivata per la risoluzione automatica." : "\u23F8\uFE0F Animazione Manim disattivata per la risoluzione automatica.",
+          "info"
+        );
+      });
+    }
+    if (dom5.btnAutoManimPlay) {
+      dom5.btnAutoManimPlay.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (_isAutoPlaying) {
+          stopAutoManimPlay();
+        } else {
+          startAutoManimPlay();
+        }
+      });
+    }
+    if (dom5.btnAutoManimExport) {
+      dom5.btnAutoManimExport.addEventListener("click", (e) => {
+        e.stopPropagation();
+        exportAutoManimScript();
+      });
+    }
+    if (dom5.btnAutoManimView) {
+      dom5.btnAutoManimView.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openWorksheetModal(dom5, state5, "manim");
       });
     }
     if (dom5.btnHeaderWorksheet) {

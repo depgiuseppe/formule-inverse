@@ -170,6 +170,15 @@
       <span class="mode-label">Modalità:</span>
       <button class="mode-btn active" data-mode="free" type="button" aria-pressed="true" title="Modalità Libera: interagisci liberamente con l'equazione, trascina variabili o applica operazioni">Libera</button>
       <button class="mode-btn" data-mode="auto" type="button" aria-pressed="false" title="Modalità Automatica: a ogni clic del mouse il programma esegue una operazione giustificando la regola">Automatica</button>
+      <div class="auto-mode-options-inline" id="auto-mode-options-inline" hidden>
+        <label class="manim-auto-check-label" for="manim-auto-checkbox" title="Attiva o disattiva l'animazione grafica Manim TransformMatchingTex durante la risoluzione automatica">
+          <input type="checkbox" id="manim-auto-checkbox" checked>
+          <span class="manim-check-text" id="manim-auto-check-text">🎬 Animazione Manim</span>
+        </label>
+        <button id="btn-auto-manim-play" class="btn-mini btn-manim-play" type="button" title="Riproduci l'intera risoluzione automaticamente passo dopo passo con animazione Manim TransformMatchingTex">🎬 Risoluzione Animata</button>
+        <button id="btn-auto-manim-export" class="btn-mini btn-manim-export" type="button" title="Scarica lo script Python per Manim Community con TransformMatchingTex" hidden>🐍 Script Manim (.py)</button>
+        <button id="btn-auto-manim-view" class="btn-mini btn-manim-view" type="button" title="Visualizza lo script Manim nell'anteprima di esportazione" hidden>👁️ Anteprima Manim</button>
+      </div>
     </div>
 
     <!-- Quiz HUD & Controls (visibile in Modalità Quiz) -->

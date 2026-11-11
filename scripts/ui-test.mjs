@@ -484,6 +484,12 @@ async function run() {
   await page.waitForTimeout(200);
   check('La modalità Automatica è attiva',
     (await page.locator('.mode-btn[data-mode="auto"]').getAttribute('aria-pressed')) === 'true');
+  check('Opzione Animazione Manim visibile nella risoluzione automatica',
+    await page.locator('#auto-mode-options-inline').isVisible());
+  check('Checkbox opzione Manim presente e selezionata di default',
+    await page.locator('#manim-auto-checkbox').isChecked());
+  check('Pulsante Riproduzione Risoluzione Animata presente',
+    await page.locator('#btn-auto-manim-play').isVisible());
 
   const eqBeforeClick = await page.locator('#equation-display').innerText();
   // Clic del mouse sull'equazione: esegue il primo passaggio
@@ -510,6 +516,8 @@ async function run() {
 
   check('Obiettivo raggiunto con i click del mouse',
     (await page.locator('#objective-status').innerText()).includes('Raggiunto'));
+  check('Pulsante Scarica Script Manim presente al completamento della risoluzione automatica',
+    (await page.locator('#btn-auto-manim-export').isVisible()) || (await page.locator('.btn-export-manim-action').isVisible()));
 
   // Test tasto "Ricomincia":
   const isRetryVisible = await page.locator('#btn-retry-exercise').isVisible();

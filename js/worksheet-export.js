@@ -1293,10 +1293,17 @@ export function refreshWorksheetPreview(dom, state) {
 /**
  * Apre la finestra modale dell'esportatore schede didattiche.
  */
-export function openWorksheetModal(dom, state) {
+export function openWorksheetModal(dom, state, initialTab = 'html') {
   if (!dom || !dom.worksheetModalBackdrop) return;
   dom.worksheetModalBackdrop.hidden = false;
   refreshWorksheetPreview(dom, state);
+  if (initialTab === 'manim' && dom.btnTabPreviewManim) {
+    dom.btnTabPreviewManim.click();
+  } else if (initialTab === 'latex' && dom.btnTabPreviewLatex) {
+    dom.btnTabPreviewLatex.click();
+  } else if (initialTab === 'html' && dom.btnTabPreviewHtml) {
+    dom.btnTabPreviewHtml.click();
+  }
 }
 
 /**

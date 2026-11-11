@@ -2,6 +2,7 @@
 // Manim TransformMatchingTex ed esportatore Python.
 
 import assert from 'assert';
+import { Eq, Var, Div, Mul } from '../js/ast.js';
 import {
   getTokenKey,
   isManimMotionEnabled,
@@ -212,6 +213,30 @@ test('generateManimPythonScript: supporta internazionalizzazione lingua inglese 
   assert.ok(script.includes('Isolating a in Newton second law'), 'Titolo in inglese');
   assert.ok(script.includes('Solved!'), 'Etichetta finale di successo in inglese');
   assert.ok(script.includes('TransformMatchingTex'), 'Usa TransformMatchingTex');
+});
+
+test('generateManimPythonScript: supporta passaggi da cronologia live con nodi AST e regole algebriche', () => {
+  const astStep0 = Eq(Var('v'), Div(Var('s'), Var('t')));
+  const astStep1 = Eq(Mul(Var('v'), Var('t')), Var('s'));
+  const astStep2 = Eq(Var('t'), Div(Var('s'), Var('v')));
+
+  const historySteps = [
+    { equation: astStep0, ruleName: 'Formula di partenza' },
+    { equation: astStep1, ruleName: 'Secondo principio: moltiplicazione per t' },
+    { equation: astStep2, ruleName: 'Secondo principio: divisione per v' }
+  ];
+
+  const script = generateManimPythonScript(
+    { id: 'custom', name: 'Velocità Lineare', formula: 'v = s/t' },
+    't',
+    historySteps
+  );
+
+  assert.ok(script.includes('step_0 = MathTex('), 'Genera step 0 da AST');
+  assert.ok(script.includes('step_1 = MathTex('), 'Genera step 1 da AST');
+  assert.ok(script.includes('step_2 = MathTex('), 'Genera step 2 da AST');
+  assert.ok(script.includes('Secondo principio: moltiplicazione per t'), 'Include nome regola come spiegazione passaggio');
+  assert.ok(script.includes('TransformMatchingTex(step_0, step_1)'), 'Usa TransformMatchingTex tra passaggi');
 });
 
 test('generateManimPythonScript: include istruzioni CLI per rendering a 60 FPS', () => {

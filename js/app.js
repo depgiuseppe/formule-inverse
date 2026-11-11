@@ -31,7 +31,7 @@ import {
   saveUserFormula, getUserFormulas, deleteUserFormula,
   clearUserFormulas, exportUserFormulasJSON, importUserFormulasJSON,
 } from './formula-db.js';
-import { initWorksheetExporter, openWorksheetModal } from './worksheet-export.js';
+import { initWorksheetExporter, openWorksheetModal, downloadWorksheetFile } from './worksheet-export.js';
 import {
   verbalizeEquation, verbalizeAst, verbalizeVar,
   announceMathLive, speakMath, stopSpeaking,
@@ -41,7 +41,7 @@ import {
   t, getLanguage, setLanguage, onLanguageChange, translateDomTree,
 } from './i18n.js';
 import {
-  isManimMotionEnabled, toggleManimMotion,
+  isManimMotionEnabled, toggleManimMotion, setManimMotionEnabled, generateManimPythonScript,
 } from './manim-motion.js';
 
 // Moduli UI specializzati estratti dall'architettura modulare
@@ -179,6 +179,12 @@ const dom = {
   btnTheme: $('#btn-theme'),
   btnLimMode: $('#btn-lim-mode'),
   btnManimToggle: $('#btn-manim-toggle'),
+  autoModeOptionsInline: $('#auto-mode-options-inline'),
+  manimAutoCheckbox: $('#manim-auto-checkbox'),
+  manimAutoCheckText: $('#manim-auto-check-text'),
+  btnAutoManimPlay: $('#btn-auto-manim-play'),
+  btnAutoManimExport: $('#btn-auto-manim-export'),
+  btnAutoManimView: $('#btn-auto-manim-view'),
   btnHeaderWorksheet: $('#btn-header-worksheet'),
   btnLangToggle: $('#btn-lang-toggle'),
   btnSpeakEquation: $('#btn-speak-equation'),
@@ -619,6 +625,7 @@ function openPickTargetModal(formulaEntry) {
 }
 
 function loadFormula(formulaEntry, targetVar) {
+  stopAutoManimPlay(true);
   cancelCompoundFractionAnimation();
   cancelActiveSwapAnimations();
   dismissDidacticBubble();
@@ -1316,6 +1323,8 @@ function bindModeEvents() {
       showMessage(modeDesc[state.mode] || '', 'info');
       const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
       if (card) card.classList.toggle('is-auto-mode', state.mode === 'auto');
+      if (dom.autoModeOptionsInline) dom.autoModeOptionsInline.hidden = (state.mode !== 'auto');
+      if (state.mode !== 'auto') stopAutoManimPlay(true);
 
       if (state.mode === 'auto') {
         showAutoMode();
@@ -1345,6 +1354,8 @@ function bindModeEvents() {
           b.setAttribute('aria-pressed', isFree ? 'true' : 'false');
         });
         if (state.quizManager) state.quizManager.setQuizModeActive(false);
+        if (dom.autoModeOptionsInline) dom.autoModeOptionsInline.hidden = true;
+        stopAutoManimPlay(true);
         const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
         if (card) card.classList.remove('is-auto-mode');
         const hintBadge = document.querySelector('.drag-hint-badge');
@@ -1365,6 +1376,8 @@ function bindModeEvents() {
           b.setAttribute('aria-pressed', 'false');
         });
         if (state.quizManager) state.quizManager.setQuizModeActive(true);
+        if (dom.autoModeOptionsInline) dom.autoModeOptionsInline.hidden = true;
+        stopAutoManimPlay(true);
         const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
         if (card) card.classList.remove('is-auto-mode');
         const hintBadge = document.querySelector('.drag-hint-badge');
@@ -1379,6 +1392,97 @@ function bindModeEvents() {
       }
     });
   }
+}
+
+let _isAutoPlaying = false;
+let _autoPlayTimer = null;
+
+function updateAutoManimPlayButton() {
+  if (!dom.btnAutoManimPlay) return;
+  if (_isAutoPlaying) {
+    dom.btnAutoManimPlay.classList.add('is-playing');
+    dom.btnAutoManimPlay.textContent = t('work.manim_auto_pause', '⏸️ Pausa Risoluzione');
+    dom.btnAutoManimPlay.setAttribute('title', 'Metti in pausa la risoluzione automatica animata');
+  } else {
+    dom.btnAutoManimPlay.classList.remove('is-playing');
+    dom.btnAutoManimPlay.textContent = t('work.manim_auto_play', '🎬 Risoluzione Animata');
+    dom.btnAutoManimPlay.setAttribute('title', 'Riproduci l\'intera risoluzione automaticamente passo dopo passo con animazione Manim TransformMatchingTex');
+  }
+}
+
+function startAutoManimPlay() {
+  if (!state.currentEq) {
+    showMessage('Seleziona prima una formula dalla libreria per avviare la risoluzione animata.', 'info');
+    return;
+  }
+  if (state.goalReached) {
+    showMessage(`🎉 Formula già risolta! La grandezza ${prettyVar(state.targetVar)} è già isolata.`, 'info');
+    return;
+  }
+
+  // Assicurati che l'animazione Manim sia attiva
+  if (!isManimMotionEnabled()) {
+    setManimMotionEnabled(true);
+    if (dom.manimAutoCheckbox) dom.manimAutoCheckbox.checked = true;
+    if (dom.btnManimToggle) {
+      dom.btnManimToggle.setAttribute('aria-pressed', 'true');
+      dom.btnManimToggle.classList.add('active');
+      dom.btnManimToggle.textContent = '🎬 Manim ON';
+    }
+  }
+
+  _isAutoPlaying = true;
+  updateAutoManimPlayButton();
+  announceMathLive('Avvio risoluzione automatica animata Manim');
+  showMessage('🎬 Risoluzione animata avviata: i passaggi si susseguono mostrando gli spostamenti dei termini.', 'info');
+
+  const runStep = () => {
+    if (!_isAutoPlaying || state.mode !== 'auto' || !state.currentEq || state.goalReached) {
+      stopAutoManimPlay(true);
+      return;
+    }
+    executeNextAutoStep();
+    if (state.goalReached) {
+      stopAutoManimPlay(true);
+      return;
+    }
+    _autoPlayTimer = setTimeout(runStep, 1400);
+  };
+
+  _autoPlayTimer = setTimeout(runStep, 250);
+}
+
+function stopAutoManimPlay(silent = false) {
+  if (_autoPlayTimer) {
+    clearTimeout(_autoPlayTimer);
+    _autoPlayTimer = null;
+  }
+  const wasPlaying = _isAutoPlaying;
+  _isAutoPlaying = false;
+  updateAutoManimPlayButton();
+  if (wasPlaying && !silent && !state.goalReached) {
+    showMessage('⏸️ Riproduzione animata in pausa. Fai clic per riprendere.', 'info');
+  }
+}
+
+function exportAutoManimScript() {
+  if (!state.currentFormula && !state.currentEq) return;
+  const formulaObj = state.currentFormula || {
+    id: 'formula-corrente',
+    name: 'Formula Matematica',
+    formula: toLatex(state.history && state.history[0]?.equation ? state.history[0].equation : state.currentEq),
+  };
+  const script = generateManimPythonScript(
+    formulaObj,
+    state.targetVar,
+    state.history && state.history.length > 1 ? state.history : null,
+    { lang: getLanguage() }
+  );
+  const safeTarget = (state.targetVar || 'incognita').replace(/[^a-zA-Z0-9_]/g, '');
+  const filename = `risoluzione_manim_${safeTarget}_${Date.now()}.py`;
+  downloadWorksheetFile(filename, script, 'text/x-python;charset=utf-8');
+  showMessage('🐍 Script Manim scaricato con successo!', 'success');
+  announceMathLive('Script Python per Manim scaricato');
 }
 
 let _isAutoStepping = false;
@@ -1537,6 +1641,14 @@ function showAutoMode() {
   const card = dom.equationDisplay ? dom.equationDisplay.closest('.equation-display-card') : null;
   if (card) card.classList.add('is-auto-mode');
 
+  if (dom.autoModeOptionsInline) {
+    dom.autoModeOptionsInline.hidden = false;
+  }
+  if (dom.manimAutoCheckbox) {
+    dom.manimAutoCheckbox.checked = isManimMotionEnabled();
+  }
+  updateAutoManimPlayButton();
+
   const hintBadge = document.querySelector('.drag-hint-badge');
   const hintText = document.querySelector('.drag-hint-text');
   if (hintBadge && hintText) {
@@ -1545,17 +1657,46 @@ function showAutoMode() {
   }
 
   if (state.goalReached) {
+    stopAutoManimPlay(true);
+    if (dom.btnAutoManimExport) dom.btnAutoManimExport.hidden = false;
+    if (dom.btnAutoManimView) dom.btnAutoManimView.hidden = false;
+
     if (dom.actionHint) dom.actionHint.textContent = 'Modalità Automatica:';
     if (dom.actionButtons) {
       dom.actionButtons.innerHTML = `
         <div class="auto-mode-finished">
           <div class="auto-success-header">🎉 Formula isolata con successo!</div>
           <p>La grandezza <strong>${prettyVar(state.targetVar)}</strong> è stata completamente isolata. Puoi cambiare la grandezza da isolare in alto o selezionare un'altra formula dalla libreria.</p>
+          <div class="auto-finished-actions">
+            <button class="btn btn-secondary btn-mini btn-export-manim-action" type="button" title="Scarica lo script Python per Manim Community con TransformMatchingTex">
+              🐍 Scarica Script Manim (.py)
+            </button>
+            <button class="btn btn-secondary btn-mini btn-view-manim-action" type="button" title="Visualizza lo script Manim nell'anteprima">
+              🎬 Anteprima Script Manim
+            </button>
+          </div>
         </div>
       `;
+      const exportBtn = dom.actionButtons.querySelector('.btn-export-manim-action');
+      if (exportBtn) {
+        exportBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          exportAutoManimScript();
+        });
+      }
+      const viewBtn = dom.actionButtons.querySelector('.btn-view-manim-action');
+      if (viewBtn) {
+        viewBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openWorksheetModal(dom, state, 'manim');
+        });
+      }
     }
     return;
   }
+
+  if (dom.btnAutoManimExport) dom.btnAutoManimExport.hidden = true;
+  if (dom.btnAutoManimView) dom.btnAutoManimView.hidden = true;
 
   const sug = suggestNextStep(state.currentEq, state.targetVar);
   const roadmap = computeRoadmap(state.currentEq, state.targetVar);
@@ -1871,6 +2012,7 @@ function bindGlobalEvents() {
       toggleManimMotion();
       updateManimBtn();
       const active = isManimMotionEnabled();
+      if (dom.manimAutoCheckbox) dom.manimAutoCheckbox.checked = active;
       announceMathLive(active
         ? 'Animazione Manim TransformMatchingTex attivata'
         : 'Animazione Manim disattivata');
@@ -1880,6 +2022,53 @@ function bindGlobalEvents() {
           : '⏸️ Animazione Manim disattivata.',
         'info'
       );
+    });
+  }
+
+  if (dom.manimAutoCheckbox) {
+    dom.manimAutoCheckbox.checked = isManimMotionEnabled();
+    dom.manimAutoCheckbox.addEventListener('change', (e) => {
+      const active = !!e.target.checked;
+      setManimMotionEnabled(active);
+      if (dom.btnManimToggle) {
+        dom.btnManimToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
+        dom.btnManimToggle.classList.toggle('active', active);
+        dom.btnManimToggle.textContent = active ? '🎬 Manim ON' : '🎬 Manim OFF';
+      }
+      announceMathLive(active
+        ? 'Opzione animazione Manim TransformMatchingTex attivata'
+        : 'Animazione Manim disattivata');
+      showMessage(
+        active
+          ? '🎬 Opzione animazione Manim attivata per la risoluzione automatica.'
+          : '⏸️ Animazione Manim disattivata per la risoluzione automatica.',
+        'info'
+      );
+    });
+  }
+
+  if (dom.btnAutoManimPlay) {
+    dom.btnAutoManimPlay.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (_isAutoPlaying) {
+        stopAutoManimPlay();
+      } else {
+        startAutoManimPlay();
+      }
+    });
+  }
+
+  if (dom.btnAutoManimExport) {
+    dom.btnAutoManimExport.addEventListener('click', (e) => {
+      e.stopPropagation();
+      exportAutoManimScript();
+    });
+  }
+
+  if (dom.btnAutoManimView) {
+    dom.btnAutoManimView.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openWorksheetModal(dom, state, 'manim');
     });
   }
 
