@@ -1363,33 +1363,138 @@ body.dark-theme .equation-display-card {
 }
 .op-anim-badge {
   position: absolute;
-  top: .6rem;
-  right: .8rem;
-  font-family: var(--font-math);
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: #fff;
-  background: var(--accent);
-  padding: .2rem .7rem;
-  border-radius: var(--radius-pill);
-  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.35);
-  pointer-events: none;
-  animation: opBadgeFloat .9s ease forwards;
+  top: 0.75rem;
+  right: 0.85rem;
+  max-width: 380px;
+  min-width: 150px;
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  color: #ffffff;
+  padding: 0.6rem 0.9rem;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -4px rgba(124, 58, 237, 0.45), 0 4px 12px -2px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  z-index: 45;
+  pointer-events: auto;
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  animation: opBadgeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.2s ease;
+  user-select: none;
 }
+
+.op-anim-badge:hover {
+  box-shadow: 0 14px 32px -4px rgba(124, 58, 237, 0.6), 0 6px 16px -2px rgba(0, 0, 0, 0.25);
+  transform: translateY(-1px);
+}
+
+.op-anim-badge.is-leaving {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
+  pointer-events: none;
+}
+
+/* Freccetta/becco stile vignetta orientato verso l'equazione */
+.op-anim-badge::after {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  right: 24px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 7px solid #6d28d9;
+}
+
+.op-anim-badge-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.op-anim-badge-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-math, 'STIX Two Text', serif);
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
+.op-anim-badge-icon {
+  font-size: 0.95rem;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+.op-anim-badge-close {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 3px 5px;
+  margin: -2px -4px -2px 0;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.op-anim-badge-close:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.op-anim-badge-desc {
+  font-family: var(--font, system-ui, sans-serif);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #f3e8ff;
+  font-weight: 500;
+  margin: 0;
+  padding-top: 0.25rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.25);
+}
+
 @keyframes opApplyPulse {
   0% { transform: scale(1); }
   35% { transform: scale(1.04); filter: drop-shadow(0 0 10px rgba(124, 58, 237, .35)); }
   100% { transform: scale(1); }
 }
-@keyframes opBadgeFloat {
-  0% { opacity: 0; transform: translateY(10px) scale(.8); }
-  30% { opacity: 1; transform: translateY(0) scale(1.05); }
-  70% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(-14px) scale(.95); }
+
+@keyframes opBadgeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.88);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
+
+@media (max-width: 640px) {
+  .op-anim-badge {
+    position: relative;
+    top: auto;
+    right: auto;
+    margin: 0.4rem auto 0.6rem auto;
+    max-width: 95%;
+    width: 95%;
+  }
+  .op-anim-badge::after {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .equation-display-card.op-animating .equation-display { animation: none; }
   .op-anim-badge { animation: none; opacity: 1; }
+  .op-anim-badge.is-leaving { animation: none; opacity: 0; }
 }
 
 /* Croce di semplificazione */

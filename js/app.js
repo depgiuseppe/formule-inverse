@@ -1446,7 +1446,7 @@ function startAutoManimPlay() {
       stopAutoManimPlay(true);
       return;
     }
-    _autoPlayTimer = setTimeout(runStep, 1400);
+    _autoPlayTimer = setTimeout(runStep, 2800);
   };
 
   _autoPlayTimer = setTimeout(runStep, 250);
@@ -1558,11 +1558,16 @@ function applyAutoStepState(sug, res) {
   }, false);
 
   const isTargetOnRight = isolatedSide(nextEq.right, state.targetVar);
+  const badgeOptions = {
+    reason: sug.reason || rule.principle || rule.name,
+    duration: _isAutoPlaying ? 2600 : 4500,
+  };
+
   if (isTargetOnRight) {
     state.currentEq = nextEq;
     renderEquationView();
     showRulePanel(rule, res, state.currentEq);
-    animateOperationBadge(sug.action.label, sug.action.operandText);
+    animateOperationBadge(sug.action.label, sug.action.operandText, badgeOptions);
     clearMessage();
 
     setTimeout(() => {
@@ -1600,7 +1605,7 @@ function applyAutoStepState(sug, res) {
       updateObjective();
       renderEquationView();
       showRulePanel(rule, res, state.currentEq);
-      animateOperationBadge(sug.action.label, sug.action.operandText);
+      animateOperationBadge(sug.action.label, sug.action.operandText, badgeOptions);
       clearMessage();
       if (state.goalReached) {
         if (checkAndAnimateCompoundFraction()) return;
@@ -1620,7 +1625,7 @@ function applyAutoStepState(sug, res) {
   updateObjective();
   renderEquationView();
   showRulePanel(rule, res, state.currentEq);
-  animateOperationBadge(sug.action.label, sug.action.operandText);
+  animateOperationBadge(sug.action.label, sug.action.operandText, badgeOptions);
   clearMessage();
 
   if (state.goalReached) {
@@ -1933,12 +1938,13 @@ function bindWorkAreaEvents() {
   if (eqCard) {
     eqCard.addEventListener('click', (e) => {
       if (state.mode !== 'auto') return;
-      if (e.target.closest('.cross-layer, .didactic-bubble-anchor, .btn-mini, .close-btn, button')) return;
+      if (e.target.closest('.cross-layer, .didactic-bubble-anchor, .btn-mini, .close-btn, button, .op-anim-badge')) return;
       executeNextAutoStep();
     });
   }
   dom.equationDisplay.addEventListener('click', (e) => {
     if (state.mode === 'auto') {
+      if (e.target.closest('.cross-layer, .didactic-bubble-anchor, .btn-mini, .close-btn, button, .op-anim-badge')) return;
       executeNextAutoStep();
       return;
     }

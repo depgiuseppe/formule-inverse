@@ -147,7 +147,12 @@ export function applyKeypadMove(opId, operandNode, operandText) {
     state.keypadOp = null;
     renderKeypad();
     if (ctx && ctx.clearPreview) ctx.clearPreview();
-    if (ctx && ctx.animateOperationBadge) ctx.animateOperationBadge(label, operandText);
+    if (ctx && ctx.animateOperationBadge) {
+      ctx.animateOperationBadge(label, operandText, {
+        reason: res.error || res.hint || 'Operazione non valida',
+        duration: 3500,
+      });
+    }
     if (ctx && ctx.showInvalidMove) ctx.showInvalidMove(res.error, res.hint, { label: `Applica ${label} a entrambi i membri` });
     return;
   }
@@ -197,7 +202,12 @@ export function applyKeypadMove(opId, operandNode, operandText) {
     );
   }
   if (ctx && ctx.clearMessage) ctx.clearMessage();
-  if (ctx && ctx.animateOperationBadge) ctx.animateOperationBadge(label, operandText);
+  if (ctx && ctx.animateOperationBadge) {
+    ctx.animateOperationBadge(label, operandText, {
+      reason: res.note || (res.steps && res.steps.length ? res.steps[0] : ruleName),
+      duration: 4500,
+    });
+  }
   if (ctx && ctx.showMessage) {
     ctx.showMessage(`✓ ${ruleName}.`, 'success');
     if (res.note) ctx.showMessage(res.note, 'info');
@@ -245,6 +255,12 @@ export function applyMirrorRule() {
     if (ctx && ctx.renderEquationView) ctx.renderEquationView();
     if (ctx && ctx.showRulePanel) {
       ctx.showRulePanel(rule, { steps: ['Scambio i due membri per la proprietà simmetrica.'], conditions: [] }, newEq);
+    }
+    if (ctx && ctx.animateOperationBadge) {
+      ctx.animateOperationBadge('Regola dello specchio', null, {
+        reason: rule.principle,
+        duration: 4500,
+      });
     }
     if (ctx && ctx.showMessage) ctx.showMessage('🪞 Regola dello specchio applicata: se A = B allora B = A!', 'success');
     if (state.goalReached) {
@@ -311,6 +327,12 @@ export function applyReciprocalRule() {
   if (ctx && ctx.renderEquationView) ctx.renderEquationView();
   if (ctx && ctx.showRulePanel) ctx.showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
   if (ctx && ctx.clearMessage) ctx.clearMessage();
+  if (ctx && ctx.animateOperationBadge) {
+    ctx.animateOperationBadge('Regola dei reciproci', null, {
+      reason: rule.principle,
+      duration: 4500,
+    });
+  }
   if (ctx && ctx.showMessage) ctx.showMessage('🔁 Regola dei reciproci applicata a entrambi i membri!', 'success');
   if (state.goalReached) {
     if (ctx && ctx.checkAndAnimateCompoundFraction && ctx.checkAndAnimateCompoundFraction()) return;
@@ -392,6 +414,12 @@ export function applyDistributeRule() {
     ctx.showRulePanel(rule, { steps: ['Sviluppate le parentesi con la proprietà distributiva'], conditions: [] }, res.equation);
   }
   if (ctx && ctx.clearMessage) ctx.clearMessage();
+  if (ctx && ctx.animateOperationBadge) {
+    ctx.animateOperationBadge('Proprietà distributiva', null, {
+      reason: rule.principle,
+      duration: 4500,
+    });
+  }
   if (ctx && ctx.showMessage) ctx.showMessage('📦 Proprietà distributiva applicata: parentesi sviluppate!', 'success');
   if (state.goalReached) {
     if (ctx && ctx.checkAndAnimateCompoundFraction && ctx.checkAndAnimateCompoundFraction()) return;
@@ -483,6 +511,12 @@ export function applyFactorCommonRule() {
     ctx.showRulePanel(rule, { steps: [`Raccolto ${commonText} a fattor comune`], conditions: [] }, res.equation);
   }
   if (ctx && ctx.clearMessage) ctx.clearMessage();
+  if (ctx && ctx.animateOperationBadge) {
+    ctx.animateOperationBadge('Raccoglimento a fattor comune', commonText, {
+      reason: rule.principle,
+      duration: 4500,
+    });
+  }
   if (ctx && ctx.showMessage) ctx.showMessage(`🧩 Raccoglimento a fattor comune applicato: ${commonText} messo in evidenza!`, 'success');
   if (state.goalReached) {
     if (ctx && ctx.checkAndAnimateCompoundFraction && ctx.checkAndAnimateCompoundFraction()) return;
@@ -551,6 +585,12 @@ export function applyCommonDenominatorRule() {
   if (ctx && ctx.renderEquationView) ctx.renderEquationView();
   if (ctx && ctx.showRulePanel) ctx.showRulePanel(rule, { steps: res.steps, conditions: [] }, newEq);
   if (ctx && ctx.clearMessage) ctx.clearMessage();
+  if (ctx && ctx.animateOperationBadge) {
+    ctx.animateOperationBadge('Denominatore comune (m.c.m.)', null, {
+      reason: rule.principle,
+      duration: 4500,
+    });
+  }
   if (ctx && ctx.showMessage) ctx.showMessage('🧮 Frazioni ridotte a denominatore comune (m.c.m.) in un\'unica frazione!', 'success');
 
   // Se la variabile cercata è isolata al secondo membro, animiamo il viaggio speculare
@@ -671,6 +711,12 @@ export function applyChangeSignRule() {
   if (ctx && ctx.flashSignChanged) ctx.flashSignChanged();
   if (ctx && ctx.showRulePanel) ctx.showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
   if (ctx && ctx.clearMessage) ctx.clearMessage();
+  if (ctx && ctx.animateOperationBadge) {
+    ctx.animateOperationBadge('Cambio di segno (· −1)', null, {
+      reason: rule.principle,
+      duration: 4500,
+    });
+  }
   if (ctx && ctx.showMessage) ctx.showMessage('± Regola del cambio di segno applicata: tutti i segni invertiti!', 'success');
   if (state.goalReached) {
     if (ctx && ctx.checkAndAnimateCompoundFraction && ctx.checkAndAnimateCompoundFraction()) return;

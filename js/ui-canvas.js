@@ -335,25 +335,116 @@ export function flashSignChanged() {
   }, 700);
 }
 
-export function animateOperationBadge(label, operandText) {
-  if (!dom.equationDisplay) return;
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+let _currentOpBadgeTimer = null;
+let _currentOpBadgeEl = null;
+
+export function animateOperationBadge(label, operandText, options = {}) {
+  if (!dom || !dom.equationDisplay) return;
   const card = dom.equationDisplay.closest('.equation-display-card') || dom.equationDisplay;
   card.classList.remove('op-animating');
   void card.offsetWidth;
   card.classList.add('op-animating');
 
-  const badge = document.createElement('span');
-  badge.className = 'op-anim-badge';
-  badge.textContent = operandText ? `${label}${prettyVar(operandText)}` : label;
-  badge.setAttribute('aria-hidden', 'true');
-  card.appendChild(badge);
+  // Rimuovi o chiudi la vignetta precedente senza sovrapposizioni
+  if (_currentOpBadgeTimer) {
+    clearTimeout(_currentOpBadgeTimer);
+    _currentOpBadgeTimer = null;
+  }
+  if (_currentOpBadgeEl && _currentOpBadgeEl.parentNode) {
+    _currentOpBadgeEl.parentNode.removeChild(_currentOpBadgeEl);
+    _currentOpBadgeEl = null;
+  }
 
-  const cleanup = () => {
+  const badge = document.createElement('div');
+  badge.className = 'op-anim-badge';
+  badge.setAttribute('role', 'status');
+  badge.setAttribute('aria-live', 'polite');
+
+  const titleText = operandText ? `${label} ${prettyVar(operandText)}` : label;
+  const reasonText = options.reason || options.justification || options.rulePrinciple || '';
+
+  const header = document.createElement('div');
+  header.className = 'op-anim-badge-header';
+
+  const titleSpan = document.createElement('span');
+  titleSpan.className = 'op-anim-badge-title';
+  titleSpan.innerHTML = `<span class="op-anim-badge-icon" aria-hidden="true">⚡</span> ${escapeHtml(titleText)}`;
+  header.appendChild(titleSpan);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'op-anim-badge-close';
+  closeBtn.type = 'button';
+  closeBtn.setAttribute('aria-label', 'Chiudi spiegazione passaggio');
+  closeBtn.title = 'Chiudi';
+  closeBtn.textContent = '✕';
+  header.appendChild(closeBtn);
+
+  badge.appendChild(header);
+
+  if (reasonText) {
+    const desc = document.createElement('p');
+    desc.className = 'op-anim-badge-desc';
+    desc.textContent = reasonText;
+    badge.appendChild(desc);
+  }
+
+  card.appendChild(badge);
+  _currentOpBadgeEl = badge;
+
+  const duration = typeof options.duration === 'number' ? options.duration : 4500;
+  let remainingMs = duration;
+  let startTime = Date.now();
+  let isHovered = false;
+
+  const dismissBadge = () => {
+    if (_currentOpBadgeTimer) {
+      clearTimeout(_currentOpBadgeTimer);
+      _currentOpBadgeTimer = null;
+    }
     card.classList.remove('op-animating');
-    if (badge.parentNode) badge.parentNode.removeChild(badge);
+    if (badge && badge.parentNode) {
+      badge.classList.add('is-leaving');
+      setTimeout(() => {
+        if (badge.parentNode) badge.parentNode.removeChild(badge);
+        if (_currentOpBadgeEl === badge) _currentOpBadgeEl = null;
+      }, 300);
+    }
   };
-  badge.addEventListener('animationend', cleanup);
-  setTimeout(cleanup, 1200);
+
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dismissBadge();
+  });
+
+  // Metti in pausa la dissolvenza se l'utente passa sopra il cursore/stilo per leggere con calma
+  badge.addEventListener('mouseenter', () => {
+    isHovered = true;
+    remainingMs -= (Date.now() - startTime);
+    if (_currentOpBadgeTimer) {
+      clearTimeout(_currentOpBadgeTimer);
+      _currentOpBadgeTimer = null;
+    }
+  });
+
+  badge.addEventListener('mouseleave', () => {
+    if (!isHovered) return;
+    isHovered = false;
+    startTime = Date.now();
+    const nextTimeout = Math.max(remainingMs, 1800);
+    _currentOpBadgeTimer = setTimeout(dismissBadge, nextTimeout);
+  });
+
+  _currentOpBadgeTimer = setTimeout(dismissBadge, duration);
 }
 
 export function cancelActiveSwapAnimations() {
@@ -363,6 +454,11 @@ export function cancelActiveSwapAnimations() {
     _currentMirrorAnims = [];
   }
   cleanupTouchDrag(dom.equationDisplay);
+  if (_currentOpBadgeTimer) {
+    clearTimeout(_currentOpBadgeTimer);
+    _currentOpBadgeTimer = null;
+  }
+  _currentOpBadgeEl = null;
   if (typeof document !== 'undefined') {
     document.querySelectorAll('.flying-math-token, .op-anim-badge').forEach((el) => el.remove());
   }
@@ -879,6 +975,11 @@ export function finalizeDragResult(result, meta = {}) {
     highlightLandedToken(meta.varName, meta.targetSide);
     if (ctx && ctx.showRulePanel) ctx.showRulePanel(pseudoRule, pseudoResult, nextEq);
     if (ctx && ctx.showMessage) ctx.showMessage(`✓ ${result.ruleName}!`, 'success');
+    animateOperationBadge(result.ruleName, null, {
+      reason: result.rulePrinciple || (result.steps && result.steps.length ? result.steps[0] : null),
+      ruleName: result.ruleName,
+      duration: 4500,
+    });
 
     setTimeout(() => {
       const flipped = ensureTargetOnFirstMember(state.currentEq, state.targetVar);
@@ -932,6 +1033,10 @@ export function finalizeDragResult(result, meta = {}) {
   if (ctx && ctx.showRulePanel) ctx.showRulePanel(pseudoRule, pseudoResult, result.newEq);
   if (ctx && ctx.clearMessage) ctx.clearMessage();
   if (ctx && ctx.showMessage) ctx.showMessage(`✓ ${result.ruleName}!`, 'success');
+  animateOperationBadge(result.ruleName, null, {
+    reason: result.rulePrinciple || (result.steps && result.steps.length ? result.steps[0] : null),
+    ruleName: result.ruleName,
+  });
 
   if (state.goalReached) {
     if (checkAndAnimateCompoundFraction()) return;

@@ -14563,7 +14563,12 @@ ${lines.join(" \\\\\n")}
       state3.keypadOp = null;
       renderKeypad();
       if (ctx3 && ctx3.clearPreview) ctx3.clearPreview();
-      if (ctx3 && ctx3.animateOperationBadge) ctx3.animateOperationBadge(label, operandText);
+      if (ctx3 && ctx3.animateOperationBadge) {
+        ctx3.animateOperationBadge(label, operandText, {
+          reason: res.error || res.hint || "Operazione non valida",
+          duration: 3500
+        });
+      }
       if (ctx3 && ctx3.showInvalidMove) ctx3.showInvalidMove(res.error, res.hint, { label: `Applica ${label} a entrambi i membri` });
       return;
     }
@@ -14608,7 +14613,12 @@ ${lines.join(" \\\\\n")}
       );
     }
     if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
-    if (ctx3 && ctx3.animateOperationBadge) ctx3.animateOperationBadge(label, operandText);
+    if (ctx3 && ctx3.animateOperationBadge) {
+      ctx3.animateOperationBadge(label, operandText, {
+        reason: res.note || (res.steps && res.steps.length ? res.steps[0] : ruleName),
+        duration: 4500
+      });
+    }
     if (ctx3 && ctx3.showMessage) {
       ctx3.showMessage(`\u2713 ${ruleName}.`, "success");
       if (res.note) ctx3.showMessage(res.note, "info");
@@ -14651,6 +14661,12 @@ ${lines.join(" \\\\\n")}
       if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
       if (ctx3 && ctx3.showRulePanel) {
         ctx3.showRulePanel(rule, { steps: ["Scambio i due membri per la propriet\xE0 simmetrica."], conditions: [] }, newEq);
+      }
+      if (ctx3 && ctx3.animateOperationBadge) {
+        ctx3.animateOperationBadge("Regola dello specchio", null, {
+          reason: rule.principle,
+          duration: 4500
+        });
       }
       if (ctx3 && ctx3.showMessage) ctx3.showMessage("\u{1FA9E} Regola dello specchio applicata: se A = B allora B = A!", "success");
       if (state3.goalReached) {
@@ -14707,6 +14723,12 @@ ${lines.join(" \\\\\n")}
     if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
     if (ctx3 && ctx3.showRulePanel) ctx3.showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
     if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
+    if (ctx3 && ctx3.animateOperationBadge) {
+      ctx3.animateOperationBadge("Regola dei reciproci", null, {
+        reason: rule.principle,
+        duration: 4500
+      });
+    }
     if (ctx3 && ctx3.showMessage) ctx3.showMessage("\u{1F501} Regola dei reciproci applicata a entrambi i membri!", "success");
     if (state3.goalReached) {
       if (ctx3 && ctx3.checkAndAnimateCompoundFraction && ctx3.checkAndAnimateCompoundFraction()) return;
@@ -14776,6 +14798,12 @@ ${lines.join(" \\\\\n")}
       ctx3.showRulePanel(rule, { steps: ["Sviluppate le parentesi con la propriet\xE0 distributiva"], conditions: [] }, res.equation);
     }
     if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
+    if (ctx3 && ctx3.animateOperationBadge) {
+      ctx3.animateOperationBadge("Propriet\xE0 distributiva", null, {
+        reason: rule.principle,
+        duration: 4500
+      });
+    }
     if (ctx3 && ctx3.showMessage) ctx3.showMessage("\u{1F4E6} Propriet\xE0 distributiva applicata: parentesi sviluppate!", "success");
     if (state3.goalReached) {
       if (ctx3 && ctx3.checkAndAnimateCompoundFraction && ctx3.checkAndAnimateCompoundFraction()) return;
@@ -14854,6 +14882,12 @@ ${lines.join(" \\\\\n")}
       ctx3.showRulePanel(rule, { steps: [`Raccolto ${commonText} a fattor comune`], conditions: [] }, res.equation);
     }
     if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
+    if (ctx3 && ctx3.animateOperationBadge) {
+      ctx3.animateOperationBadge("Raccoglimento a fattor comune", commonText, {
+        reason: rule.principle,
+        duration: 4500
+      });
+    }
     if (ctx3 && ctx3.showMessage) ctx3.showMessage(`\u{1F9E9} Raccoglimento a fattor comune applicato: ${commonText} messo in evidenza!`, "success");
     if (state3.goalReached) {
       if (ctx3 && ctx3.checkAndAnimateCompoundFraction && ctx3.checkAndAnimateCompoundFraction()) return;
@@ -14910,6 +14944,12 @@ ${lines.join(" \\\\\n")}
     if (ctx3 && ctx3.renderEquationView) ctx3.renderEquationView();
     if (ctx3 && ctx3.showRulePanel) ctx3.showRulePanel(rule, { steps: res.steps, conditions: [] }, newEq);
     if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
+    if (ctx3 && ctx3.animateOperationBadge) {
+      ctx3.animateOperationBadge("Denominatore comune (m.c.m.)", null, {
+        reason: rule.principle,
+        duration: 4500
+      });
+    }
     if (ctx3 && ctx3.showMessage) ctx3.showMessage("\u{1F9EE} Frazioni ridotte a denominatore comune (m.c.m.) in un'unica frazione!", "success");
     if (state3.targetVar && isolatedSide(newEq.right, state3.targetVar) && !collectVars(newEq.left).has(state3.targetVar)) {
       const swapped = Eq(newEq.right, newEq.left);
@@ -15016,6 +15056,12 @@ ${lines.join(" \\\\\n")}
     if (ctx3 && ctx3.flashSignChanged) ctx3.flashSignChanged();
     if (ctx3 && ctx3.showRulePanel) ctx3.showRulePanel(rule, { steps: [rule.principle], conditions: [] }, newEq);
     if (ctx3 && ctx3.clearMessage) ctx3.clearMessage();
+    if (ctx3 && ctx3.animateOperationBadge) {
+      ctx3.animateOperationBadge("Cambio di segno (\xB7 \u22121)", null, {
+        reason: rule.principle,
+        duration: 4500
+      });
+    }
     if (ctx3 && ctx3.showMessage) ctx3.showMessage("\xB1 Regola del cambio di segno applicata: tutti i segni invertiti!", "success");
     if (state3.goalReached) {
       if (ctx3 && ctx3.checkAndAnimateCompoundFraction && ctx3.checkAndAnimateCompoundFraction()) return;
@@ -15306,23 +15352,92 @@ ${lines.join(" \\\\\n")}
       }
     }, 700);
   }
-  function animateOperationBadge(label, operandText) {
-    if (!dom4.equationDisplay) return;
+  function escapeHtml5(s) {
+    if (s == null) return "";
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  var _currentOpBadgeTimer = null;
+  var _currentOpBadgeEl = null;
+  function animateOperationBadge(label, operandText, options = {}) {
+    if (!dom4 || !dom4.equationDisplay) return;
     const card = dom4.equationDisplay.closest(".equation-display-card") || dom4.equationDisplay;
     card.classList.remove("op-animating");
     void card.offsetWidth;
     card.classList.add("op-animating");
-    const badge = document.createElement("span");
+    if (_currentOpBadgeTimer) {
+      clearTimeout(_currentOpBadgeTimer);
+      _currentOpBadgeTimer = null;
+    }
+    if (_currentOpBadgeEl && _currentOpBadgeEl.parentNode) {
+      _currentOpBadgeEl.parentNode.removeChild(_currentOpBadgeEl);
+      _currentOpBadgeEl = null;
+    }
+    const badge = document.createElement("div");
     badge.className = "op-anim-badge";
-    badge.textContent = operandText ? `${label}${prettyVar(operandText)}` : label;
-    badge.setAttribute("aria-hidden", "true");
+    badge.setAttribute("role", "status");
+    badge.setAttribute("aria-live", "polite");
+    const titleText = operandText ? `${label} ${prettyVar(operandText)}` : label;
+    const reasonText = options.reason || options.justification || options.rulePrinciple || "";
+    const header = document.createElement("div");
+    header.className = "op-anim-badge-header";
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "op-anim-badge-title";
+    titleSpan.innerHTML = `<span class="op-anim-badge-icon" aria-hidden="true">\u26A1</span> ${escapeHtml5(titleText)}`;
+    header.appendChild(titleSpan);
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "op-anim-badge-close";
+    closeBtn.type = "button";
+    closeBtn.setAttribute("aria-label", "Chiudi spiegazione passaggio");
+    closeBtn.title = "Chiudi";
+    closeBtn.textContent = "\u2715";
+    header.appendChild(closeBtn);
+    badge.appendChild(header);
+    if (reasonText) {
+      const desc = document.createElement("p");
+      desc.className = "op-anim-badge-desc";
+      desc.textContent = reasonText;
+      badge.appendChild(desc);
+    }
     card.appendChild(badge);
-    const cleanup = () => {
+    _currentOpBadgeEl = badge;
+    const duration = typeof options.duration === "number" ? options.duration : 4500;
+    let remainingMs = duration;
+    let startTime = Date.now();
+    let isHovered = false;
+    const dismissBadge = () => {
+      if (_currentOpBadgeTimer) {
+        clearTimeout(_currentOpBadgeTimer);
+        _currentOpBadgeTimer = null;
+      }
       card.classList.remove("op-animating");
-      if (badge.parentNode) badge.parentNode.removeChild(badge);
+      if (badge && badge.parentNode) {
+        badge.classList.add("is-leaving");
+        setTimeout(() => {
+          if (badge.parentNode) badge.parentNode.removeChild(badge);
+          if (_currentOpBadgeEl === badge) _currentOpBadgeEl = null;
+        }, 300);
+      }
     };
-    badge.addEventListener("animationend", cleanup);
-    setTimeout(cleanup, 1200);
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      dismissBadge();
+    });
+    badge.addEventListener("mouseenter", () => {
+      isHovered = true;
+      remainingMs -= Date.now() - startTime;
+      if (_currentOpBadgeTimer) {
+        clearTimeout(_currentOpBadgeTimer);
+        _currentOpBadgeTimer = null;
+      }
+    });
+    badge.addEventListener("mouseleave", () => {
+      if (!isHovered) return;
+      isHovered = false;
+      startTime = Date.now();
+      const nextTimeout = Math.max(remainingMs, 1800);
+      _currentOpBadgeTimer = setTimeout(dismissBadge, nextTimeout);
+    });
+    _currentOpBadgeTimer = setTimeout(dismissBadge, duration);
   }
   function cancelActiveSwapAnimations() {
     _isMirrorSwapping = false;
@@ -15336,6 +15451,11 @@ ${lines.join(" \\\\\n")}
       _currentMirrorAnims = [];
     }
     cleanupTouchDrag(dom4.equationDisplay);
+    if (_currentOpBadgeTimer) {
+      clearTimeout(_currentOpBadgeTimer);
+      _currentOpBadgeTimer = null;
+    }
+    _currentOpBadgeEl = null;
     if (typeof document !== "undefined") {
       document.querySelectorAll(".flying-math-token, .op-anim-badge").forEach((el) => el.remove());
     }
@@ -15745,6 +15865,11 @@ ${lines.join(" \\\\\n")}
       highlightLandedToken(meta.varName, meta.targetSide);
       if (ctx4 && ctx4.showRulePanel) ctx4.showRulePanel(pseudoRule, pseudoResult, nextEq);
       if (ctx4 && ctx4.showMessage) ctx4.showMessage(`\u2713 ${result.ruleName}!`, "success");
+      animateOperationBadge(result.ruleName, null, {
+        reason: result.rulePrinciple || (result.steps && result.steps.length ? result.steps[0] : null),
+        ruleName: result.ruleName,
+        duration: 4500
+      });
       setTimeout(() => {
         const flipped = ensureTargetOnFirstMember(state4.currentEq, state4.targetVar);
         if (flipped !== state4.currentEq) {
@@ -15795,6 +15920,10 @@ ${lines.join(" \\\\\n")}
     if (ctx4 && ctx4.showRulePanel) ctx4.showRulePanel(pseudoRule, pseudoResult, result.newEq);
     if (ctx4 && ctx4.clearMessage) ctx4.clearMessage();
     if (ctx4 && ctx4.showMessage) ctx4.showMessage(`\u2713 ${result.ruleName}!`, "success");
+    animateOperationBadge(result.ruleName, null, {
+      reason: result.rulePrinciple || (result.steps && result.steps.length ? result.steps[0] : null),
+      ruleName: result.ruleName
+    });
     if (state4.goalReached) {
       if (checkAndAnimateCompoundFraction()) return;
       if (ctx4 && ctx4.playSuccessChime) ctx4.playSuccessChime();
@@ -16349,14 +16478,14 @@ ${lines.join(" \\\\\n")}
       try {
         mathHtml = renderEquation(parseFormulaCached(f.formula), {});
       } catch (e) {
-        mathHtml = escapeHtml5(f.formula);
+        mathHtml = escapeHtml6(f.formula);
       }
       card.innerHTML = `
       <div class="formula-card-head">
-        <span class="formula-topic">${escapeHtml5(f.topic)}</span>
+        <span class="formula-topic">${escapeHtml6(f.topic)}</span>
         <span class="formula-diff" title="Difficolt\xE0 ${f.difficulty}/5">${dif}</span>
       </div>
-      <div class="formula-name">${escapeHtml5(f.name)}</div>
+      <div class="formula-name">${escapeHtml6(f.name)}</div>
       <div class="formula-math">${mathHtml}</div>
       <div class="formula-isolate">
         <span class="isolate-label">Scegli cosa ricavare:</span>
@@ -16408,7 +16537,7 @@ ${lines.join(" \\\\\n")}
       const btn = document.createElement("button");
       btn.className = "pick-target-btn";
       btn.type = "button";
-      btn.innerHTML = `<span>${escapeHtml5(prettyVar(v))}</span><small>ricava ${escapeHtml5(prettyVar(v))}</small>`;
+      btn.innerHTML = `<span>${escapeHtml6(prettyVar(v))}</span><small>ricava ${escapeHtml6(prettyVar(v))}</small>`;
       btn.addEventListener("click", () => {
         dom5.pickTargetBackdrop.hidden = true;
         loadFormula(formulaEntry, v);
@@ -16521,8 +16650,8 @@ ${lines.join(" \\\\\n")}
       const btn = document.createElement("button");
       btn.className = "action-btn";
       btn.type = "button";
-      btn.innerHTML = `<span class="action-label">${escapeHtml5(action.label)}</span>
-      <span class="action-desc">${escapeHtml5(action.description || "")}</span>`;
+      btn.innerHTML = `<span class="action-label">${escapeHtml6(action.label)}</span>
+      <span class="action-desc">${escapeHtml6(action.description || "")}</span>`;
       btn.addEventListener("click", () => previewAction(action));
       dom5.actionButtons.appendChild(btn);
     }
@@ -16577,7 +16706,7 @@ ${lines.join(" \\\\\n")}
   }
   function showPreview(action, res) {
     dom5.previewBox.hidden = false;
-    dom5.previewText.innerHTML = `Anteprima: <span class="preview-eq">${escapeHtml5(toPretty(res.equation, 0))}</span> \u2014 regola: <em>${escapeHtml5(action.label)}</em>`;
+    dom5.previewText.innerHTML = `Anteprima: <span class="preview-eq">${escapeHtml6(toPretty(res.equation, 0))}</span> \u2014 regola: <em>${escapeHtml6(action.label)}</em>`;
     dom5.btnConfirm.focus();
   }
   function clearPreview() {
@@ -16685,36 +16814,36 @@ ${lines.join(" \\\\\n")}
   }
   function showRulePanel(rule, result, afterEq) {
     const ex = rule ? getExplanation(rule.explanation) : null;
-    let html = `<div class="rule-name">\u{1F4DC} ${escapeHtml5(rule ? rule.name : "Trasformazione")}</div>`;
+    let html = `<div class="rule-name">\u{1F4DC} ${escapeHtml6(rule ? rule.name : "Trasformazione")}</div>`;
     if (ex) {
-      html += `<div class="rule-section"><strong>\u{1F4A1} Spiegazione intuitiva</strong><p>${escapeHtml5(ex.intuitiva)}</p></div>`;
-      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio di equivalenza</strong><p>${escapeHtml5(ex.principio)}</p></div>`;
-      html += `<div class="rule-section"><strong>\u{1F3AF} Perch\xE9 \xE8 corretta</strong><p>${escapeHtml5(ex.perche)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u{1F4A1} Spiegazione intuitiva</strong><p>${escapeHtml6(ex.intuitiva)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio di equivalenza</strong><p>${escapeHtml6(ex.principio)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u{1F3AF} Perch\xE9 \xE8 corretta</strong><p>${escapeHtml6(ex.perche)}</p></div>`;
     } else if (rule && rule.principle) {
-      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio matematico</strong><p>${escapeHtml5(rule.principle)}</p></div>`;
+      html += `<div class="rule-section"><strong>\u2696\uFE0F Principio matematico</strong><p>${escapeHtml6(rule.principle)}</p></div>`;
     }
     if (result.steps && result.steps.length) {
-      html += `<div class="rule-section"><strong>\u2699\uFE0F Operazione svolta</strong><ul class="steps-list">${result.steps.map((s) => `<li>${escapeHtml5(s)}</li>`).join("")}</ul></div>`;
+      html += `<div class="rule-section"><strong>\u2699\uFE0F Operazione svolta</strong><ul class="steps-list">${result.steps.map((s) => `<li>${escapeHtml6(s)}</li>`).join("")}</ul></div>`;
     }
     html += `<div class="rule-section rule-eq"><strong>\u{1F4D0} Equazione dopo</strong><div class="rule-math">${renderEquation(afterEq, {})}</div></div>`;
     if (result.conditions && result.conditions.length) {
-      html += `<div class="rule-section conditions"><strong>\u{1F50D} Condizioni di validit\xE0 richieste</strong><ul>${result.conditions.map((c) => `<li>${escapeHtml5(c)}</li>`).join("")}</ul></div>`;
+      html += `<div class="rule-section conditions"><strong>\u{1F50D} Condizioni di validit\xE0 richieste</strong><ul>${result.conditions.map((c) => `<li>${escapeHtml6(c)}</li>`).join("")}</ul></div>`;
     }
     if (ex && ex.attenzione && ex.attenzione.length) {
-      html += `<div class="rule-section warning"><strong>\u26A0\uFE0F Attenzione</strong><ul>${ex.attenzione.map((c) => `<li>${escapeHtml5(c)}</li>`).join("")}</ul></div>`;
+      html += `<div class="rule-section warning"><strong>\u26A0\uFE0F Attenzione</strong><ul>${ex.attenzione.map((c) => `<li>${escapeHtml6(c)}</li>`).join("")}</ul></div>`;
     }
     if (result.note) {
-      html += `<div class="rule-section warning"><p>${escapeHtml5(result.note)}</p></div>`;
+      html += `<div class="rule-section warning"><p>${escapeHtml6(result.note)}</p></div>`;
     }
     dom5.rulePanel.innerHTML = html;
   }
   function updateRulePanelInitial(formulaEntry) {
     dom5.rulePanel.innerHTML = `
     <div class="rule-name">Formula di partenza</div>
-    <div class="rule-section"><strong>${escapeHtml5(formulaEntry.name)}</strong>
+    <div class="rule-section"><strong>${escapeHtml6(formulaEntry.name)}</strong>
       <div class="rule-math">${renderEquation(state5.startEq, {})}</div></div>
-    ${formulaEntry.notes ? `<div class="rule-section"><p>${escapeHtml5(formulaEntry.notes)}</p></div>` : ""}
-    ${formulaEntry.hypotheses ? `<div class="rule-section"><strong>Ipotesi</strong><p>${escapeHtml5(formulaEntry.hypotheses)}</p></div>` : ""}
+    ${formulaEntry.notes ? `<div class="rule-section"><p>${escapeHtml6(formulaEntry.notes)}</p></div>` : ""}
+    ${formulaEntry.hypotheses ? `<div class="rule-section"><strong>Ipotesi</strong><p>${escapeHtml6(formulaEntry.hypotheses)}</p></div>` : ""}
     <div class="rule-section"><p>Seleziona un elemento nell'area di lavoro per iniziare a ricavare la formula inversa.</p></div>
   `;
   }
@@ -16815,7 +16944,7 @@ ${lines.join(" \\\\\n")}
       return;
     }
     dom5.conditionsBox.hidden = false;
-    dom5.conditionsList.innerHTML = state5.conditions.map((c) => `<li>${escapeHtml5(c)}</li>`).join("");
+    dom5.conditionsList.innerHTML = state5.conditions.map((c) => `<li>${escapeHtml6(c)}</li>`).join("");
   }
   function getSolvedExpression() {
     if (!state5.currentEq || !state5.targetVar) return null;
@@ -16877,11 +17006,11 @@ ${lines.join(" \\\\\n")}
       item.innerHTML = `
       <div class="calc-input-meta">
         <span class="calc-input-symbol">${prettyVar(v)}</span>
-        <span class="calc-input-label" title="${escapeHtml5(qInfo.name)}">${escapeHtml5(qInfo.name)}</span>
+        <span class="calc-input-label" title="${escapeHtml6(qInfo.name)}">${escapeHtml6(qInfo.name)}</span>
       </div>
       <div class="calc-input-row">
-        <input type="number" step="any" class="calc-num-input" data-var="${escapeHtml5(v)}" placeholder="0" />
-        <span class="calc-unit-badge">${escapeHtml5(qInfo.unit)}</span>
+        <input type="number" step="any" class="calc-num-input" data-var="${escapeHtml6(v)}" placeholder="0" />
+        <span class="calc-unit-badge">${escapeHtml6(qInfo.unit)}</span>
       </div>
     `;
       const input = item.querySelector(".calc-num-input");
@@ -17155,7 +17284,7 @@ ${lines.join(" \\\\\n")}
         stopAutoManimPlay(true);
         return;
       }
-      _autoPlayTimer = setTimeout(runStep, 1400);
+      _autoPlayTimer = setTimeout(runStep, 2800);
     };
     _autoPlayTimer = setTimeout(runStep, 250);
   }
@@ -17254,11 +17383,15 @@ ${lines.join(" \\\\\n")}
       verified: true
     }, false);
     const isTargetOnRight = isolatedSide(nextEq.right, state5.targetVar);
+    const badgeOptions = {
+      reason: sug.reason || rule.principle || rule.name,
+      duration: _isAutoPlaying ? 2600 : 4500
+    };
     if (isTargetOnRight) {
       state5.currentEq = nextEq;
       renderEquationView();
       showRulePanel(rule, res, state5.currentEq);
-      animateOperationBadge(sug.action.label, sug.action.operandText);
+      animateOperationBadge(sug.action.label, sug.action.operandText, badgeOptions);
       clearMessage();
       setTimeout(() => {
         const flipped = ensureTargetOnFirstMember(state5.currentEq, state5.targetVar);
@@ -17294,7 +17427,7 @@ ${lines.join(" \\\\\n")}
         updateObjective();
         renderEquationView();
         showRulePanel(rule, res, state5.currentEq);
-        animateOperationBadge(sug.action.label, sug.action.operandText);
+        animateOperationBadge(sug.action.label, sug.action.operandText, badgeOptions);
         clearMessage();
         if (state5.goalReached) {
           if (checkAndAnimateCompoundFraction()) return;
@@ -17313,7 +17446,7 @@ ${lines.join(" \\\\\n")}
     updateObjective();
     renderEquationView();
     showRulePanel(rule, res, state5.currentEq);
-    animateOperationBadge(sug.action.label, sug.action.operandText);
+    animateOperationBadge(sug.action.label, sug.action.operandText, badgeOptions);
     clearMessage();
     if (state5.goalReached) {
       if (checkAndAnimateCompoundFraction()) return;
@@ -17389,15 +17522,15 @@ ${lines.join(" \\\\\n")}
     if (!dom5.actionButtons) return;
     dom5.actionButtons.innerHTML = "";
     if (!sug.found) {
-      dom5.actionButtons.innerHTML = `<p class="placeholder small">${escapeHtml5(sug.message || "Nessuna sequenza automatica diretta trovata per questa formula.")}</p>`;
+      dom5.actionButtons.innerHTML = `<p class="placeholder small">${escapeHtml6(sug.message || "Nessuna sequenza automatica diretta trovata per questa formula.")}</p>`;
       return;
     }
     const nextBtn = document.createElement("button");
     nextBtn.className = "action-btn auto-step-btn";
     nextBtn.type = "button";
     nextBtn.innerHTML = `
-    <span class="action-label">\u{1F5B1}\uFE0F Fai clic per eseguire: ${escapeHtml5(sug.action.label)}</span>
-    <span class="action-desc"><strong>Giustificazione della regola:</strong> ${escapeHtml5(sug.reason || sug.action.description || "")}</span>
+    <span class="action-label">\u{1F5B1}\uFE0F Fai clic per eseguire: ${escapeHtml6(sug.action.label)}</span>
+    <span class="action-desc"><strong>Giustificazione della regola:</strong> ${escapeHtml6(sug.reason || sug.action.description || "")}</span>
   `;
     nextBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -17414,8 +17547,8 @@ ${lines.join(" \\\\\n")}
           <li class="roadmap-item ${idx === 0 ? "roadmap-current" : ""}">
             <span class="roadmap-step-num">${idx + 1}</span>
             <div class="roadmap-step-content">
-              <strong>${escapeHtml5(s.action.label)}</strong>
-              <p>${escapeHtml5(s.reason || s.action.description || "")}</p>
+              <strong>${escapeHtml6(s.action.label)}</strong>
+              <p>${escapeHtml6(s.reason || s.action.description || "")}</p>
             </div>
           </li>
         `).join("")}
@@ -17621,12 +17754,13 @@ ${lines.join(" \\\\\n")}
     if (eqCard) {
       eqCard.addEventListener("click", (e) => {
         if (state5.mode !== "auto") return;
-        if (e.target.closest(".cross-layer, .didactic-bubble-anchor, .btn-mini, .close-btn, button")) return;
+        if (e.target.closest(".cross-layer, .didactic-bubble-anchor, .btn-mini, .close-btn, button, .op-anim-badge")) return;
         executeNextAutoStep();
       });
     }
     dom5.equationDisplay.addEventListener("click", (e) => {
       if (state5.mode === "auto") {
+        if (e.target.closest(".cross-layer, .didactic-bubble-anchor, .btn-mini, .close-btn, button, .op-anim-badge")) return;
         executeNextAutoStep();
         return;
       }
@@ -17861,7 +17995,7 @@ ${lines.join(" \\\\\n")}
       announceMathLive(lang === "it" ? "Lingua impostata su Italiano" : "Language set to English");
     });
   }
-  function escapeHtml5(s) {
+  function escapeHtml6(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   }
   if (document.readyState === "loading") {

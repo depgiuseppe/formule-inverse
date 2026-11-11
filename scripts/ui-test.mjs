@@ -506,6 +506,39 @@ async function run() {
     ruleTitle1.length > 0 && /principio|regola|moltiplicazione|divisione/i.test(rulePanelText),
     `Regola: "${ruleTitle1}"`);
 
+  // Verifica persistenza e leggibilità didattica della vignetta viola (.op-anim-badge)
+  const badgeState = await page.evaluate(() => {
+    const badge = document.querySelector('.op-anim-badge');
+    if (!badge) return { exists: false };
+    const style = window.getComputedStyle(badge);
+    const title = badge.querySelector('.op-anim-badge-title')?.innerText || '';
+    const desc = badge.querySelector('.op-anim-badge-desc')?.innerText || '';
+    const hasClose = !!badge.querySelector('.op-anim-badge-close');
+    return {
+      exists: true,
+      title,
+      desc,
+      hasClose,
+      bg: style.backgroundImage || style.backgroundColor,
+      color: style.color,
+    };
+  });
+  check('Vignetta viola (.op-anim-badge) presente con titolo, giustificazione e tasto chiudi',
+    badgeState.exists && badgeState.title.length > 0 && badgeState.desc.length > 0 && badgeState.hasClose,
+    JSON.stringify(badgeState));
+
+  // Attende 1.5 secondi (il vecchio badge spariva tra 0.9s e 1.2s): la nuova vignetta deve essere ancora visibile
+  await page.waitForTimeout(1600);
+  const isBadgeStillVisible = await page.locator('.op-anim-badge').isVisible();
+  check('Vignetta viola rimane visibile oltre 1.5s per consentire lettura agevole (persistenza estesa)',
+    isBadgeStillVisible);
+
+  // Test chiusura manuale con il tasto ✕
+  await page.locator('.op-anim-badge-close').click();
+  await page.waitForTimeout(350);
+  const isBadgeClosed = !(await page.locator('.op-anim-badge').isVisible());
+  check('Tasto ✕ chiude immediatamente la vignetta senza attendere il timer', isBadgeClosed);
+
   // Continua a cliccare fino al completamento dell'isolamento
   for (let i = 0; i < 4; i++) {
     const isDone = (await page.locator('#objective-status').innerText()).includes('Raggiunto');
